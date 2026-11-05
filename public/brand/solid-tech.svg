@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <title>Track For</title>
+  <defs>
+    <linearGradient id="blue" x1="32" y1="128" x2="125" y2="2" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0563ad"/>
+      <stop offset="1" stop-color="#008bd2"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="12" fill="#202020"/>
+  <path fill="#fff" d="M4 40h40c-7 4-12 9-14 16H4V40Zm53-18h14v15H57V22Zm20-11h14v15c-3 4-8 7-14 9V11ZM57 62h16v12h29v17H73v33H57V62Z"/>
+  <path fill="url(#blue)" d="M31 124V66c5-17 14-25 29-26l19-1c7 0 12-2 16-6l10-11-9-8 29-8-4 35-9-8-14 15c-7 7-15 10-27 10l-13 1c-5 1-8 4-10 9v56H31Z"/>
+</svg>

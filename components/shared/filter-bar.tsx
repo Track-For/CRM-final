@@ -1,0 +1,72 @@
+"use client"
+
+import { Search, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+import type { Option } from "@/lib/constants"
+
+export const ALL = "__all"
+
+export interface FilterDef {
+  key: string
+  label: string
+  options: Option[]
+  value: string
+  onChange: (value: string) => void
+}
+
+interface FilterBarProps {
+  search?: string
+  onSearch?: (value: string) => void
+  searchPlaceholder?: string
+  filters?: FilterDef[]
+  onClear?: () => void
+  children?: React.ReactNode
+  className?: string
+}
+
+/** Barra de busca + filtros em select. Valor `ALL` significa "sem filtro". */
+export function FilterBar({ search, onSearch, searchPlaceholder = "Buscar...", filters = [], onClear, children, className }: FilterBarProps) {
+  const active = filters.some((f) => f.value !== ALL) || Boolean(search)
+  return (
+    <div className={cn("mb-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center", className)}>
+      {onSearch && (
+        <div className="relative lg:w-72">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search ?? ""} onChange={(e) => onSearch(e.target.value)} placeholder={searchPlaceholder} className="pl-8" />
+        </div>
+      )}
+      {filters.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          {filters.map((f) => (
+            <Select key={f.key} value={f.value} onValueChange={f.onChange}>
+              <SelectTrigger className={cn("w-full sm:w-auto sm:min-w-36", f.value !== ALL && "border-primary/35 text-primary")} aria-label={f.label}>
+                <SelectValue placeholder={f.label} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{f.label}: todos</SelectItem>
+                {f.options.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ))}
+        </div>
+      )}
+      {onClear && active && (
+        <Button variant="ghost" size="sm" onClick={onClear} className="w-fit text-muted-foreground">
+          <X />
+          Limpar filtros
+        </Button>
+      )}
+      {children && <div className="flex flex-wrap items-center gap-2 lg:ml-auto">{children}</div>}
+    </div>
+  )
+}
+
+/** Helper: `matches(filter, value)` é true quando o filtro está em "todos". */
+export const matches = (filter: string, value: string | undefined) => filter === ALL || filter === value

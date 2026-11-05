@@ -1,0 +1,96 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import { Loader2, Search, RefreshCw, Download, ExternalLink } from "lucide-react"
+import { toast } from "sonner"
+import { PageHeader } from "@/components/shared/page-header"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useCrmStore } from "@/lib/store/crm-store"
+import { cancelProspectSearch, createProspectSearch, importProspects, loadProspecting } from "@/lib/prospecting/actions"
+import type { Prospect } from "@/lib/prospecting/types"
+
+type Data = Awaited<ReturnType<typeof loadProspecting>>
+const states = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ")
+const selectClass = "h-9 w-full rounded-md border bg-background px-3 text-sm"
+function safeUrl(value: string) {
+  try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : undefined } catch { return undefined }
+}
+export function ProspectingView() {
+  const [data, setData] = useState<Data | null>(null)
+  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshingRef = useRef(false)
+  const [selected, setSelected] = useState<string[]>([])
+  const [searchId, setSearchId] = useState("")
+  const [query, setQuery] = useState("")
+  const [form, setForm] = useState({ nichos: "", cidade: "", uf: "BA", bairro: "", tamanho: "padrao" as "rapida" | "padrao" | "completa" | "cidade", redes: true, somente_sem_site: false })
+  const leads = useCrmStore(s => s.leads)
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) return
+    refreshingRef.current = true
+    setRefreshing(true)
+    try { setData(await loadProspecting()); setError("") } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar as buscas.") }
+    finally { refreshingRef.current = false; setRefreshing(false) }
+  }, [])
+  useEffect(() => { const initial = setTimeout(() => void refresh(), 0); const timer = setInterval(() => void refresh(), 10000); return () => { clearTimeout(initial); clearInterval(timer) } }, [refresh])
+  const importedIds = new Set(leads.map(l => l.id))
+  const results = (data?.prospects || []).filter(p => (!searchId || p.buscas?.includes(searchId)) && `${p.nome} ${p.categoria} ${p.cidade}`.toLowerCase().includes(query.toLowerCase()))
+  const available = results.filter(p => !importedIds.has(`maps_${p.id}`))
+  async function start(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true)
+    try { const result = await createProspectSearch(form); setSearchId(result.id); setSelected([]); toast.success("Busca adicionada à fila"); await refresh() }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao iniciar busca") }
+    finally { setBusy(false) }
+  }
+  async function importSelected() {
+    setImporting(true)
+    try {
+      const result = await importProspects(selected)
+      const store = useCrmStore.getState()
+      store.replace("leads", [...result.imported, ...store.leads.filter(l => !result.imported.some(i => i.id === l.id))])
+      setSelected([])
+      toast.success(`${result.imported.length} lead(s) importado(s). ${result.skipped} já cadastrado(s) ou indisponível(is).`)
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao importar") }
+    finally { setImporting(false) }
+  }
+  async function cancel(id: string) {
+    try { await cancelProspectSearch(id); toast.success("Cancelamento solicitado"); await refresh() }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao cancelar") }
+  }
+  function contact(p: Prospect) { return p.whatsapp || p.telefone || "Sem telefone" }
+  return <div>
+    <PageHeader title="Buscar clientes" description="Encontre empresas no Google Maps e traga novos contatos para o seu funil comercial." actions={<><Button variant="outline" onClick={() => void refresh()} disabled={refreshing}><RefreshCw className={refreshing ? "animate-spin" : ""} />Atualizar</Button><Button variant="outline" asChild><Link href="/leads">Ver leads</Link></Button></>} />
+    {error && <div role="alert" className="mb-5 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">{error}</div>}
+    <div className="grid gap-5 xl:grid-cols-[350px_1fr]">
+      <section className="h-fit rounded-xl border bg-card p-5">
+        <h2 className="mb-1 font-semibold">Nova busca</h2><p className="mb-5 text-sm text-muted-foreground">Escolha o segmento e a região onde deseja prospectar.</p>
+        <form onSubmit={start} className="space-y-4">
+          <label className="grid gap-2 text-sm">Segmentos ou nichos<Input required minLength={2} maxLength={500} placeholder="Clínicas, academias, restaurantes" value={form.nichos} onChange={e => setForm({ ...form, nichos: e.target.value })} /><span className="text-xs text-muted-foreground">Separe os segmentos por vírgula. Até 10 por busca.</span></label>
+          <div className="grid grid-cols-[1fr_85px] gap-3"><label className="grid gap-2 text-sm">Cidade<Input required minLength={2} maxLength={100} placeholder="Salvador" value={form.cidade} onChange={e => setForm({ ...form, cidade: e.target.value })} /></label><label className="grid gap-2 text-sm">UF<select className={selectClass} value={form.uf} onChange={e => setForm({ ...form, uf: e.target.value })}>{states.map(uf => <option key={uf}>{uf}</option>)}</select></label></div>
+          <label className="grid gap-2 text-sm">Bairro (opcional)<Input maxLength={100} placeholder="Todos os bairros" value={form.bairro} onChange={e => setForm({ ...form, bairro: e.target.value })} /></label>
+          <label className="grid gap-2 text-sm">Abrangência<select className={selectClass} value={form.tamanho} onChange={e => setForm({ ...form, tamanho: e.target.value as typeof form.tamanho })}><option value="rapida">Rápida</option><option value="padrao">Padrão</option><option value="completa">Completa</option><option value="cidade">Cidade inteira (9 regiões)</option></select></label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.redes} onChange={e => setForm({ ...form, redes: e.target.checked })} />Coletar redes sociais nos sites</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.somente_sem_site} onChange={e => setForm({ ...form, somente_sem_site: e.target.checked })} />Somente empresas sem site</label>
+          <Button type="submit" className="w-full" disabled={busy || !data?.status.motor}>{busy ? <Loader2 className="animate-spin" /> : <Search />}Iniciar busca</Button>
+          <p className="text-xs text-muted-foreground" role="status">{data ? (data.status.motor ? `Motor conectado · ${data.status.fila} busca(s) na fila` : "Motor desconectado. Inicie o motor para buscar.") : "Conectando ao serviço de buscas…"} As buscas rodam uma de cada vez e continuam ao sair desta tela.</p>
+        </form>
+      </section>
+      <div className="min-w-0 space-y-5">
+        <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 font-semibold">Histórico de buscas</h2>
+          {!data?.searches.length && <p className="text-sm text-muted-foreground">Suas buscas e o andamento de cada uma aparecerão aqui.</p>}
+          <div className="max-h-72 space-y-3 overflow-y-auto">{data?.searches.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><button type="button" onClick={() => { setSearchId(s.id); setSelected([]) }} className="min-w-0 flex-1 text-left"><p className="text-sm font-medium">{s.parametros.nichos.join(", ")} · {s.parametros.cidade}/{s.parametros.uf}</p><p className="mt-1 text-xs text-muted-foreground">{s.etapa} · {s.total} resultados · {new Date(s.criado_em * 1000).toLocaleString("pt-BR")}</p>{s.avisos?.map((a, i) => <p key={i} className="mt-1 text-xs text-amber-500">{a}</p>)}</button>{["rodando", "na_fila"].includes(s.estado) && <Button size="sm" variant="outline" onClick={() => void cancel(s.id)}>Cancelar</Button>}</div>)}</div>
+        </section>
+        <section className="rounded-xl border bg-card p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Empresas encontradas</h2><p className="text-sm text-muted-foreground">{results.length} resultado(s) · {selected.length} selecionado(s)</p></div><Button disabled={!selected.length || importing} onClick={() => void importSelected()}>{importing ? <Loader2 className="animate-spin" /> : <Download />}Importar como leads</Button></div>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row"><Input aria-label="Filtrar empresas" placeholder="Filtrar por nome, segmento ou cidade" value={query} onChange={e => { setQuery(e.target.value); setSelected([]) }} /><select aria-label="Filtrar por busca" className={selectClass} value={searchId} onChange={e => { setSearchId(e.target.value); setSelected([]) }}><option value="">Todas as buscas</option>{data?.searches.map(s => <option key={s.id} value={s.id}>{s.parametros.nichos.join(", ")} · {s.parametros.cidade} · {new Date(s.criado_em * 1000).toLocaleString("pt-BR")}</option>)}</select></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-3"><input type="checkbox" aria-label="Selecionar até 200 empresas visíveis" checked={available.length > 0 && available.slice(0, 200).every(p => selected.includes(p.id))} onChange={e => setSelected(e.target.checked ? available.slice(0, 200).map(p => p.id) : [])} /></th><th className="p-3">Empresa</th><th className="p-3">Contato</th><th className="p-3">Presença digital</th></tr></thead><tbody>{results.map(p => <tr key={p.id} className="border-b last:border-0"><td className="p-3"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} disabled={importedIds.has(`maps_${p.id}`) || (!selected.includes(p.id) && selected.length >= 200)} checked={selected.includes(p.id)} onChange={e => setSelected(e.target.checked ? [...selected, p.id] : selected.filter(id => id !== p.id))} /></td><td className="p-3"><p className="font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">{p.categoria} · {p.cidade}/{p.uf}</p>{p.endereco && <p className="mt-1 text-xs text-muted-foreground">{p.endereco}</p>}{importedIds.has(`maps_${p.id}`) && <Link href={`/leads/maps_${p.id}`} className="text-xs text-primary">Já importado · Abrir lead</Link>}</td><td className="p-3"><p>{contact(p)}</p><p className="text-xs text-muted-foreground">{p.email || "Sem e-mail"}</p></td><td className="p-3"><div className="flex flex-col gap-2">{safeUrl(p.site) ? <a href={safeUrl(p.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary">Site<ExternalLink className="size-3" /></a> : <span className="text-muted-foreground">Sem site</span>}{safeUrl(p.maps) && <a href={safeUrl(p.maps)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary">Google Maps</a>}<span className="text-xs text-muted-foreground">{p.nota || "—"} ★ · {p.avaliacoes || 0} avaliações</span></div></td></tr>)}</tbody></table></div>
+          {!results.length && <div className="py-12 text-center text-sm text-muted-foreground">{data?.searches.some(s => ["rodando", "na_fila"].includes(s.estado)) ? "Busca em andamento. Os resultados aparecerão automaticamente." : "Inicie uma busca para encontrar potenciais clientes."}</div>}
+        </section>
+      </div>
+    </div>
+  </div>
+}
