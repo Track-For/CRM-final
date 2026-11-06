@@ -13,6 +13,7 @@ export function conversionChanges(deals: Deal[], clients: Client[], subscription
     if (!!client.conversionReverted !== reverted) changes.push({ resource: "clients", id: client.id, data: { conversionReverted: reverted } })
   }
   for (const subscription of subscriptions) {
+    if (subscription.asaasSubscriptionId && subscription.method === "asaas") continue
     const deal = deals.find(item => item.id === subscription.dealId)
     if (!deal) continue
     if (deal.stage !== "ganho" && subscription.status === "ativa") changes.push({ resource: "subscriptions", id: subscription.id, data: { status: "pausada", conversionReverted: true } })

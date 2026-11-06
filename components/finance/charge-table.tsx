@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { DataTable, type ColumnDef } from "@/components/shared/data-table"
+import { DeleteChargeButton } from "@/components/finance/delete-charge-button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { EnumBadge } from "@/components/shared/status-badge"
 import { CHARGE_STATUS_LABEL, CHARGE_STATUS_TONE, PAYMENT_METHOD_LABEL } from "@/lib/constants"
@@ -22,7 +23,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
   const clients = useById("clients")
   const columns = useMemo<ColumnDef<Charge, unknown>[]>(() => {
     const cols: ColumnDef<Charge, unknown>[] = [
-      { id: "number", header: "Número", accessorFn: (c) => c.number, cell: ({ row }) => <span className="num text-xs text-muted-foreground">{row.original.number}</span> },
+      { id: "number", header: "Número", accessorFn: (c) => c.number, cell: ({ row }) => <span className="num text-xs text-muted-foreground">{row.original.number}{row.original.gateway === "asaas" && " · Asaas"}</span> },
       {
         id: "client",
         header: "Cliente",
@@ -34,6 +35,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
           </div>
         ),
       },
+      { id: "origin", header: "Origem", accessorFn: charge => charge.gatewayId ? "Asaas" : charge.automatic && charge.status !== "pago" ? "Previsto no CRM" : "Registro manual", cell: ({ row }) => <span className="text-xs">{row.original.gatewayId ? "Asaas" : row.original.automatic && row.original.status !== "pago" ? "Previsto no CRM" : "Registro manual"}</span> },
       { id: "method", header: "Forma", accessorFn: (c) => c.method, cell: ({ row }) => PAYMENT_METHOD_LABEL[row.original.method] },
       { id: "installment", header: "Parcela", enableSorting: false, cell: ({ row }) => <span className="num text-xs">{row.original.installment}/{row.original.installments}</span> },
       {
@@ -44,6 +46,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
       },
       { id: "amount", header: "Valor", accessorFn: (c) => c.amount, cell: ({ row }) => <span className="num font-medium whitespace-nowrap">{formatMoney(row.original.amount)}</span> },
       { id: "status", header: "Status", accessorFn: (c) => c.status, cell: ({ row }) => <EnumBadge value={row.original.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /> },
+      { id: "actions", header: "", enableSorting: false, cell: ({ row }) => <DeleteChargeButton charge={row.original} compact /> },
     ]
     return hideClient
       ? cols.map((c) =>
@@ -69,10 +72,10 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
             <div className="min-w-0">
               <p className="truncate font-medium">{hideClient ? c.description : (clients.get(c.clientId)?.name ?? "—")}</p>
               <p className="num text-xs text-muted-foreground">
-                {c.number} · {PAYMENT_METHOD_LABEL[c.method]} · {c.installment}/{c.installments}
+                {c.gatewayId ? "Asaas" : "CRM"} · {c.number} · {PAYMENT_METHOD_LABEL[c.method]} · {c.installment}/{c.installments}
               </p>
             </div>
-            <EnumBadge value={c.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} />
+            <div className="flex items-center gap-1"><EnumBadge value={c.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /><DeleteChargeButton charge={c} compact /></div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
             <span className={cn("num text-xs", c.status === "vencido" ? "text-danger" : "text-muted-foreground")}>{c.dueDate ? `Vence ${formatDate(c.dueDate)}` : "Vencimento a definir"}</span>

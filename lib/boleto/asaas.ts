@@ -17,6 +17,9 @@ export type AsaasCustomer = {
   cpfCnpj?: string
   deleted?: boolean
   notificationDisabled?: boolean
+  email?: string
+  mobilePhone?: string
+  externalReference?: string | null
 }
 
 export type AsaasCustomerInput = {
@@ -31,11 +34,13 @@ export type AsaasCustomerInput = {
   postalCode?: string
   externalReference?: string
   notificationDisabled: boolean
+  company?: string
+  municipalInscription?: string
 }
 
 export type AsaasPaymentInput = {
   customer: string
-  billingType: "BOLETO"
+  billingType: "BOLETO" | "PIX" | "CREDIT_CARD" | "UNDEFINED"
   value: number
   dueDate: string
   description?: string
@@ -51,6 +56,11 @@ export type AsaasPayment = {
   deleted?: boolean
   value?: number
   netValue?: number
+  billingType?: string
+  description?: string | null
+  subscription?: string | null
+  installmentNumber?: number
+  dateCreated?: string
   dueDate?: string
   paymentDate?: string | null
   clientPaymentDate?: string | null
@@ -61,13 +71,15 @@ export type AsaasPayment = {
   externalReference?: string | null
 }
 
+export type AsaasNotification = { id: string; event?: string; scheduleOffset?: number; enabled?: boolean; emailEnabledForCustomer?: boolean; smsEnabledForCustomer?: boolean }
+
 export type AsaasIdentificationField = {
   identificationField?: string
   nossoNumero?: string
   barCode?: string
 }
 
-type AsaasList<T> = { data?: T[] }
+type AsaasList<T> = { data?: T[]; hasMore?: boolean; totalCount?: number }
 
 /** Erro com mensagem em pt-BR, segura para mostrar ao usuário. */
 export class AsaasError extends Error {
@@ -148,23 +160,41 @@ export function createAsaasClient(apiKey: string, environment: AsaasEnvironment)
     }
   }
 
+  async function listAll<T>(endpoint: string): Promise<T[]> {
+    const result: T[] = []
+    let offset = 0
+    for (;;) {
+      const page = await request<AsaasList<T>>("GET", endpoint, { query: { limit: 100, offset } })
+      const rows = page.data ?? []
+      result.push(...rows)
+      if (!page.hasMore) return result
+      if (!rows.length) throw new AsaasError("Resposta de paginação inválida do Asaas.")
+      offset += rows.length
+    }
+  }
+
   const path = (id: string) => encodeURIComponent(id)
 
   return {
+    listCustomers: () => listAll<AsaasCustomer>("/customers"),
+    listPayments: () => listAll<AsaasPayment>("/payments"),
+
     /** Valida a chave sem alterar nada. */
     ping: () => request<AsaasList<AsaasCustomer>>("GET", "/customers", { query: { limit: 1 } }),
 
     async findCustomerByDocument(cpfCnpj: string): Promise<AsaasCustomer | null> {
       const list = await request<AsaasList<AsaasCustomer>>("GET", "/customers", { query: { cpfCnpj } })
-      return (list.data ?? []).find((c) => !c.deleted) ?? null
+      const matches = (list.data ?? []).filter(customer => !customer.deleted)
+      if (matches.length > 1) throw new AsaasError("Existe mais de um cliente com este CPF/CNPJ no Asaas. Revise os cadastros para vincular com segurança.")
+      return matches[0] ?? null
     },
 
-    createCustomer: (input: AsaasCustomerInput) => request<AsaasCustomer>("POST", "/customers", { body: input }),
+    getCustomer: (id: string) => request<AsaasCustomer>("GET", `/customers/${path(id)}`),
+    updateCustomer: (id: string, input: Partial<AsaasCustomerInput>) => request<AsaasCustomer>("PUT", `/customers/${path(id)}`, { body: input }),
+    getNotifications: async (id: string) => ({ data: await listAll<AsaasNotification>(`/customers/${path(id)}/notifications`) }),
+    updateNotification: (id: string, input: Partial<AsaasNotification>) => request<AsaasNotification>("PUT", `/notifications/${path(id)}`, { body: input }),
 
-    disableCustomerNotifications: (customer: AsaasCustomer) =>
-      request<AsaasCustomer>("PUT", `/customers/${path(customer.id)}`, {
-        body: { name: customer.name, cpfCnpj: customer.cpfCnpj, notificationDisabled: true },
-      }),
+    createCustomer: (input: AsaasCustomerInput) => request<AsaasCustomer>("POST", "/customers", { body: input }),
 
     createPayment: (input: AsaasPaymentInput) => request<AsaasPayment>("POST", "/payments", { body: input }),
 

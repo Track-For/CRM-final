@@ -18,13 +18,18 @@ import { EntityDrawer } from "@/components/shared/entity-drawer"
 import { InfoRow } from "@/components/shared/panel"
 import { EnumBadge } from "@/components/shared/status-badge"
 import { applyBoletoUpdate, chargeWhatsappUrl, isRegisteredBoleto, isUnregisteredBoleto, useChargeActions } from "@/components/finance/finance-actions"
+import { DeleteChargeButton } from "@/components/finance/delete-charge-button"
 import { PixQr } from "@/components/finance/payment-visuals"
 import { ReasonDialog } from "@/components/finance/reason-dialog"
 import { InvoiceFormDialog } from "@/components/invoices/legacy/invoice-form-dialog"
+import { refreshAsaasChargesAction } from "@/lib/boleto/import-actions"
+import { getDatabase } from "@/lib/data/api"
+import { useCrm } from "@/lib/data"
 import { cancelBoletoAction, syncBoletoAction } from "@/lib/boleto/actions"
 import { copyToClipboard, openWhatsapp } from "@/lib/browser"
 import { CHARGE_STATUS_LABEL, CHARGE_STATUS_TONE, PAYMENT_METHOD_LABEL } from "@/lib/constants"
 import { useClient, useEntity, useInvoices } from "@/lib/data"
+import { useUiStore } from "@/lib/store/ui-store"
 import { formatDate, formatMoney } from "@/lib/format"
 import type { Charge } from "@/types"
 
@@ -92,6 +97,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
   const charge = useEntity("charges", chargeId)
   const client = useClient(charge?.clientId)
   const invoices = useInvoices()
+  const openQuickCreate = useUiStore(state => state.openQuickCreate)
   const { markPaid, cancel } = useChargeActions()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelBoletoOpen, setCancelBoletoOpen] = useState(false)
@@ -99,15 +105,23 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
   const [syncing, startSync] = useTransition()
   const [canceling, startCancel] = useTransition()
 
-  if (!charge) return null
+  if (!charge || charge.deletedAt) return null
   const open = charge.status === "pendente" || charge.status === "vencido"
   const invoice = invoices.find((i) => i.chargeId === charge.id && i.status !== "cancelada")
   const registered = isRegisteredBoleto(charge)
   const unregistered = isUnregisteredBoleto(charge)
+  const managed = !!charge.gatewayId || charge.importedFromAsaas
 
   const sync = () =>
     startSync(async () => {
       try {
+        if (charge.importedFromAsaas) {
+          const result = await refreshAsaasChargesAction()
+          if (!result.ok) { toast.error(result.error); return }
+          useCrm.setState(await getDatabase())
+          toast.success("Cobranças atualizadas pelo Asaas")
+          return
+        }
         const res = await syncBoletoAction(charge.id)
         if (res.ok && res.charge) {
           applyBoletoUpdate(res.charge)
@@ -144,13 +158,15 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
         description={charge.description}
         footer={
           <>
-            {open && !registered && (
+            <DeleteChargeButton charge={charge} onDeleted={() => onOpenChange(false)} />
+            {open && !charge.gatewayId && charge.method === "asaas" && <Button onClick={() => { onOpenChange(false); openQuickCreate("charge", { chargeId: charge.id, clientId: charge.clientId, dealId: charge.dealId, subscriptionId: charge.subscriptionId, milestoneId: charge.milestoneId, amount: String(charge.amount), description: charge.description, method: "asaas", dueDate: charge.dueDate }) }}>Emitir e enviar pelo Asaas</Button>}
+            {open && !managed && (
               <Button variant="destructive" onClick={() => setCancelOpen(true)}>
                 <Ban />
                 Cancelar
               </Button>
             )}
-            {open && registered && (
+            {open && registered && !charge.importedFromAsaas && (
               <Button variant="destructive" onClick={() => setCancelBoletoOpen(true)} disabled={canceling || syncing}>
                 <Ban />
                 Cancelar boleto
@@ -162,13 +178,13 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
                 Emitir NF
               </Button>
             )}
-            {open && !registered && (
+            {open && !managed && (
               <Button variant="outline" onClick={() => markPaid(charge)}>
                 <CheckCircle2 />
                 Marcar como pago
               </Button>
             )}
-            {registered && charge.status !== "cancelado" && (
+            {managed && charge.status !== "cancelado" && (
               <Button variant="outline" onClick={sync} disabled={syncing || canceling} aria-busy={syncing}>
                 {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 {syncing ? "Atualizando..." : "Atualizar status"}
@@ -184,6 +200,10 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
         }
       >
         <div className="space-y-5">
+          {charge.gatewayId && <section className="space-y-2 rounded-xl border p-3 text-sm">
+            <p>Dados sincronizados do Asaas. Pagamentos e cancelamentos são atualizados pela plataforma.</p>
+            {!registered && charge.invoiceUrl && <Button variant="outline" size="sm" asChild><a href={charge.invoiceUrl} target="_blank" rel="noopener noreferrer"><ExternalLink />Abrir fatura no Asaas</a></Button>}
+          </section>}
           <div className="grid grid-cols-2 gap-3">
             <div className="min-w-0 rounded-lg border bg-surface p-3">
               <p className="text-xs text-muted-foreground">Valor</p>

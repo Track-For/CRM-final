@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -14,6 +14,7 @@ import { OptionSelect } from "@/components/shared/option-select"
 import { newId, useCrm } from "@/lib/data"
 import { useEntityOptions } from "@/lib/data/options"
 import { maskCep, maskDocument, maskPhone, onlyDigits } from "@/lib/format"
+import { saveClientAndSyncAsaasAction } from "@/lib/boleto/customer-actions"
 import { v } from "@/lib/validation"
 import type { Client } from "@/types"
 
@@ -39,8 +40,15 @@ const schema = z.object({
 })
 type Values = z.infer<typeof schema>
 
-export function ClientFormDialog({ open, onOpenChange, client, onContinue }: { open: boolean; onOpenChange: (o: boolean) => void; client?: Client; onContinue?: (client: Client) => void }) {
+export function ClientFormDialog({ open, onOpenChange, client, onContinue }: { open: boolean; onOpenChange: (o: boolean) => void; client?: Client; onContinue?: (client: Client, syncAsaas: boolean) => void }) {
   const router = useRouter()
+  const [syncAsaas, setSyncAsaas] = useState(!!onContinue || !client || !!client.asaasCustomerId)
+  const [saving, setSaving] = useState(false)
+  const [session, setSession] = useState(() => ({ open, clientId: client?.id, attemptId: newId("cli") }))
+  if (session.open !== open || session.clientId !== client?.id) {
+    setSession({ open, clientId: client?.id, attemptId: newId("cli") })
+    if (open) setSyncAsaas(!!onContinue || !client || !!client.asaasCustomerId)
+  }
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
   const currentUserId = useCrm((s) => s.currentUserId)
@@ -68,11 +76,13 @@ export function ClientFormDialog({ open, onOpenChange, client, onContinue }: { o
   const errors = formState.errors
 
   useEffect(() => {
-    if (open) reset(initial())
+    if (open) {
+      reset(initial())
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, client?.id])
 
-  const onSubmit = handleSubmit((val) => {
+  const onSubmit = handleSubmit(async (val) => {
     const data = {
       name: val.name,
       legalName: val.legalName,
@@ -87,7 +97,21 @@ export function ClientFormDialog({ open, onOpenChange, client, onContinue }: { o
       status: val.status,
     }
     if (onContinue && client) {
-      onContinue({ ...client, ...data, conversionReverted: false, deletedAt: undefined })
+      onContinue({ ...client, ...data, conversionReverted: false, deletedAt: undefined }, syncAsaas)
+      return
+    }
+    if (syncAsaas) {
+      setSaving(true)
+      try {
+        const candidate: Client = { ...client, ...data, id: client?.id || session.attemptId, createdAt: client?.createdAt || new Date().toISOString() }
+        const result = await saveClientAndSyncAsaasAction(candidate)
+        if (!result.ok) { toast.error(result.error); return }
+        const state = useCrm.getState()
+        state.replace("clients", [result.client, ...state.clients.filter(item => item.id !== result.client.id)])
+        toast.success("Cliente salvo no CRM e vinculado ao Asaas")
+        onOpenChange(false)
+      } catch { toast.error("Não foi possível concluir o cadastro. Tente novamente.") }
+      finally { setSaving(false) }
       return
     }
     if (client) {
@@ -108,7 +132,8 @@ export function ClientFormDialog({ open, onOpenChange, client, onContinue }: { o
   )
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={onContinue ? "1 de 2 · Dados do cliente" : client ? "Editar cliente" : "Novo cliente"} description="Dados fiscais e de cobrança usados em cobranças e notas fiscais." onSubmit={onSubmit} submitLabel={onContinue ? "Continuar para pagamento" : client ? "Salvar" : "Cadastrar"} size="xl">
+    <FormDialog open={open} onOpenChange={value => !saving && onOpenChange(value)} title={onContinue ? "1 de 2 · Dados do cliente" : client ? "Editar cliente" : "Novo cliente"} description="Dados fiscais e de cobrança usados em cobranças e notas fiscais." onSubmit={onSubmit} submitting={saving} submitLabel={onContinue ? "Continuar para pagamento" : syncAsaas ? "Salvar no CRM e Asaas" : client ? "Salvar" : "Cadastrar"} size="xl">
+      <label className="flex items-start gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={syncAsaas} disabled={saving} onChange={event => setSyncAsaas(event.target.checked)} /><span>Cadastrar ou vincular este cliente também no Asaas. O CPF/CNPJ evita criar outro cadastro quando ele já existe.</span></label>
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Identificação</p>
       <FormGrid>
         {text("name", "Nome fantasia", { required: true })}

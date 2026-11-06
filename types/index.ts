@@ -311,6 +311,8 @@ export interface Address {
 }
 
 export interface Client {
+  asaasCustomerId?: string
+  asaasEnvironment?: "sandbox" | "producao"
   deletedAt?: string
   conversionReverted?: boolean
   id: ID
@@ -362,6 +364,9 @@ export type PaymentMethod = "boleto" | "pix" | "cartao" | "asaas"
 export type ChargeStatus = "pendente" | "pago" | "vencido" | "cancelado"
 
 export interface Charge {
+  deletedAt?: string
+  importedFromAsaas?: boolean
+  asaasSubscriptionId?: string
   awaitingProjectPayment?: boolean
   conversionReverted?: boolean
   automatic?: boolean
@@ -397,6 +402,8 @@ export interface Charge {
 export type SubscriptionStatus = "ativa" | "pausada" | "cancelada" | "aguardando"
 
 export interface Subscription {
+  asaasSubscriptionId?: string
+  asaasEnvironment?: "sandbox" | "producao"
   conversionReverted?: boolean
   dealId?: ID
   pixKey?: string
@@ -423,6 +430,7 @@ export interface FinancialCategory {
 }
 
 export interface FinancialEntry {
+  deletedAt?: string
   awaitingProjectPayment?: boolean
   conversionReverted?: boolean
   id: ID

@@ -15,6 +15,8 @@
     "prospecting:test": "python3 -m unittest discover -s services/prospecting/painel -p test_server.py",
     "db:local": "node scripts/setup-local-db.mjs",
     "whatsapp:local": "node scripts/setup-whatsapp.mjs",
+    "asaas:check-outbound": "node scripts/check-asaas-outbound.mjs",
+    "asaas:test": "node --test scripts/test-asaas-import.mjs",
     "whatsapp:test": "node --test scripts/test-whatsapp.mjs",
     "instagram:test": "node --test scripts/test-instagram.mjs",
     "instagram:check": "node scripts/check-instagram-local.mjs",

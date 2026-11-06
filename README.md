@@ -40,9 +40,12 @@ A tela Notas fiscais e Integrações > Brasil NFe são reais: as notas ficam na 
 O Financeiro traz o dashboard, as entradas e saídas (`/financeiro/lancamentos`) e as cobranças. Valores em dinheiro aparecem sempre inteiros; só os rótulos de eixo dos gráficos abreviam.
 
 - Configure em `/integracoes/asaas`: chave da API (salva criptografada), ambiente (sandbox ou produção), multa e juros. A chave de teste começa com `$aact_hmlg_` e a de produção com `$aact_prod_`.
-- Boleto: `lib/boleto/actions.ts` emite, consulta e cancela no Asaas e grava em `boletos`, `charges` e `entries`. O cliente é criado com `notificationDisabled`, porque o envio ao cliente é só pelo WhatsApp.
+- Clientes: marque "Cadastrar ou vincular este cliente também no Asaas" no formulário. O CRM reutiliza o cadastro por CPF/CNPJ e salva o ID remoto; `lib/boleto/customer-actions.ts` preserva o registro local se a API falhar.
+- Cobranças: selecione "Asaas" em Nova cobrança para criar uma fatura (`billingType: UNDEFINED`); "Boleto" emite boleto registrado. `lib/boleto/actions.ts` grava os IDs de emissão e confere a referência externa antes de retomar uma tentativa, evitando duplicação. Etapas de projeto com forma Asaas/boleto e data definida também são emitidas ao confirmar Ganho.
+- Envio: `lib/boleto/customer.ts` mantém notificações habilitadas e configura o aviso de criação por e-mail ou, sem e-mail, SMS. O Asaas executa o envio conforme suas configurações e tarifas; o WhatsApp manual continua disponível. Nenhum envio real é disparado pelos testes isolados.
 - Baixa automática: `POST /api/webhooks/asaas`, validado pelo header `asaas-access-token`. Exige o CRM publicado e o webhook cadastrado no painel do Asaas com a URL e o token mostrados na tela. Sem isso, use "Atualizar status" na cobrança.
-- Pix e cartão ainda são simulados.
+- Pix e cartão escolhidos diretamente no formulário permitem registro manual. Na fatura Asaas o cliente escolhe entre os meios habilitados na conta.
+- Testes: `npm run asaas:test` valida a conciliação; `npm run asaas:check-outbound` testa cadastro, notificações, concorrência e respostas incertas com API simulada e schema temporário no Postgres local.
 
 ## Estrutura
 

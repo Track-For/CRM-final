@@ -1,5 +1,6 @@
 "use server"
 
+import { syncAsaasReceivables } from "@/lib/boleto/import"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { crmRecords, db } from "@/lib/db"
@@ -20,7 +21,12 @@ const keySchema = z.object({ resource: z.string().min(1).max(40), id: z.string()
 const dataSchema = z.record(z.string(), z.unknown())
 
 export async function loadRecordOverlay(): Promise<RecordOverlay[]> {
-  if (!(await getCurrentUser())) return []
+  const user = await getCurrentUser()
+  if (!user) return []
+  if (user.role === "admin" || user.role === "financeiro") {
+    try { await syncAsaasReceivables() }
+    catch (error) { console.error("[asaas] Não foi possível sincronizar cobranças:", error instanceof Error ? error.message : "falha de conexão") }
+  }
   const rows = await db
     .select({ resource: crmRecords.resource, id: crmRecords.id, data: crmRecords.data, created: crmRecords.created, deleted: crmRecords.deleted })
     .from(crmRecords)
@@ -145,4 +151,26 @@ export async function deleteRecord(resource: string, id: string): Promise<void> 
     .insert(crmRecords)
     .values({ ...key, deleted: true, updatedBy: user.id })
     .onConflictDoUpdate({ target: [crmRecords.resource, crmRecords.id], set: { deleted: true, updatedBy: user.id, updatedAt: new Date() } })
+}
+
+
+/** Exclusão lógica local: mantém a identidade para não recriar a cobrança na sincronização. */
+export async function archiveChargeAction(id: string) {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== "admin" && user.role !== "financeiro")) return { ok: false as const, error: "Sem permissão para excluir cobranças." }
+  const key = keySchema.safeParse({ resource: "charges", id })
+  if (!key.success) return { ok: false as const, error: "Cobrança inválida." }
+  try {
+    const [record] = await db.select({ id: crmRecords.id }).from(crmRecords).where(sql`${crmRecords.resource} = 'charges' and ${crmRecords.id} = ${id} and ${crmRecords.deleted} = false`).limit(1)
+    if (!record) return { ok: false as const, error: "Cobrança não encontrada. Atualize a página e tente novamente." }
+    const deletedAt = new Date().toISOString()
+    const patch = JSON.stringify({ deletedAt })
+    // Uma única instrução garante que cobrança e lançamento sejam arquivados juntos.
+    await db.execute(sql`with archived_charge as (
+      update crm_records set data = data || ${patch}::jsonb, updated_by = ${user.id}, updated_at = now()
+      where resource = 'charges' and id = ${id} and deleted = false returning id
+    ) update crm_records set data = data || ${patch}::jsonb, updated_by = ${user.id}, updated_at = now()
+      where resource = 'entries' and data->>'chargeId' = ${id} and exists(select 1 from archived_charge)`)
+    return { ok: true as const, deletedAt }
+  } catch { return { ok: false as const, error: "Não foi possível excluir a cobrança. Tente novamente." } }
 }

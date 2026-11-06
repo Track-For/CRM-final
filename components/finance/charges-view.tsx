@@ -5,6 +5,7 @@ import { AlertTriangle, CircleCheck, Clock, Download, Plus, Wallet } from "lucid
 import { Button } from "@/components/ui/button"
 import { ALL, FilterBar, matches } from "@/components/shared/filter-bar"
 import { StatCard, StatGrid } from "@/components/shared/stat-card"
+import { AsaasSyncButton } from "@/components/finance/asaas-sync-button"
 import { ChargeDrawer } from "@/components/finance/charge-drawer"
 import { ChargeTable } from "@/components/finance/charge-table"
 import { FinanceToolbar } from "@/components/finance/finance-tabs"
@@ -55,6 +56,7 @@ export function ChargesView() {
 
       <div>
         <FinanceToolbar title="Cobranças">
+          <AsaasSyncButton />
           <Button
             variant="outline"
             size="sm"

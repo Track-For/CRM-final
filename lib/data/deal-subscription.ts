@@ -5,6 +5,7 @@ export function subscriptionForDeal(deal: Deal, subscriptions: Subscription[], c
   if (deal.stage !== "ganho" || !deal.clientId || !(deal.monthlyFee > 0)) return null
   const id = `sub_deal_${deal.id}`
   const existing = subscriptions.find(item => item.dealId === deal.id || item.id === id)
+  if (existing?.asaasSubscriptionId && existing.method === "asaas") return existing
   if (existing?.status === "cancelada" || charges.some(charge => charge.subscriptionId === (existing?.id || id) && charge.status === "pago")) return existing || null
   const paid = charges.filter(charge => charge.dealId === deal.id && !charge.subscriptionId && charge.status === "pago")
   const totalPaid = paid.reduce((sum, charge) => sum + Math.round(charge.amount * 100), 0)
@@ -35,9 +36,10 @@ export function monthlyForecastChanges(subscription: Subscription, charges: Char
 }
 
 /** Avança após uma cobrança emitida, preservando o dia original nos meses seguintes. */
-export function nextMonthlyBilling(subscription: Subscription, charges: { subscriptionId?: string; dueDate: string; status: string }[]): string {
+export function nextMonthlyBilling(subscription: Subscription, charges: { subscriptionId?: string; dueDate: string; status: string; gatewayId?: string }[]): string {
+  if (subscription.asaasSubscriptionId && subscription.method === "asaas") return subscription.nextBillingDate
   if (!subscription.startDate) return ""
-  const issued = charges.filter(charge => charge.subscriptionId === subscription.id && charge.status !== "cancelado").map(charge => charge.dueDate).sort()
+  const issued = charges.filter(charge => charge.subscriptionId === subscription.id && charge.status !== "cancelado" && (!charge.gatewayId || subscription.method === "asaas")).map(charge => charge.dueDate).sort()
   if (!issued.length) return subscription.nextBillingDate
   const latest = issued[issued.length - 1]
   const [year, month] = latest.slice(0, 10).split("-").map(Number)

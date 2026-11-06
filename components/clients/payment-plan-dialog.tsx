@@ -46,10 +46,11 @@ export function PaymentPlanDialog({ deal, onClose, onSaved, confirmingWin = fals
       state.replace("entries", data.entries)
       if (onSaved) await onSaved()
       else { toast.success("Plano de cobrança salvo"); onClose() }
-    } catch { toast.error("Não foi possível salvar o plano. Tente novamente.") }
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar o plano. Tente novamente.") }
     finally { setSaving(false) }
   }
   return <FormDialog open onOpenChange={open => !open && !saving && onClose()} title={confirmingWin ? "2 de 2 · Pagamento do projeto" : "Personalizar cobrança"} submitLabel={confirmingWin ? "Confirmar ganho e cobranças" : "Salvar"} description={`${deal.title} · Total ${formatMoney(deal.value)}`} onSubmit={save} submitting={saving} size="xl">
+    {confirmingWin && (method === "asaas" || method === "boleto") && <p className="rounded-lg border p-3 text-sm">Ao confirmar o ganho, as etapas com vencimento definido serão emitidas no Asaas, com envio habilitado ao cliente. Etapas sem data ficam no CRM até você informar o vencimento.</p>}
     <FormField label="Forma de pagamento"><OptionSelect value={method} onChange={setMethod} options={toOptions(PAYMENT_METHOD_LABEL)} disabled={hasCharges} /></FormField>
     {method === "pix" && <FormField label="Chave Pix"><Input value={pixKey} readOnly aria-label="Chave Pix da empresa" /></FormField>}
     {!hasCharges && <div className="flex flex-wrap gap-2">

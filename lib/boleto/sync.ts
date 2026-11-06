@@ -1,9 +1,11 @@
 // Somente servidor. Regras compartilhadas entre as actions e o webhook.
-import { and, eq, isNull, or } from "drizzle-orm"
-import { billingSettings, boletos, db, gatewayEvents } from "@/lib/db"
+import { and, eq, isNull, or, sql } from "drizzle-orm"
+import { billingSettings, boletos, crmRecords, db, gatewayEvents } from "@/lib/db"
 import type { BillingSettings, BoletoRow, BoletoStatus } from "@/lib/db"
 import { decryptSecret } from "@/lib/fiscal/crypto"
 import { mapAsaasStatus, type AsaasIdentificationField, type AsaasPayment } from "@/lib/boleto/asaas"
+import { importedReceivable } from "@/lib/boleto/import-normalize"
+import type { Charge, Client, Subscription } from "@/types"
 import { mergeRecord } from "@/lib/boleto/records"
 
 export const BILLING_SETTINGS_ID = "default"
@@ -161,7 +163,31 @@ const MAX_ATTEMPTS = 4
 export async function applyWebhookPayment(event: string, payment: AsaasPayment, today = todayInBrazil()): Promise<void> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const row = await findRowForPayment(payment)
-    if (!row) return
+    if (!row) {
+      const settings = await loadBillingSettings()
+      const [record] = await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "charges"), eq(crmRecords.deleted, false), sql`${crmRecords.data}->>'gatewayId' = ${payment.id}`, sql`${crmRecords.data}->>'gatewayEnvironment' = ${settings.environment}`)).limit(1)
+      if (!record) {
+        // Um evento de nova cobrança pode chegar antes da primeira sincronização.
+        const { syncAsaasReceivables } = await import("./import")
+        await syncAsaasReceivables(true)
+        return
+      }
+      const existing = record.data as unknown as Charge
+      if (!existing.importedFromAsaas) return
+      const status = nextStatusFromEvent(existing.status, event, payment, today)
+      if (status === null) return
+      const [clientRow] = await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "clients"), eq(crmRecords.id, existing.clientId))).limit(1)
+      if (!clientRow) return
+      const [subscriptionRow] = existing.subscriptionId ? await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "subscriptions"), eq(crmRecords.id, existing.subscriptionId))).limit(1) : []
+      const [entryRow] = await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "entries"), sql`${crmRecords.data}->>'chargeId' = ${existing.id}`)).limit(1)
+      const snapshot = importedReceivable(payment, clientRow.data as unknown as Client, settings.environment, status, existing, subscriptionRow?.data as unknown as Subscription | undefined, entryRow?.id)
+      if (!snapshot) return
+      const chargeData = Object.fromEntries(Object.entries(snapshot.charge).map(([key, value]) => [key, value === undefined ? null : value]))
+      const [saved] = await db.update(crmRecords).set({ data: sql`${crmRecords.data} || ${JSON.stringify(chargeData)}::jsonb`, updatedAt: new Date() }).where(and(eq(crmRecords.resource, "charges"), eq(crmRecords.id, existing.id), eq(crmRecords.deleted, false), sql`${crmRecords.data}->>'status' = ${existing.status}`)).returning()
+      if (!saved) continue
+      await mergeRecord("entries", snapshot.entry.id, { ...snapshot.entry }, { created: true, deleted: snapshot.entryDeleted || !!entryRow?.deleted && existing.status !== "cancelado" })
+      return
+    }
     const status = nextStatusFromEvent(row.status, event, payment, today)
     if (status === null) return
     const [saved] = await db

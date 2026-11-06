@@ -1,6 +1,6 @@
 import type { Charge, Deal, FinancialEntry } from "@/types"
 
-export const editableForecast = (charge: Charge) => charge.automatic === true && charge.status === "pendente" && !charge.gatewayId
+export const editableForecast = (charge: Charge) => !charge.deletedAt && charge.automatic === true && charge.status === "pendente" && !charge.gatewayId
 
 /** O plano define os recebíveis. Datas de etapas não informadas ficam em branco. */
 export function projectReceivables(deal: Deal, charges: Charge[]) {

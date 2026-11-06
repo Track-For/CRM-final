@@ -15,9 +15,10 @@ export function MonthlyBilling({ subscription, onOpenCharge }: { subscription: S
   const [method, setMethod] = useState<PaymentMethod>(subscription.method)
   const company = useCompany()
   const pixKey = company.pixKey || ""
+  const managedByAsaas = subscription.method === "asaas" && !!subscription.asaasSubscriptionId
   const [saving, setSaving] = useState(false)
   const charges = useCrm(state => state.charges)
-  const current = charges.filter(charge => charge.subscriptionId === subscription.id && charge.status !== "cancelado" && !charge.awaitingProjectPayment).sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0]
+  const current = charges.filter(charge => !charge.deletedAt && charge.subscriptionId === subscription.id && charge.status !== "cancelado" && !charge.awaitingProjectPayment).sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0]
   const save = async () => {
     if (method === "pix" && !pixKey.trim()) return void toast.error("Cadastre a chave Pix em Configurações → Empresa")
     setSaving(true)
@@ -38,12 +39,13 @@ export function MonthlyBilling({ subscription, onOpenCharge }: { subscription: S
   return <div className="space-y-3 rounded-lg border p-3">
     <p className="font-medium">{subscription.description} · {formatMoney(subscription.amount)}/mês</p>
     <p className="text-sm text-muted-foreground">{!subscription.startDate ? "Início: 3 dias após a quitação do projeto" : <>Todo dia {subscription.billingDay} · próxima cobrança {formatDate(subscription.nextBillingDate)}{subscription.billingDay > 28 && " · em meses mais curtos, no último dia"}</>}</p>
+    {managedByAsaas && <p className="text-sm text-muted-foreground">Mensalidade gerenciada pelo Asaas. Valores e vencimentos são sincronizados da plataforma.</p>}
     <div className="grid gap-2 sm:grid-cols-2">
-      <label className="space-y-1 text-sm">Forma de pagamento<OptionSelect value={method} onChange={setMethod} options={toOptions(PAYMENT_METHOD_LABEL)} disabled={saving} /></label>
+      <label className="space-y-1 text-sm">Forma de pagamento<OptionSelect value={method} onChange={setMethod} options={toOptions(PAYMENT_METHOD_LABEL)} disabled={saving || managedByAsaas} /></label>
       {method === "pix" && <label className="space-y-1 text-sm">Chave Pix<Input value={pixKey} readOnly aria-label="Chave Pix da empresa" /></label>}
     </div>
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" variant="outline" onClick={() => void save()} disabled={saving}>Salvar forma de pagamento</Button>
+      {!managedByAsaas && <Button size="sm" variant="outline" onClick={() => void save()} disabled={saving}>Salvar forma de pagamento</Button>}
       <Button size="sm" disabled={saving || !current} onClick={() => current && onOpenCharge(current.id)}>Abrir cobrança mensal</Button>
     </div>
   </div>

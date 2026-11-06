@@ -46,7 +46,7 @@ const schema = z
     payerDistrict: z.string().trim(),
   })
   .superRefine((val, ctx) => {
-    if (val.method !== "boleto") return
+    if (val.method !== "boleto" && val.method !== "asaas") return
     const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message })
     if (!val.payerName) issue("payerName", "Nome do pagador é obrigatório")
     if (![11, 14].includes(onlyDigits(val.payerDocument).length)) issue("payerDocument", "Informe um CPF com 11 dígitos ou um CNPJ com 14")
@@ -55,8 +55,6 @@ const schema = z
     if (val.dueDate && val.dueDate < today()) issue("dueDate", "O vencimento não pode estar no passado")
   })
 type Values = z.infer<typeof schema>
-
-const rand = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("")
 
 const payerFromClient = (client: Client | undefined) => ({
   payerName: client?.legalName || client?.name || "",
@@ -113,7 +111,7 @@ async function runBoletoPlan(plan: BoletoPlan, payer: BoletoPayer, onParcel: (pa
         issued: plan.items.filter((i) => i.issued).length,
         total: plan.items.length,
         parcel: item.charge.installment,
-        message: res.error ?? "Não foi possível emitir o boleto.",
+        message: res.error ?? "Não foi possível criar a cobrança no Asaas.",
       }
     }
     item.issued = true
@@ -125,7 +123,7 @@ async function runBoletoPlan(plan: BoletoPlan, payer: BoletoPayer, onParcel: (pa
 interface ChargeFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  defaults?: { clientId?: string; dealId?: string; amount?: string; description?: string; pixKey?: string; milestoneId?: string; subscriptionId?: string; method?: string; dueDate?: string }
+  defaults?: { chargeId?: string; clientId?: string; dealId?: string; amount?: string; description?: string; pixKey?: string; milestoneId?: string; subscriptionId?: string; method?: string; dueDate?: string }
 }
 
 export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDialogProps) {
@@ -178,11 +176,12 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
   const installments = Number(useWatch({ control, name: "installments" }))
   const method = useWatch({ control, name: "method" })
   const isBoleto = method === "boleto"
+  const usesAsaas = isBoleto || method === "asaas"
   const issuing = progress !== null
   const locked = (failure?.issued ?? 0) > 0
 
   useEffect(() => {
-    if (!open || !isBoleto) return
+    if (!open || !usesAsaas) return
     let alive = true
     getBillingSettings()
       .then((s) => {
@@ -194,7 +193,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     return () => {
       alive = false
     }
-  }, [open, isBoleto])
+  }, [open, usesAsaas])
 
   const changeOpen = (next: boolean) => {
     if (!issuing) onOpenChange(next)
@@ -225,12 +224,12 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     }
   }
 
-  const buildCharges = (values: Values, boleto: boolean): Charge[] => {
+  const buildCharges = (values: Values): Charge[] => {
     const n = Number(values.installments)
     const per = Math.round((values.amount / n) * 100) / 100
     const seq = Math.max(...charges.map((c) => Number(c.number.replace(/\D/g, "")) || 0), 1200) + 1
     return Array.from({ length: n }, (_, i) => ({
-      id: newId("chg"),
+      id: defaults?.chargeId && n === 1 ? defaults.chargeId : newId("chg"),
       number: `COB-${seq + i}`,
       clientId: values.clientId,
       dealId: defaults?.dealId,
@@ -245,15 +244,15 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       dueDate: addMonths(new Date(`${values.dueDate}T12:00:00`), i).toISOString(),
       status: "pendente",
       // Linha e código do boleto só vêm do Asaas, depois do registro.
-      digitableLine: boleto || values.method === "asaas" ? "" : `23793.${rand(5)} ${rand(5)}.${rand(6)} ${rand(5)}.${rand(6)} ${rand(1)} ${rand(14)}`,
-      barcode: boleto || values.method === "asaas" ? "" : `2379${rand(40)}`,
+      digitableLine: "",
+      barcode: "",
       pixCode: "",
       createdAt: new Date().toISOString(),
     }))
   }
 
   const buildEntry = (charge: Charge): FinancialEntry => ({
-    id: newId("ent"),
+    id: useCrm.getState().entries.find(entry => entry.chargeId === charge.id)?.id || newId("ent"),
     type: "receita",
     description: charge.description,
     categoryId: charge.subscriptionId ? "fc_mensalidades" : "fc_projetos",
@@ -273,13 +272,13 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
 
   const issueBoletos = async (values: Values) => {
     if (billing?.kind !== "connected") return
-    const signature = JSON.stringify([values.clientId, values.description, values.amount, values.installments, values.dueDate, defaults?.dealId])
+    const signature = JSON.stringify([values.clientId, values.description, values.amount, values.installments, values.dueDate, values.method, defaults?.dealId, defaults?.chargeId])
     // Lote com parcela já emitida continua igual, mesmo que algo tenha mudado no formulário.
     const pending = planRef.current
     const plan: BoletoPlan =
       pending && (pending.signature === signature || pending.items.some((i) => i.issued))
         ? pending
-        : { signature, items: buildCharges(values, true).map((charge) => ({ charge, entry: buildEntry(charge), issued: false })) }
+        : { signature, items: buildCharges(values).map((charge) => ({ charge, entry: buildEntry(charge), issued: false })) }
     planRef.current = plan
 
     const total = plan.items.length
@@ -288,23 +287,23 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     setProgress(null)
     if (failed) {
       setFailure(failed)
-      toast.error(failed.issued ? `${failed.issued} de ${total} boletos emitidos. A emissão parou.` : "Boleto não emitido", { description: failed.message })
+      toast.error(failed.issued ? `${failed.issued} de ${total} cobranças criadas. A emissão parou.` : "Cobrança não emitida", { description: failed.message })
       return
     }
     planRef.current = null
     advanceMonthlyBilling()
-    toast.success(total > 1 ? `${total} boletos emitidos` : "Boleto emitido", {
-      description: billing.environment === "sandbox" ? "Sandbox (teste, sem valor)" : "Pronto para enviar no WhatsApp",
+    toast.success(total > 1 ? `${total} cobranças criadas no Asaas` : "Cobrança criada no Asaas", {
+      description: billing.environment === "sandbox" ? "Sandbox (teste, sem valor)" : "Envio pelo Asaas habilitado por e-mail ou SMS.",
     })
     onOpenChange(false)
   }
 
   const submit = async (values: Values) => {
-    if (values.method === "boleto") {
+    if (values.method === "boleto" || values.method === "asaas") {
       await issueBoletos(values)
       return
     }
-    const list = buildCharges(values, false)
+    const list = buildCharges(values)
     for (const charge of list) {
       add("charges", charge)
       add("entries", buildEntry(charge))
@@ -314,27 +313,28 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     onOpenChange(false)
   }
 
-  const boletoBlocked = isBoleto && billing?.kind !== "connected"
+  const boletoBlocked = usesAsaas && billing?.kind !== "connected"
   const submitLabel = progress
     ? `Emitindo ${progress.current} de ${progress.total}...`
-    : !isBoleto
+    : !usesAsaas
       ? "Gerar cobrança"
       : locked && failure
         ? `Continuar da parcela ${failure.parcel}`
         : installments > 1
-          ? `Emitir ${installments} boletos`
-          : "Emitir boleto"
+          ? `Criar ${installments} cobranças no Asaas`
+          : "Criar e enviar pelo Asaas"
 
   return (
     <FormDialog
       open={open}
       onOpenChange={changeOpen}
       title="Nova cobrança"
-      description="Boleto registrado no Asaas, Pix ou link de cartão."
+      description="Escolha Asaas para criar a cobrança na plataforma e habilitar o envio ao cliente. Pix e cartão permitem registro manual no CRM."
       onSubmit={(e) => void handleSubmit(submit)(e)}
       submitLabel={submitLabel}
       submitting={issuing || boletoBlocked}
     >
+      {usesAsaas && <p className="rounded-lg border p-3 text-sm">O Asaas enviará o aviso de cobrança para o e-mail do cliente ou, na ausência dele, por SMS. O envio segue as configurações e tarifas do Asaas.</p>}
       <fieldset disabled={locked || issuing} className="min-w-0 disabled:opacity-70">
         {method === "pix" && company.pixKey && <p className="mb-3 break-all text-sm">Chave Pix: {company.pixKey}</p>}
         <legend className="sr-only">Dados da cobrança</legend>
@@ -371,34 +371,34 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
             <Controller
               control={control}
               name="installments"
-              render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: i ? `${i + 1}x` : "À vista" }))} />}
+              render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} disabled={!!defaults?.chargeId} options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: i ? `${i + 1}x` : "À vista" }))} />}
             />
           </FormField>
           <FormField label="Vencimento" required error={errors.dueDate?.message} hint={installments > 1 ? "Demais parcelas vencem a cada mês" : undefined}>
-            <Input type="date" min={isBoleto ? today() : undefined} {...register("dueDate")} aria-invalid={!!errors.dueDate} />
+            <Input type="date" min={usesAsaas ? today() : undefined} {...register("dueDate")} aria-invalid={!!errors.dueDate} />
           </FormField>
         </FormGrid>
       </fieldset>
 
-      {isBoleto && billing === null && <p className="rounded-lg border bg-surface p-3 text-xs text-muted-foreground">Verificando a conexão com o Asaas...</p>}
+      {usesAsaas && billing === null && <p className="rounded-lg border bg-surface p-3 text-xs text-muted-foreground">Verificando a conexão com o Asaas...</p>}
 
-      {isBoleto && billing?.kind === "disconnected" && (
+      {usesAsaas && billing?.kind === "disconnected" && (
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-[#4a330b] bg-warning-soft p-3 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <div className="min-w-0">
             <p className="font-medium text-warning">Asaas desconectado</p>
             <p className="text-xs text-muted-foreground">
-              Para emitir boleto,{" "}
+              Para emitir cobranças,{" "}
               <Link href="/integracoes/asaas" className="text-primary hover:underline" onClick={() => onOpenChange(false)}>
                 conecte o Asaas em Integrações
               </Link>
-              . Só administradores e o financeiro emitem boleto e configuram a conexão.
+              . Só administradores e o financeiro emitem cobranças e configuram a conexão.
             </p>
           </div>
         </div>
       )}
 
-      {isBoleto && billing?.kind === "unavailable" && (
+      {usesAsaas && billing?.kind === "unavailable" && (
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-[#4a1818] bg-danger-soft p-3 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
           <div className="min-w-0">
@@ -408,10 +408,10 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
         </div>
       )}
 
-      {isBoleto && billing?.kind === "connected" && billing.environment === "sandbox" && (
+      {usesAsaas && billing?.kind === "connected" && billing.environment === "sandbox" && (
         <p className="flex items-start gap-2 rounded-lg border border-[#4a330b] bg-warning-soft p-3 text-xs text-warning">
           <FlaskConical className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          Sandbox (teste, sem valor): os boletos saem no ambiente de testes do Asaas.
+          Sandbox (teste, sem valor): as cobranças são criadas no ambiente de testes do Asaas.
         </p>
       )}
 
@@ -420,7 +420,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
           <div className="min-w-0">
             <p className="font-medium text-danger">
-              {failure.total > 1 ? `Parcela ${failure.parcel} de ${failure.total} não saiu: ${failure.issued} ${failure.issued === 1 ? "boleto emitido" : "boletos emitidos"}` : "Boleto não emitido"}
+              {failure.total > 1 ? `Parcela ${failure.parcel} de ${failure.total} não saiu: ${failure.issued} ${failure.issued === 1 ? "cobrança criada" : "cobranças criadas"}` : "Cobrança não emitida"}
             </p>
             <p className="text-xs break-words text-muted-foreground">{failure.message}</p>
             {locked && <p className="mt-1 text-xs text-muted-foreground">Os já emitidos estão em Cobranças e valem. Só os dados do pagador podem mudar até terminar o lote.</p>}
@@ -428,7 +428,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
         </div>
       )}
 
-      {isBoleto && (
+      {usesAsaas && (
         <fieldset disabled={issuing} className="min-w-0 space-y-3 rounded-xl border p-4 disabled:opacity-70">
           <legend className="px-1 text-sm font-semibold">Dados do pagador</legend>
           <FormGrid>
@@ -455,7 +455,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
                 {...register("payerPhone", { onChange: (e) => setValue("payerPhone", maskPhone(e.target.value)) })}
               />
             </FormField>
-            <FormField label="E-mail" htmlFor="payer-email" error={errors.payerEmail?.message} hint="Só para o cadastro no Asaas. O cliente recebe a cobrança pelo WhatsApp." className="sm:col-span-2">
+            <FormField label="E-mail" htmlFor="payer-email" error={errors.payerEmail?.message} hint="O Asaas usará este e-mail para enviar o aviso da cobrança. Sem e-mail, o envio será por SMS." className="sm:col-span-2">
               <Input id="payer-email" type="email" autoComplete="off" aria-invalid={!!errors.payerEmail} {...register("payerEmail")} />
             </FormField>
             <FormField

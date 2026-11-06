@@ -14,6 +14,7 @@ import { StatCard, StatGrid } from "@/components/shared/stat-card"
 import { EnumBadge, StatusBadge } from "@/components/shared/status-badge"
 import { UserAvatar } from "@/components/shared/user-avatar"
 import { ClientFormDialog } from "@/components/clients/client-form-dialog"
+import { AsaasSyncButton } from "@/components/finance/asaas-sync-button"
 import { ChargeDrawer } from "@/components/finance/charge-drawer"
 import { ChargeTable } from "@/components/finance/charge-table"
 import { SubscriptionFormDialog } from "@/components/finance/subscription-form-dialog"
@@ -253,7 +254,8 @@ export function ClientDetail({ id }: { id: string }) {
               <TabsContent value="cobrancas" className="mt-3">
                 <div className="mb-3 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground">Abra uma cobrança para marcar como paga. Para boletos registrados, use Atualizar status.</p>
+                    <p className="text-sm text-muted-foreground">Abra uma cobrança para registrar o pagamento. Cobranças do Asaas são atualizadas pela plataforma.</p>
+                    <AsaasSyncButton />
 
                   </div>
                   {data.subscriptions.map(subscription => <MonthlyBilling key={subscription.id} subscription={subscription} onOpenCharge={setChargeId} />)}

@@ -50,11 +50,11 @@ export const useContracts = () => useCollection("contracts")
 export const useSubscriptions = () => useCollection("subscriptions")
 export const useCharges = () => {
   const charges = useCollection("charges")
-  return useMemo(() => charges.filter(charge => !charge.conversionReverted && !charge.awaitingProjectPayment), [charges])
+  return useMemo(() => charges.filter(charge => !charge.deletedAt && !charge.conversionReverted && !charge.awaitingProjectPayment), [charges])
 }
 export const useEntries = () => {
   const entries = useCollection("entries")
-  return useMemo(() => entries.filter(entry => !entry.conversionReverted && !entry.awaitingProjectPayment), [entries])
+  return useMemo(() => entries.filter(entry => !entry.deletedAt && !entry.conversionReverted && !entry.awaitingProjectPayment), [entries])
 }
 export const useInvoices = () => useCollection("invoices")
 export const useEvents = () => useCollection("events")

@@ -9,7 +9,8 @@ import type { BillingSettings, BoletoRow } from "@/lib/db"
 import type { ActionState } from "@/lib/auth/actions"
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/session"
 import { decryptSecret, encryptSecret } from "@/lib/fiscal/crypto"
-import { AsaasError, createAsaasClient, mapAsaasStatus, type AsaasClient, type AsaasCustomer, type AsaasPayment } from "@/lib/boleto/asaas"
+import { ensureAsaasCustomer, enableChargeNotification } from "@/lib/boleto/customer"
+import { AsaasError, createAsaasClient, mapAsaasStatus, type AsaasClient, type AsaasPayment } from "@/lib/boleto/asaas"
 import { mergeRecord, readRecord } from "@/lib/boleto/records"
 import {
   BILLING_SETTINGS_ID,
@@ -282,7 +283,8 @@ const issueSchema = z.object({
     clientId: z.string({ error: "Informe o cliente" }).min(1, "Informe o cliente").max(120),
     description: z.string({ error: "Informe a descrição" }).trim().min(1, "Informe a descrição"),
     amount: z.number({ error: "Informe o valor" }).positive("O valor deve ser maior que zero").max(9_999_999_999, "Valor muito alto"),
-    method: z.literal("boleto", { error: "Esta cobrança não é um boleto" }),
+    method: z.enum(["boleto", "pix", "cartao", "asaas"]),
+    status: z.enum(["pendente", "vencido"], { error: "Apenas cobranças em aberto podem ser emitidas no Asaas" }),
     dueDate: z
       .string({ error: "Informe o vencimento" })
       .transform((v) => v.slice(0, 10))
@@ -336,29 +338,11 @@ async function claimIssue(input: { chargeId: string; entryId: string | null; env
   return claimed ? { row: claimed, fresh: false } : null
 }
 
-async function findOrCreateCustomer(client: AsaasClient, payer: z.infer<typeof payerSchema>, clientId: string): Promise<string> {
-  const found: AsaasCustomer | null = await client.findCustomerByDocument(payer.cpfCnpj)
-  if (found) {
-    // Cliente que já existia pode estar com notificações ligadas, e o envio é só por WhatsApp.
-    if (found.notificationDisabled !== true) {
-      await client.disableCustomerNotifications(found).catch((err) => logError(`não foi possível desligar as notificações do cliente ${found.id}`, err))
-    }
-    return found.id
-  }
-  const created = await client.createCustomer({
-    name: payer.name,
-    cpfCnpj: payer.cpfCnpj,
-    email: payer.email,
-    mobilePhone: payer.phone,
-    address: payer.street,
-    addressNumber: payer.number,
-    complement: payer.complement,
-    province: payer.district,
-    postalCode: payer.cep,
-    externalReference: clientId,
-    notificationDisabled: true,
-  })
-  return created.id
+async function findOrCreateCustomer(client: AsaasClient, payer: z.infer<typeof payerSchema>, clientId: string, environment: "sandbox" | "producao"): Promise<string> {
+  const input = { name: payer.name, cpfCnpj: payer.cpfCnpj, email: payer.email, mobilePhone: payer.phone, address: payer.street, addressNumber: payer.number, complement: payer.complement, province: payer.district, postalCode: payer.cep, notificationDisabled: false }
+  const customer = await ensureAsaasCustomer(client, input, clientId, environment)
+  await enableChargeNotification(client, customer, input)
+  return customer.id
 }
 
 export async function issueBoletoAction(input: { charge: Charge; entry?: FinancialEntry; payer: BoletoPayer }): Promise<BoletoResult> {
@@ -397,14 +381,16 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
       .set({ errorMessage: message, updatedAt: new Date() })
       .where(eq(boletos.chargeId, chargeId))
       .catch((err) => logError(`falha ao registrar o erro da cobrança ${chargeId}`, err))
-    return { ok: false, error: message }
+    return { ok: false, error: message.replace(/^\[UNCERTAIN\]\s*/, "") }
   }
 
   let row: BoletoRow
   let fresh: boolean
+  let previouslyUncertain = false
   try {
     const [existing] = await db.select().from(boletos).where(eq(boletos.chargeId, chargeId)).limit(1)
     if (existing?.gatewayId) return persist(existing)
+    previouslyUncertain = !!existing && (!existing.errorMessage || existing.errorMessage.startsWith("[UNCERTAIN]"))
     if (existing && existing.environment !== environment) {
       return {
         ok: false,
@@ -434,16 +420,19 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
   const client = createAsaasClient(apiKey, environment)
   let payment: AsaasPayment | null = null
   let customerId = row.gatewayCustomerId
+  let paymentRequested = false
   try {
     // Tentativa anterior incerta: o boleto pode já existir no Asaas.
     if (!fresh) payment = await client.findPaymentByExternalReference(chargeId)
+    if (!payment && previouslyUncertain) return fail("[UNCERTAIN] A emissão anterior ainda não foi confirmada pelo Asaas. Aguarde e consulte novamente; nenhuma nova cobrança será criada para evitar duplicação.")
     if (!payment) {
-      customerId = customerId ?? (await findOrCreateCustomer(client, payer, chargeData.clientId))
+      customerId = customerId ?? (await findOrCreateCustomer(client, payer, chargeData.clientId, environment))
       const fine = Number(settings.finePercent)
       const interest = Number(settings.interestPercent)
+      paymentRequested = true
       payment = await client.createPayment({
         customer: customerId,
-        billingType: "BOLETO",
+        billingType: chargeData.method === "pix" ? "PIX" : chargeData.method === "cartao" ? "CREDIT_CARD" : chargeData.method === "asaas" ? "UNDEFINED" : "BOLETO",
         value: Number(chargeData.amount.toFixed(2)),
         dueDate: chargeData.dueDate,
         description: chargeData.description.slice(0, 500),
@@ -456,7 +445,7 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
   } catch (err) {
     logError(`falha ao emitir o boleto da cobrança ${chargeId}`, err)
     const uncertain = err instanceof AsaasError && (err.timedOut || err.status === undefined || err.status >= 500)
-    return fail(uncertain ? `${errorMessage(err)} Tente de novo: o CRM confere o que já foi registrado antes de emitir, então não duplica.` : errorMessage(err))
+    return fail(uncertain && paymentRequested ? `[UNCERTAIN] ${errorMessage(err)} A emissão será conferida no Asaas antes de qualquer nova tentativa.` : errorMessage(err))
   }
 
   let saved: BoletoRow
@@ -474,7 +463,7 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
     return fail("O boleto foi emitido, mas não foi possível salvá-lo no CRM. Tente de novo: nenhum boleto novo será criado.")
   }
 
-  if (saved.status === "pendente" || saved.status === "vencido") {
+  if (input.charge.method === "boleto" && (saved.status === "pendente" || saved.status === "vencido")) {
     try {
       const identification = await client.getIdentificationField(payment.id)
       const [updated] = await db
@@ -533,7 +522,7 @@ export async function syncBoletoAction(chargeId: string): Promise<BoletoResult> 
     const status = mapAsaasStatus(payment.status, payment.deleted)
     // Falhar aqui não impede atualizar o status; a linha fica para a próxima consulta.
     const identification =
-      status === "pendente" || status === "vencido"
+      (status === "pendente" || status === "vencido") && payment.billingType === "BOLETO"
         ? await client.getIdentificationField(gatewayId).catch((err) => {
             logError(`linha digitável do boleto ${gatewayId} indisponível`, err)
             return null

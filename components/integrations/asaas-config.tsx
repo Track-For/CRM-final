@@ -338,7 +338,7 @@ export function AsaasConfig({ settings }: { settings: BillingSettingsView }) {
           </Panel>
 
           <Panel title="Envio ao cliente">
-            <p className="text-sm text-muted-foreground">O cliente é criado no Asaas sem notificações, para não receber e-mail nem SMS de lá. O boleto segue pelo botão Enviar no WhatsApp, na cobrança.</p>
+            <p className="text-sm text-muted-foreground">O cadastro do cliente é criado ou reutilizado pelo CPF/CNPJ. Ao emitir uma cobrança, o CRM habilita o aviso do Asaas por e-mail ou, na ausência dele, por SMS. O botão Enviar no WhatsApp continua disponível para envio manual.</p>
           </Panel>
         </div>
       </div>

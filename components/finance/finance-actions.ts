@@ -22,7 +22,7 @@ export function isUnregisteredBoleto(charge: Charge) {
 export function insertIssuedBoleto(charge: Charge, entry?: FinancialEntry) {
   const { charges, entries, replace } = useCrm.getState()
   replace("charges", [charge, ...charges.filter((c) => c.id !== charge.id)])
-  if (entry) replace("entries", [entry, ...entries.filter((e) => e.id !== entry.id)])
+  if (entry) replace("entries", charge.status === "cancelado" ? entries.filter(e => e.id !== entry.id) : [{ ...entry, amount: charge.amount, dueDate: charge.dueDate, paidAt: charge.paidAt, status: charge.status }, ...entries.filter(e => e.id !== entry.id)])
 }
 
 /** Reflete no store o boleto devolvido por sync ou cancelamento, sem regravar. */
@@ -43,6 +43,7 @@ export function useChargeActions() {
   const remove = useCrm((s) => s.remove)
 
   const markPaid = (charge: Charge) => {
+    if (charge.gatewayId) { toast.error("Atualize o status pelo Asaas"); return }
     const paidAt = new Date().toISOString()
     update("charges", charge.id, { status: "pago", paidAt })
     const entry = useCrm.getState().entries.find((e) => e.chargeId === charge.id)
@@ -51,6 +52,7 @@ export function useChargeActions() {
   }
 
   const cancel = (charge: Charge) => {
+    if (charge.gatewayId) { toast.error("Cancele a cobrança no Asaas e sincronize o CRM"); return }
     update("charges", charge.id, { status: "cancelado", paidAt: undefined })
     const entry = useCrm.getState().entries.find((e) => e.chargeId === charge.id)
     if (entry) remove("entries", entry.id)
