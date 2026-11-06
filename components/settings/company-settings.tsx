@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import { saveRecord } from "@/lib/data/records-actions"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -40,12 +42,14 @@ export function CompanySettings() {
   const e = formState.errors
 
   const onSubmit = handleSubmit((values) => {
-    setSingleton("company", { ...values, website: values.website ?? "", address: { ...values.address, state: values.address.state.toUpperCase() } })
+    setSingleton("company", { ...values, pixKey: company.pixKey, website: values.website ?? "", address: { ...values.address, state: values.address.state.toUpperCase() } })
     reset(values)
     toast.success("Dados da empresa salvos", { description: "Usados em propostas, cobranças e notas fiscais" })
   })
 
   return (
+    <>
+    <PixSettings key={company.pixKey || ""} initialKey={company.pixKey || ""} />
     <form onSubmit={onSubmit} noValidate className="space-y-6">
       <Panel
         title="Dados da empresa"
@@ -106,5 +110,31 @@ export function CompanySettings() {
         </div>
       </Panel>
     </form>
+    </>
   )
+}
+
+
+function PixSettings({ initialKey }: { initialKey: string }) {
+  const [pixKey, setPixKey] = useState(initialKey)
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    const value = pixKey.trim()
+    if (!value) return void toast.error("Informe a chave Pix")
+    setSaving(true)
+    try {
+      const state = useCrm.getState()
+      const company = { ...state.company, pixKey: value }
+      await saveRecord("settings", "company", { company })
+      useCrm.setState({ company, charges: state.charges.map(charge => charge.method === "pix" && charge.status !== "pago" && !charge.gatewayId ? { ...charge, pixKey: value } : charge) })
+      toast.success("Chave Pix da empresa salva", { description: "Usada para todos os clientes" })
+    } catch { toast.error("Não foi possível salvar a chave Pix") }
+    finally { setSaving(false) }
+  }
+  return <Panel title="Recebimentos por Pix" description="Uma única chave para todos os clientes, projetos e mensalidades.">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <FormField label="Chave Pix da empresa" className="flex-1"><Input value={pixKey} onChange={event => setPixKey(event.target.value)} disabled={saving} /></FormField>
+      <Button type="button" onClick={() => void save()} disabled={saving || pixKey.trim() === initialKey}>Salvar chave Pix</Button>
+    </div>
+  </Panel>
 }

@@ -18,7 +18,8 @@ import { MoneyInput } from "@/components/shared/money-input"
 import { OptionSelect } from "@/components/shared/option-select"
 import { getBillingSettings, issueBoletoAction, type BoletoPayer, type BoletoResult } from "@/lib/boleto/actions"
 import { PAYMENT_METHOD_LABEL, toOptions } from "@/lib/constants"
-import { newId, useById, useCharges, useCrm } from "@/lib/data"
+import { newId, useById, useCharges, useCompany, useCrm } from "@/lib/data"
+import { nextMonthlyBilling } from "@/lib/data/deal-subscription"
 import { useEntityOptions } from "@/lib/data/options"
 import { formatMoney, maskCep, maskDocument, maskPhone, onlyDigits } from "@/lib/format"
 import { v } from "@/lib/validation"
@@ -31,7 +32,7 @@ const schema = z
     clientId: v.required("Cliente"),
     description: v.required("Descrição"),
     amount: v.money("Valor"),
-    method: v.select(["boleto", "pix", "cartao"], "a forma de pagamento"),
+    method: v.select(["boleto", "pix", "cartao", "asaas"], "a forma de pagamento"),
     installments: z.string(),
     dueDate: v.date("Vencimento"),
     payerName: z.string().trim(),
@@ -124,10 +125,11 @@ async function runBoletoPlan(plan: BoletoPlan, payer: BoletoPayer, onParcel: (pa
 interface ChargeFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  defaults?: { clientId?: string; dealId?: string; amount?: string; description?: string }
+  defaults?: { clientId?: string; dealId?: string; amount?: string; description?: string; pixKey?: string; milestoneId?: string; subscriptionId?: string; method?: string; dueDate?: string }
 }
 
 export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDialogProps) {
+  const company = useCompany()
   const add = useCrm((s) => s.add)
   const charges = useCharges()
   const clients = useById("clients")
@@ -143,9 +145,9 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     clientId: defaults?.clientId ?? "",
     description: defaults?.description ?? "",
     amount: defaults?.amount ? Number(defaults.amount) : 0,
-    method: "pix",
+    method: defaults?.method === "boleto" || defaults?.method === "cartao" || defaults?.method === "asaas" ? defaults.method : "pix",
     installments: "1",
-    dueDate: format(addDays(new Date(), 5), "yyyy-MM-dd"),
+    dueDate: defaults?.dueDate?.slice(0, 10) || format(addDays(new Date(), 5), "yyyy-MM-dd"),
     ...payerFromClient(defaults?.clientId ? clients.get(defaults.clientId) : undefined),
   })
   const { register, control, handleSubmit, reset, setValue, getValues, formState } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: initial() })
@@ -232,6 +234,9 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       number: `COB-${seq + i}`,
       clientId: values.clientId,
       dealId: defaults?.dealId,
+      pixKey: values.method === "pix" ? company.pixKey : undefined,
+      milestoneId: defaults?.milestoneId,
+      subscriptionId: defaults?.subscriptionId,
       description: n > 1 ? `${values.description} (${i + 1}/${n})` : values.description,
       amount: i === n - 1 ? Math.round((values.amount - per * (n - 1)) * 100) / 100 : per,
       method: values.method,
@@ -240,9 +245,9 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       dueDate: addMonths(new Date(`${values.dueDate}T12:00:00`), i).toISOString(),
       status: "pendente",
       // Linha e código do boleto só vêm do Asaas, depois do registro.
-      digitableLine: boleto ? "" : `23793.${rand(5)} ${rand(5)}.${rand(6)} ${rand(5)}.${rand(6)} ${rand(1)} ${rand(14)}`,
-      barcode: boleto ? "" : `2379${rand(40)}`,
-      pixCode: boleto ? "" : `00020126580014BR.GOV.BCB.PIX0136${rand(32)}5204000053039865406${per.toFixed(2)}5802BR5915TRACK FOR LTDA6008SALVADOR6304${rand(4)}`,
+      digitableLine: boleto || values.method === "asaas" ? "" : `23793.${rand(5)} ${rand(5)}.${rand(6)} ${rand(5)}.${rand(6)} ${rand(1)} ${rand(14)}`,
+      barcode: boleto || values.method === "asaas" ? "" : `2379${rand(40)}`,
+      pixCode: "",
       createdAt: new Date().toISOString(),
     }))
   }
@@ -251,7 +256,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     id: newId("ent"),
     type: "receita",
     description: charge.description,
-    categoryId: "fc_projetos",
+    categoryId: charge.subscriptionId ? "fc_mensalidades" : "fc_projetos",
     amount: charge.amount,
     competenceDate: charge.dueDate,
     dueDate: charge.dueDate,
@@ -259,6 +264,12 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     clientId: charge.clientId,
     chargeId: charge.id,
   })
+
+  const advanceMonthlyBilling = () => {
+    const state = useCrm.getState()
+    const subscription = state.subscriptions.find(item => item.id === defaults?.subscriptionId)
+    if (subscription) state.update("subscriptions", subscription.id, { nextBillingDate: nextMonthlyBilling(subscription, state.charges) })
+  }
 
   const issueBoletos = async (values: Values) => {
     if (billing?.kind !== "connected") return
@@ -281,6 +292,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       return
     }
     planRef.current = null
+    advanceMonthlyBilling()
     toast.success(total > 1 ? `${total} boletos emitidos` : "Boleto emitido", {
       description: billing.environment === "sandbox" ? "Sandbox (teste, sem valor)" : "Pronto para enviar no WhatsApp",
     })
@@ -297,6 +309,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       add("charges", charge)
       add("entries", buildEntry(charge))
     }
+    advanceMonthlyBilling()
     toast.success(list.length > 1 ? `${list.length} cobranças geradas` : "Cobrança gerada", { description: "Pronta para enviar no WhatsApp" })
     onOpenChange(false)
   }
@@ -323,6 +336,7 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       submitting={issuing || boletoBlocked}
     >
       <fieldset disabled={locked || issuing} className="min-w-0 disabled:opacity-70">
+        {method === "pix" && company.pixKey && <p className="mb-3 break-all text-sm">Chave Pix: {company.pixKey}</p>}
         <legend className="sr-only">Dados da cobrança</legend>
         <FormGrid>
           <FormField label="Cliente" required error={errors.clientId?.message} className="sm:col-span-2">

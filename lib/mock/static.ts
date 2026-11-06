@@ -16,12 +16,7 @@ import type {
 import { STAGE_LABEL, STAGE_ORDER } from "@/lib/constants"
 
 export const users: User[] = [
-  { id: "usr_rafael", name: "Rafael Moreira", email: "rafael@solidtech.com.br", whatsapp: "(71) 99812-4410", role: "admin", initials: "RM", active: true, createdAt: "2024-02-01T12:00:00.000Z" },
-  { id: "usr_camila", name: "Camila Duarte", email: "camila@solidtech.com.br", whatsapp: "(71) 99654-2231", role: "comercial", initials: "CD", active: true, createdAt: "2024-03-11T12:00:00.000Z" },
-  { id: "usr_bruno", name: "Bruno Teixeira", email: "bruno@solidtech.com.br", whatsapp: "(71) 98877-1029", role: "comercial", initials: "BT", active: true, createdAt: "2024-05-20T12:00:00.000Z" },
-  { id: "usr_juliana", name: "Juliana Prates", email: "juliana@solidtech.com.br", whatsapp: "(71) 99123-5567", role: "operacao", initials: "JP", active: true, createdAt: "2024-04-02T12:00:00.000Z" },
-  { id: "usr_diego", name: "Diego Albuquerque", email: "diego@solidtech.com.br", whatsapp: "(71) 98745-6610", role: "operacao", initials: "DA", active: true, createdAt: "2024-08-15T12:00:00.000Z" },
-  { id: "usr_marcos", name: "Marcos Vieira", email: "marcos@solidtech.com.br", whatsapp: "(71) 99230-7781", role: "financeiro", initials: "MV", active: true, createdAt: "2024-03-01T12:00:00.000Z" },
+  { id: "usr_rafael", name: "Luiz", email: "", whatsapp: "", role: "admin", initials: "L", active: true, createdAt: "2024-02-01T12:00:00.000Z" },
 ]
 
 const defaultProbability: Record<StageKey, number> = {

@@ -1,0 +1,71 @@
+import type { Charge, Deal, Subscription } from "@/types"
+
+/** Uma mensalidade por negócio. A data usa o fuso comercial do CRM. */
+export function subscriptionForDeal(deal: Deal, subscriptions: Subscription[], charges: Charge[] = []): Subscription | null {
+  if (deal.stage !== "ganho" || !deal.clientId || !(deal.monthlyFee > 0)) return null
+  const id = `sub_deal_${deal.id}`
+  const existing = subscriptions.find(item => item.dealId === deal.id || item.id === id)
+  if (existing?.status === "cancelada" || charges.some(charge => charge.subscriptionId === (existing?.id || id) && charge.status === "pago")) return existing || null
+  const paid = charges.filter(charge => charge.dealId === deal.id && !charge.subscriptionId && charge.status === "pago")
+  const totalPaid = paid.reduce((sum, charge) => sum + Math.round(charge.amount * 100), 0)
+  const paymentDates = paid.map(charge => charge.paidAt).filter((value): value is string => !!value && Number.isFinite(new Date(value).getTime())).sort()
+  const settled = totalPaid >= Math.round(deal.value * 100) && deal.value > 0 && paymentDates.length === paid.length && paid.length > 0
+  let start = ""
+  let day = 0
+  if (settled) {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(paymentDates[paymentDates.length - 1]))
+    const part = (type: string) => parts.find(item => item.type === type)!.value
+    const date = new Date(`${part("year")}-${part("month")}-${part("day")}T15:00:00.000Z`)
+    date.setUTCDate(date.getUTCDate() + 3)
+    start = date.toISOString()
+    day = date.getUTCDate()
+  }
+  return { ...existing, id: existing?.id || id, dealId: deal.id, clientId: deal.clientId, description: existing?.description || `Mensalidade — ${deal.title}`, amount: existing?.amount ?? deal.monthlyFee,
+    method: existing?.method || deal.paymentPlan?.method || "pix", pixKey: existing?.pixKey ?? deal.paymentPlan?.pixKey ?? "", billingDay: day,
+    status: !settled ? "aguardando" : existing?.status === "pausada" ? "pausada" : "ativa",
+    startDate: start, nextBillingDate: start && existing?.startDate === start ? existing.nextBillingDate : start }
+}
+
+/** Ajusta somente a primeira previsão automática; pagamentos e boletos emitidos ficam intactos. */
+export function monthlyForecastChanges(subscription: Subscription, charges: Charge[]) {
+  const charge = charges.find(item => item.id === `chg_first_${subscription.id}`)
+  if (!charge || charge.status === "pago" || charge.status === "cancelado" || charge.gatewayId) return null
+  const waiting = !subscription.startDate
+  return { charge, patch: { awaitingProjectPayment: waiting, ...(waiting ? {} : { dueDate: subscription.startDate }) } }
+}
+
+/** Avança após uma cobrança emitida, preservando o dia original nos meses seguintes. */
+export function nextMonthlyBilling(subscription: Subscription, charges: { subscriptionId?: string; dueDate: string; status: string }[]): string {
+  if (!subscription.startDate) return ""
+  const issued = charges.filter(charge => charge.subscriptionId === subscription.id && charge.status !== "cancelado").map(charge => charge.dueDate).sort()
+  if (!issued.length) return subscription.nextBillingDate
+  const latest = issued[issued.length - 1]
+  const [year, month] = latest.slice(0, 10).split("-").map(Number)
+  const next = new Date(Date.UTC(year, month, 1))
+  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate()
+  const day = Math.min(subscription.billingDay, lastDay)
+  const date = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}T15:00:00.000Z`
+  return date > subscription.nextBillingDate ? date : subscription.nextBillingDate
+}
+
+/** Registra a primeira competência no financeiro, sem emitir boleto ou confirmar recebimento. */
+export function firstMonthlyReceivable(subscription: Subscription, charges: import("@/types").Charge[]) {
+  if (subscription.status !== "ativa" || !(subscription.amount > 0)) return null
+  const id = `chg_first_${subscription.id}`
+  // Cobranças já cadastradas para esta mensalidade têm prioridade.
+  if (charges.some(charge => charge.subscriptionId === subscription.id)) return null
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(subscription.startDate))
+  const part = (type: string) => parts.find(item => item.type === type)!.value
+  const dueDate = `${part("year")}-${part("month")}-${part("day")}T15:00:00.000Z`
+  const charge: import("@/types").Charge = {
+    id, number: `MENS-${subscription.id}`, clientId: subscription.clientId, dealId: subscription.dealId,
+    subscriptionId: subscription.id, description: subscription.description, amount: subscription.amount,
+    method: subscription.method, pixKey: subscription.pixKey, installment: 1, installments: 1,
+    dueDate, status: "pendente", digitableLine: "", barcode: "", pixCode: "", createdAt: subscription.startDate,
+  }
+  const entry: import("@/types").FinancialEntry = {
+    id: `ent_${id}`, type: "receita", description: charge.description, categoryId: "fc_mensalidades",
+    amount: charge.amount, competenceDate: dueDate, dueDate, status: "pendente", clientId: charge.clientId, chargeId: charge.id,
+  }
+  return { charge, entry }
+}

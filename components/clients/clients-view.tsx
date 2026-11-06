@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { StatCard, StatGrid } from "@/components/shared/stat-card"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { UserAvatar } from "@/components/shared/user-avatar"
+import { DeleteClientButton } from "@/components/clients/delete-client-button"
 import { ClientFormDialog } from "@/components/clients/client-form-dialog"
 import { downloadCsv } from "@/lib/browser"
 import { useCharges, useClients, useSubscriptions } from "@/lib/data"
@@ -90,6 +91,7 @@ export function ClientsView() {
       },
       { id: "owner", header: "Responsável", enableSorting: false, cell: ({ row }) => <UserAvatar userId={row.original.ownerId} showName /> },
       { id: "status", header: "Status", accessorFn: (c) => c.status, cell: ({ row }) => <StatusBadge tone={row.original.status === "ativo" ? "success" : "neutral"}>{row.original.status === "ativo" ? "Ativo" : "Inativo"}</StatusBadge> },
+      { id: "actions", header: "", enableSorting: false, cell: ({ row }) => <DeleteClientButton client={row.original} compact /> },
     ],
     [],
   )
@@ -188,7 +190,7 @@ export function ClientsView() {
                     <p className="truncate font-medium">{c.name}</p>
                     <p className="num truncate text-xs text-muted-foreground">{c.document}</p>
                   </div>
-                  <StatusBadge tone={c.status === "ativo" ? "success" : "neutral"}>{c.status === "ativo" ? "Ativo" : "Inativo"}</StatusBadge>
+                  <div className="flex items-center gap-1"><StatusBadge tone={c.status === "ativo" ? "success" : "neutral"}>{c.status === "ativo" ? "Ativo" : "Inativo"}</StatusBadge><DeleteClientButton client={c} compact /></div>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>

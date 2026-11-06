@@ -39,7 +39,7 @@ const schema = z.object({
 })
 type Values = z.infer<typeof schema>
 
-export function ClientFormDialog({ open, onOpenChange, client }: { open: boolean; onOpenChange: (o: boolean) => void; client?: Client }) {
+export function ClientFormDialog({ open, onOpenChange, client, onContinue }: { open: boolean; onOpenChange: (o: boolean) => void; client?: Client; onContinue?: (client: Client) => void }) {
   const router = useRouter()
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
@@ -86,6 +86,10 @@ export function ClientFormDialog({ open, onOpenChange, client }: { open: boolean
       ownerId: val.ownerId,
       status: val.status,
     }
+    if (onContinue && client) {
+      onContinue({ ...client, ...data, conversionReverted: false, deletedAt: undefined })
+      return
+    }
     if (client) {
       update("clients", client.id, data)
       toast.success("Dados do cliente atualizados")
@@ -104,7 +108,7 @@ export function ClientFormDialog({ open, onOpenChange, client }: { open: boolean
   )
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={client ? "Editar cliente" : "Novo cliente"} description="Dados fiscais e de cobrança usados em cobranças e notas fiscais." onSubmit={onSubmit} submitLabel={client ? "Salvar" : "Cadastrar"} size="xl">
+    <FormDialog open={open} onOpenChange={onOpenChange} title={onContinue ? "1 de 2 · Dados do cliente" : client ? "Editar cliente" : "Novo cliente"} description="Dados fiscais e de cobrança usados em cobranças e notas fiscais." onSubmit={onSubmit} submitLabel={onContinue ? "Continuar para pagamento" : client ? "Salvar" : "Cadastrar"} size="xl">
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Identificação</p>
       <FormGrid>
         {text("name", "Nome fantasia", { required: true })}
@@ -139,7 +143,7 @@ export function ClientFormDialog({ open, onOpenChange, client }: { open: boolean
           <Controller control={control} name="state" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={UF.map((u) => ({ value: u, label: u }))} />} />
         </FormField>
       </div>
-      {client && (
+      {client && !onContinue && (
         <FormGrid>
           <FormField label="Status">
             <Controller

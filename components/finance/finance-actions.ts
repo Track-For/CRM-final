@@ -70,7 +70,7 @@ export function chargeWhatsappUrl(charge: Charge, client: Client | undefined) {
   if (!client) return "#"
   const first = client.contactName.split(" ")[0]
   const payment =
-    charge.method === "pix" ? `Pix copia e cola:\n${charge.pixCode}` : charge.method === "boleto" ? boletoWhatsappText(charge) : `Linha digitável:\n${charge.digitableLine}`
+    charge.method === "pix" ? charge.pixKey ? `Chave Pix:\n${charge.pixKey}` : charge.pixCode ? `Pix copia e cola:\n${charge.pixCode}` : "" : charge.method === "boleto" ? boletoWhatsappText(charge) : ""
   const text = `Olá, ${first}! Segue a cobrança ${charge.number} da Track For.\n` + `Valor: ${formatMoney(charge.amount)}\nVencimento: ${formatDate(charge.dueDate)}` + (payment ? `\n\n${payment}` : "")
   return whatsappLink(client.whatsapp, text)
 }

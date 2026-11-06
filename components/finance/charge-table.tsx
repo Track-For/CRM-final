@@ -40,7 +40,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
         id: "due",
         header: "Vencimento",
         accessorFn: (c) => c.dueDate,
-        cell: ({ row }) => <span className={cn("num text-xs", row.original.status === "vencido" && "text-danger")}>{formatDate(row.original.dueDate)}</span>,
+        cell: ({ row }) => <span className={cn("num text-xs", row.original.status === "vencido" && "text-danger")}>{row.original.dueDate ? formatDate(row.original.dueDate) : "A definir"}</span>,
       },
       { id: "amount", header: "Valor", accessorFn: (c) => c.amount, cell: ({ row }) => <span className="num font-medium whitespace-nowrap">{formatMoney(row.original.amount)}</span> },
       { id: "status", header: "Status", accessorFn: (c) => c.status, cell: ({ row }) => <EnumBadge value={row.original.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /> },
@@ -75,7 +75,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
             <EnumBadge value={c.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
-            <span className={cn("num text-xs", c.status === "vencido" ? "text-danger" : "text-muted-foreground")}>Vence {formatDate(c.dueDate)}</span>
+            <span className={cn("num text-xs", c.status === "vencido" ? "text-danger" : "text-muted-foreground")}>{c.dueDate ? `Vence ${formatDate(c.dueDate)}` : "Vencimento a definir"}</span>
             <span className="num font-semibold whitespace-nowrap">{formatMoney(c.amount)}</span>
           </div>
         </div>

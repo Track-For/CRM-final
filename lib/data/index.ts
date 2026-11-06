@@ -40,13 +40,22 @@ export const useDeals = () => useCollection("deals")
 export const useDeal = (id?: ID) => useEntity("deals", id)
 export const useQuotes = () => useCollection("quotes")
 export const useQuote = (id?: ID) => useEntity("quotes", id)
-export const useClients = () => useCollection("clients")
+export const useClients = () => {
+  const clients = useCollection("clients")
+  return useMemo(() => clients.filter(client => !client.conversionReverted && !client.deletedAt), [clients])
+}
 export const useClient = (id?: ID) => useEntity("clients", id)
 export const useProjects = () => useCollection("projects")
 export const useContracts = () => useCollection("contracts")
 export const useSubscriptions = () => useCollection("subscriptions")
-export const useCharges = () => useCollection("charges")
-export const useEntries = () => useCollection("entries")
+export const useCharges = () => {
+  const charges = useCollection("charges")
+  return useMemo(() => charges.filter(charge => !charge.conversionReverted && !charge.awaitingProjectPayment), [charges])
+}
+export const useEntries = () => {
+  const entries = useCollection("entries")
+  return useMemo(() => entries.filter(entry => !entry.conversionReverted && !entry.awaitingProjectPayment), [entries])
+}
 export const useInvoices = () => useCollection("invoices")
 export const useEvents = () => useCollection("events")
 export const useTasks = () => useCollection("tasks")

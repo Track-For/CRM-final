@@ -198,7 +198,7 @@ export const TASK_PRIORITY_TONE: ToneMap<TaskPriority> = {
   urgente: "danger",
 }
 
-export const PAYMENT_METHOD_LABEL: LabelMap<PaymentMethod> = { boleto: "Boleto", pix: "Pix", cartao: "Cartão" }
+export const PAYMENT_METHOD_LABEL: LabelMap<PaymentMethod> = { boleto: "Boleto", pix: "Pix", cartao: "Cartão", asaas: "Asaas" }
 
 export const CHARGE_STATUS_LABEL: LabelMap<ChargeStatus> = {
   pendente: "Pendente",
@@ -217,11 +217,13 @@ export const ENTRY_STATUS_LABEL: LabelMap<EntryStatus> = { pendente: "Pendente",
 export const ENTRY_STATUS_TONE: ToneMap<EntryStatus> = { pendente: "warning", pago: "success", vencido: "danger" }
 
 export const SUBSCRIPTION_STATUS_LABEL: LabelMap<SubscriptionStatus> = {
+  aguardando: "Aguardando quitação do projeto",
   ativa: "Ativa",
   pausada: "Pausada",
   cancelada: "Cancelada",
 }
 export const SUBSCRIPTION_STATUS_TONE: ToneMap<SubscriptionStatus> = {
+  aguardando: "neutral",
   ativa: "success",
   pausada: "warning",
   cancelada: "neutral",

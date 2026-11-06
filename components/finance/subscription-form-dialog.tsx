@@ -22,7 +22,7 @@ const schema = z.object({
   clientId: v.required("Cliente"),
   description: v.required("Descrição"),
   amount: v.money("Valor mensal"),
-  method: v.select(["boleto", "pix", "cartao"], "a forma de pagamento"),
+  method: v.select(["boleto", "pix", "cartao", "asaas"], "a forma de pagamento"),
   billingDay: z.string(),
   startDate: v.date("Início"),
 })

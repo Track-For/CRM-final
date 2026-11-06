@@ -15,6 +15,11 @@ import type {
 } from "@/types"
 import type { MockDatabase } from "@/lib/mock"
 import * as api from "@/lib/data/api"
+import { initialDatabase } from "@/lib/data/initial"
+import { conversionChanges } from "@/lib/data/conversion-lifecycle"
+import { projectReceivables } from "@/lib/data/project-receivables"
+import { firstMonthlyReceivable, monthlyForecastChanges, subscriptionForDeal } from "@/lib/data/deal-subscription"
+import { clientForLead } from "@/lib/data/lead-conversion"
 
 type WithId = { id: ID }
 
@@ -71,44 +76,10 @@ export function newId(prefix: string): ID {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
-const emptyDb: MockDatabase = {
-  users: [],
-  pipelines: [],
-  lostReasons: [],
-  catalog: [],
-  addons: [],
-  hostingPlans: [],
-  pricingRules: { minPrice: 0, expressPercent: 0, cashDiscountPercent: 0, maxInstallments: 1, extraPagePrice: 0, extraLanguagePercent: 0, quoteValidityDays: 15 },
-  financialCategories: [],
-  quickMessages: [],
-  company: { name: "", legalName: "", cnpj: "", municipalRegistration: "", email: "", whatsapp: "", website: "", address: { zip: "", street: "", number: "", district: "", city: "", state: "" } },
-  integrations: [],
-  leads: [],
-  deals: [],
-  quotes: [],
-  clients: [],
-  projects: [],
-  contracts: [],
-  subscriptions: [],
-  charges: [],
-  entries: [],
-  invoices: [],
-  events: [],
-  tasks: [],
-  activities: [],
-  notes: [],
-  messages: [],
-  forms: [],
-  webhooks: [],
-  apiKeys: [],
-  whatsappInstances: [],
-  integrationLogs: [],
-  notifications: [],
-  adSpend: [],
-}
+
 
 export const useCrmStore = create<CrmState>()((set, get) => ({
-  ...emptyDb,
+  ...structuredClone(initialDatabase),
   status: "idle",
   currentUserId: "usr_rafael",
 
@@ -127,6 +98,14 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
     set((s) => ({ [key]: [item, ...(s[key] as WithId[])] }) as Partial<CrmState>)
     const resource = collectionResource[key]
     if (resource) void api.createResource(resource, item)
+    if (key === "subscriptions") {
+      const subscription = get().subscriptions.find(value => value.id === item.id)
+      const receivable = subscription && subscription.dealId && firstMonthlyReceivable(subscription, get().charges)
+      if (receivable) {
+        get().add("charges", receivable.charge)
+        get().add("entries", receivable.entry)
+      }
+    }
     return item
   },
 
@@ -134,6 +113,60 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
     set((s) => ({ [key]: (s[key] as WithId[]).map((it) => (it.id === id ? { ...it, ...patch } : it)) }) as Partial<CrmState>)
     const resource = collectionResource[key]
     if (resource) void api.updateResource(resource, id, patch)
+    if (key === "deals") {
+      const deal = get().deals.find(item => item.id === id)
+      if (deal) {
+        const receivables = projectReceivables(deal, get().charges)
+        for (const charge of receivables.remove) {
+          get().remove("charges", charge.id)
+          for (const entry of get().entries.filter(item => item.chargeId === charge.id)) get().remove("entries", entry.id)
+        }
+        for (const record of receivables.records) {
+          if (get().charges.some(item => item.id === record.charge.id)) get().update("charges", record.charge.id, record.charge)
+          else get().add("charges", record.charge)
+          if (get().entries.some(item => item.id === record.entry.id)) get().update("entries", record.entry.id, record.entry)
+          else get().add("entries", record.entry)
+        }
+      }
+      const state = get()
+      for (const change of conversionChanges(state.deals, state.clients, state.subscriptions, state.charges, state.entries)) {
+        get().update(change.resource, change.id, change.data)
+      }
+    }
+    if (key === "deals" || key === "charges") {
+      for (const deal of get().deals) {
+        const subscription = subscriptionForDeal(deal, get().subscriptions, get().charges)
+        if (!subscription) continue
+        const existing = get().subscriptions.find(item => item.id === subscription.id)
+        if (!existing) get().add("subscriptions", subscription)
+        else if (JSON.stringify(existing) !== JSON.stringify(subscription)) get().update("subscriptions", subscription.id, subscription)
+        const correction = monthlyForecastChanges(subscription, get().charges)
+        if (correction) {
+          const { charge, patch } = correction
+          if (Object.entries(patch).some(([key, value]) => charge[key as keyof typeof charge] !== value)) get().update("charges", charge.id, patch)
+          for (const entry of get().entries.filter(item => item.chargeId === charge.id && item.status !== "pago")) {
+            if (Object.entries(patch).some(([key, value]) => entry[key as keyof typeof entry] !== value)) get().update("entries", entry.id, { ...patch, ...(patch.dueDate ? { competenceDate: patch.dueDate } : {}) })
+          }
+        }
+        const first = firstMonthlyReceivable(subscription, get().charges)
+        if (first) { get().add("charges", first.charge); get().add("entries", first.entry) }
+      }
+    }
+    if (key === "leads") {
+      const lead = get().leads.find((item) => item.id === id)
+      if (lead?.status === "convertido") {
+        const client = clientForLead(lead, get().clients)
+        if (!get().clients.some((item) => item.id === client.id)) get().add("clients", client)
+        // Atualiza o vínculo diretamente para não repetir a conversão no update.
+        if (lead.clientId !== client.id) {
+          set((state) => ({ leads: state.leads.map((item) => item.id === id ? { ...item, clientId: client.id } : item) }))
+          void api.updateResource("leads", id, { clientId: client.id })
+        }
+        for (const deal of get().deals.filter((item) => item.leadId === id && item.clientId !== client.id)) {
+          get().update("deals", deal.id, { clientId: client.id })
+        }
+      }
+    }
   },
 
   remove: (key, id) => {
@@ -181,8 +214,8 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
       lostNote: stage === "perdido" ? extra?.lostNote : undefined,
     }
     get().update("deals", dealId, patch)
-    const leadStatus: Lead["status"] | undefined =
-      stage === "ganho" ? "convertido" : stage === "perdido" ? "perdido" : stage === "proposta_enviada" || stage === "negociacao" ? "qualificado" : undefined
+    const leadStatus: Lead["status"] =
+      get().deals.some(item => item.leadId === deal.leadId && item.stage === "ganho") ? "convertido" : stage === "perdido" ? "perdido" : stage === "novo_lead" ? "novo" : stage === "contato_feito" || stage === "call_agendada" ? "em_contato" : "qualificado"
     if (leadStatus) get().update("leads", deal.leadId, { status: leadStatus, updatedAt: now })
     get().logActivity({ type: "negocio", title: `${deal.title}: ${entry.description.toLowerCase()}`, leadId: deal.leadId, dealId })
   },

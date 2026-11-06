@@ -86,7 +86,7 @@ export const isEntryOverdue = (e: FinancialEntry, now = new Date()) =>
 export const entryStatusNow = (e: FinancialEntry, now = new Date()): EntryStatus => (isEntryOverdue(e, now) ? "vencido" : e.status)
 
 /** Data em que o lançamento conta no caixa. */
-export const entryCashDate = (e: FinancialEntry) => (e.status === "pago" ? e.paidAt || e.dueDate : e.dueDate)
+export const entryCashDate = (e: FinancialEntry) => (e.status === "pago" ? e.paidAt || e.dueDate || e.competenceDate : e.dueDate || e.competenceDate)
 
 export type EntryView = "todos" | "receita" | "despesa" | "a_receber" | "a_pagar" | "vencidos"
 

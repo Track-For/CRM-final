@@ -1,34 +1,21 @@
-/**
- * Camada de acesso a dados.
- *
- * HOJE: cada função devolve o mock em memória com uma latência simulada.
- * DEPOIS: troque o corpo de cada função por um fetch para a API, mantendo
- * a mesma assinatura. As telas nunca importam o mock direto — elas usam os
- * hooks de `@/lib/data` (que leem o store abastecido por estas funções).
- */
+/** Acesso aos registros persistidos do CRM, sem dados de demonstração. */
 import { getGoogleCalendarState } from "@/lib/google-calendar/actions"
 import { sendWhatsappText } from "@/lib/whatsapp/actions"
 import type { Charge, ID, Invoice } from "@/types"
-import { createMockDatabase, type MockDatabase } from "@/lib/mock"
+import type { MockDatabase } from "@/lib/mock"
+import { initialDatabase } from "@/lib/data/initial"
 import { deleteRecord, loadRecordOverlay, saveRecord, type RecordOverlay } from "@/lib/data/records-actions"
 
 const LATENCY_MS = 450
-
-let db: MockDatabase | null = null
-function mock(): MockDatabase {
-  if (!db) db = createMockDatabase(new Date())
-  return db
-}
 
 const delay = <T,>(value: T, ms = LATENCY_MS) => new Promise<T>((resolve) => setTimeout(() => resolve(structuredClone(value)), ms))
 
 /* ------------------------------ Leitura ------------------------------ */
 
-/** Carga inicial completa: o mock com as alterações salvas no banco aplicadas por cima. */
+/** Carga inicial com os registros criados no banco e a agenda conectada. */
 export async function getDatabase(): Promise<MockDatabase> {
-  const [data, overlay, google] = await Promise.all([delay(mock()), loadRecordOverlay().catch(() => [] as RecordOverlay[]), getGoogleCalendarState().catch(() => null)])
-  // Leads e vendas são carregados somente dos registros criados no banco.
-  const result = applyOverlay({ ...data, leads: [], deals: [] }, overlay)
+  const [data, overlay, google] = await Promise.all([Promise.resolve(structuredClone(initialDatabase)), loadRecordOverlay().catch(() => [] as RecordOverlay[]), getGoogleCalendarState().catch(() => null)])
+  const result = applyOverlay(data, overlay)
   // A agenda é abastecida exclusivamente pela conexão Google do usuário.
   result.events = google?.events || []
   if (google && !result.users.some(user => user.id === google.owner.id)) result.users.push(google.owner)
@@ -50,7 +37,19 @@ function applyOverlay(data: MockDatabase, overlay: RecordOverlay[]): MockDatabas
   const out = { ...data } as unknown as Record<string, { id: ID }[]>
   for (const [resource, records] of byResource) {
     const list = out[resource]
-    if (!Array.isArray(list)) continue
+    if (!Array.isArray(list)) {
+      if (resource === "settings") {
+        for (const record of records.filter(record => !record.deleted)) {
+          for (const key of ["company", "pricingRules"] as const) {
+            const value = record.data[key]
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+              Object.assign(data[key], value)
+            }
+          }
+        }
+      }
+      continue
+    }
     const changes = new Map(records.map((r) => [r.id, r]))
     const merged = list.flatMap((item) => {
       const r = changes.get(item.id)
@@ -73,31 +72,22 @@ export const getLeads = async () => (await getDatabase()).leads
 export const getLead = async (id: ID) => (await getLeads()).find(lead => lead.id === id) ?? null
 export const getDeals = async () => (await getDatabase()).deals
 export const getDeal = async (id: ID) => (await getDeals()).find(deal => deal.id === id) ?? null
-export const getQuotes = () => delay(mock().quotes) // GET /api/quotes
-export const getClients = () => delay(mock().clients) // GET /api/clients
-export const getCharges = () => delay(mock().charges) // GET /api/charges
-export const getSubscriptions = () => delay(mock().subscriptions) // GET /api/subscriptions
-export const getEntries = () => delay(mock().entries) // GET /api/financial-entries
-export const getInvoices = () => delay(mock().invoices) // GET /api/invoices
+export const getQuotes = async () => (await getDatabase()).quotes
+export const getClients = async () => (await getDatabase()).clients
+export const getCharges = async () => (await getDatabase()).charges
+export const getSubscriptions = async () => (await getDatabase()).subscriptions
+export const getEntries = async () => (await getDatabase()).entries
+export const getInvoices = async () => (await getDatabase()).invoices
 export const getEvents = async () => (await getGoogleCalendarState()).events
-export const getTasks = () => delay(mock().tasks) // GET /api/tasks
-export const getForms = () => delay(mock().forms) // GET /api/forms
-export const getPublicForm = (slug: string) => delay(mock().forms.find((f) => f.slug === slug && f.active) ?? null) // GET /api/public/forms/:slug
-export const getIntegrations = () => delay(mock().integrations) // GET /api/integrations
-export const getIntegrationLogs = () => delay(mock().integrationLogs) // GET /api/integrations/logs
-export const getSettings = () =>
-  delay({
-    company: mock().company,
-    users: mock().users,
-    pipelines: mock().pipelines,
-    catalog: mock().catalog,
-    addons: mock().addons,
-    hostingPlans: mock().hostingPlans,
-    pricingRules: mock().pricingRules,
-    quickMessages: mock().quickMessages,
-    lostReasons: mock().lostReasons,
-    financialCategories: mock().financialCategories,
-  }) // GET /api/settings
+export const getTasks = async () => (await getDatabase()).tasks
+export const getForms = async () => (await getDatabase()).forms
+export const getPublicForm = async (slug: string) => (await getForms()).find((f) => f.slug === slug && f.active) ?? null
+export const getIntegrations = async () => (await getDatabase()).integrations
+export const getIntegrationLogs = async () => (await getDatabase()).integrationLogs
+export const getSettings = async () => {
+  const data = await getDatabase()
+  return { company: data.company, users: data.users, pipelines: data.pipelines, catalog: data.catalog, addons: data.addons, hostingPlans: data.hostingPlans, pricingRules: data.pricingRules, quickMessages: data.quickMessages, lostReasons: data.lostReasons, financialCategories: data.financialCategories }
+}
 
 /* ------------------------------ Escrita ------------------------------ */
 /*
@@ -126,7 +116,7 @@ export type Resource =
   | "integrations"
 
 /** Coleções gravadas no banco (crm_records). As demais seguem só em memória. */
-const PERSISTED = new Set<Resource>(["leads", "deals", "quotes", "clients", "charges", "subscriptions", "entries", "events", "tasks", "forms", "notes", "activities", "messages", "webhooks", "apiKeys"])
+const PERSISTED = new Set<Resource>(["leads", "deals", "quotes", "clients", "charges", "subscriptions", "entries", "events", "tasks", "forms", "notes", "activities", "messages", "webhooks", "apiKeys", "settings"])
 
 function persist(job: () => Promise<void>) {
   job().catch((err) => console.error("[crm] Falha ao salvar alteração", err))

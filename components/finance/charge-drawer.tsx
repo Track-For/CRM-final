@@ -191,7 +191,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
             </div>
             <div className="min-w-0 rounded-lg border bg-surface p-3">
               <p className="text-xs text-muted-foreground">Vencimento</p>
-              <p className={charge.status === "vencido" ? "num mt-1 text-base font-semibold text-danger sm:text-xl" : "num mt-1 text-base font-semibold sm:text-xl"}>{formatDate(charge.dueDate)}</p>
+              <p className={charge.status === "vencido" ? "num mt-1 text-base font-semibold text-danger sm:text-xl" : "num mt-1 text-base font-semibold sm:text-xl"}>{charge.dueDate ? formatDate(charge.dueDate) : "A definir"}</p>
             </div>
           </div>
 
@@ -226,7 +226,8 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
                 </section>
               )}
 
-              {charge.method !== "boleto" && (
+              {charge.method === "pix" && charge.pixKey && <CopyRow label="Chave Pix" value={charge.pixKey} copiedLabel="Chave Pix copiada" />}
+              {charge.method === "pix" && charge.pixCode && (
                 <section className="space-y-3 rounded-xl border p-4">
                   <p className="text-sm font-semibold">Pix</p>
                   <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">

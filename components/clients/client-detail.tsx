@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { DeleteClientButton } from "@/components/clients/delete-client-button"
 import { CheckSquare, FileSignature, MessageCircle, Pencil, Plus, Receipt, Repeat, Users, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,10 +30,12 @@ import {
   SUBSCRIPTION_STATUS_LABEL,
   SUBSCRIPTION_STATUS_TONE,
 } from "@/lib/constants"
-import { useCharges, useClient, useContracts, useInvoices, useLead, useProjects, useSubscriptions } from "@/lib/data"
-import { mrr, sum } from "@/lib/data/selectors"
+import { useCharges, useClient, useContracts, useDeals, useInvoices, useLead, useProjects, useSubscriptions } from "@/lib/data"
+import { clientSummary } from "@/lib/data/client-summary"
 import { daysUntil, formatDate, formatDays, formatMoney, whatsappLink } from "@/lib/format"
 import { useUiStore } from "@/lib/store/ui-store"
+import { MonthlyBilling } from "@/components/clients/monthly-billing"
+import { PaymentPlanDialog } from "@/components/clients/payment-plan-dialog"
 import type { Contract } from "@/types"
 
 const CONTRACT_STATUS: Record<Contract["status"], { label: string; tone: "warning" | "success" | "neutral" }> = {
@@ -41,9 +45,11 @@ const CONTRACT_STATUS: Record<Contract["status"], { label: string; tone: "warnin
 }
 
 export function ClientDetail({ id }: { id: string }) {
+  const router = useRouter()
   const client = useClient(id)
   const lead = useLead(client?.leadId)
   const allProjects = useProjects()
+  const allDeals = useDeals()
   const allSubs = useSubscriptions()
   const allCharges = useCharges()
   const allInvoices = useInvoices()
@@ -55,26 +61,25 @@ export function ClientDetail({ id }: { id: string }) {
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [chargeId, setChargeId] = useState<string | null>(null)
   const [invoiceId, setInvoiceId] = useState<string | null>(null)
+  const [planDealId, setPlanDealId] = useState<string | null>(null)
+  const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null)
+  const missingPlanDeal = allDeals.find(deal => deal.stage === "ganho" && !deal.paymentPlan && (deal.clientId === id || (!!client?.leadId && deal.leadId === client.leadId)))
+  const [tab, setTab] = useState("projetos")
 
   const data = useMemo(() => {
-    const projects = allProjects.filter((p) => p.clientId === id)
-    const subscriptions = allSubs.filter((s) => s.clientId === id)
-    const charges = allCharges.filter((c) => c.clientId === id)
+    const summary = client ? clientSummary(client, allDeals, allProjects, allSubs, allCharges) : { projects: [], subscriptions: [], charges: [], paid: 0, open: 0, unbilled: 0, monthly: 0, monthlyFromDeals: false }
+    const { charges } = summary
     const invoices = allInvoices.filter((i) => i.clientId === id).sort((a, b) => b.issuedAt.localeCompare(a.issuedAt))
     const contracts = allContracts.filter((c) => c.clientId === id)
     return {
-      projects,
-      subscriptions,
-      charges,
+      ...summary,
       invoices,
       contracts,
-      paid: sum(charges.filter((c) => c.status === "pago"), (c) => c.amount),
-      open: sum(charges.filter((c) => c.status === "pendente" || c.status === "vencido"), (c) => c.amount),
       overdue: charges.filter((c) => c.status === "vencido").length,
     }
-  }, [id, allProjects, allSubs, allCharges, allInvoices, allContracts])
+  }, [id, client, allDeals, allProjects, allSubs, allCharges, allInvoices, allContracts])
 
-  if (!client) {
+  if (!client || client.deletedAt) {
     return (
       <EmptyState
         icon={Users}
@@ -120,12 +125,7 @@ export function ClientDetail({ id }: { id: string }) {
               <CheckSquare />
               Tarefa
             </Button>
-            {canFinance && (
-              <Button variant="outline" onClick={() => openQuickCreate("charge", { clientId: client.id })}>
-                <Wallet />
-                Cobrança
-              </Button>
-            )}
+            {canFinance && <DeleteClientButton client={client} onDeleted={() => router.push("/clientes")} />}
             <Button onClick={() => openWhatsapp(whatsappLink(client.whatsapp, message))}>
               <MessageCircle />
               WhatsApp
@@ -137,9 +137,9 @@ export function ClientDetail({ id }: { id: string }) {
       <div className="space-y-4">
         <StatGrid>
           <StatCard label="Projetos" value={data.projects.length} icon={FileSignature} hint={`${data.projects.filter((p) => p.status === "em_andamento").length} em andamento`} />
-          <StatCard label="Mensalidade" value={formatMoney(mrr(data.subscriptions))} icon={Repeat} highlight hint={`${data.subscriptions.filter((s) => s.status === "ativa").length} ativa(s)`} />
-          <StatCard label="Total pago" value={formatMoney(data.paid)} icon={Receipt} hint={`${data.charges.filter((c) => c.status === "pago").length} cobrança(s)`} />
-          <StatCard label="Em aberto" value={formatMoney(data.open)} icon={Wallet} hint={data.overdue ? `${data.overdue} vencida(s)` : "Sem atrasos"} className={data.overdue ? "border-[#4a1818]" : undefined} />
+          <StatCard label="Mensalidade" value={formatMoney(data.monthly)} icon={Repeat} highlight hint={data.monthlyFromDeals ? "Valor contratado nos negócios ganhos" : `${data.subscriptions.filter((s) => s.status === "ativa").length} ativa(s)`} />
+          <StatCard label="Total pago" value={formatMoney(data.paid)} icon={Receipt} hint={<>{data.charges.filter((c) => c.status === "pago").length} cobrança(s){canFinance && <Button variant="link" size="sm" className="h-auto p-0 ml-2" onClick={() => setTab("cobrancas")}>Registrar pagamento</Button>}</>} />
+          <StatCard label="Em aberto" value={formatMoney(data.open)} icon={Wallet} hint={<>{data.unbilled > 0 ? `${formatMoney(data.unbilled)} ainda sem cobrança vinculada` : data.overdue ? `${data.overdue} vencida(s)` : "Sem atrasos"}{canFinance && <Button variant="link" size="sm" className="h-auto p-0 ml-2" onClick={() => setTab("cobrancas")}>Ver cobranças</Button>}</>} className={data.overdue ? "border-[#4a1818]" : undefined} />
         </StatGrid>
 
         <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
@@ -174,7 +174,7 @@ export function ClientDetail({ id }: { id: string }) {
             </Panel>
           </div>
 
-          <Tabs defaultValue="projetos" className="min-w-0">
+          <Tabs value={tab} onValueChange={setTab} className="min-w-0">
             <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
               <TabsTrigger value="projetos">Projetos</TabsTrigger>
               <TabsTrigger value="mensalidades">Mensalidades</TabsTrigger>
@@ -197,9 +197,9 @@ export function ClientDetail({ id }: { id: string }) {
                           <EnumBadge value={p.status} labels={PROJECT_STATUS_LABEL} tones={PROJECT_STATUS_TONE} />
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {PROJECT_TYPE_LABEL[p.projectType]} · início <span className="num">{formatDate(p.startDate)}</span> · entrega <span className="num">{formatDate(p.deliveryDate)}</span>
-                          {p.status !== "entregue" && days >= 0 && ` (em ${formatDays(days)})`}
-                          {p.status !== "entregue" && days < 0 && <span className="text-danger"> (atrasado {formatDays(-days)})</span>}
+                          {PROJECT_TYPE_LABEL[p.projectType]} · início <span className="num">{formatDate(p.startDate)}</span> · entrega <span className="num">{p.deliveryDate ? formatDate(p.deliveryDate) : "A definir"}</span>
+                          {p.deliveryDate && p.status !== "entregue" && days >= 0 && ` (em ${formatDays(days)})`}
+                          {p.deliveryDate && p.status !== "entregue" && days < 0 && <span className="text-danger"> (atrasado {formatDays(-days)})</span>}
                         </p>
                       </div>
                       <span className="num font-semibold">{formatMoney(p.value)}</span>
@@ -251,6 +251,26 @@ export function ClientDetail({ id }: { id: string }) {
 
             {canFinance && (
               <TabsContent value="cobrancas" className="mt-3">
+                <div className="mb-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground">Abra uma cobrança para marcar como paga. Para boletos registrados, use Atualizar status.</p>
+
+                  </div>
+                  {data.subscriptions.map(subscription => <MonthlyBilling key={subscription.id} subscription={subscription} onOpenCharge={setChargeId} />)}
+                  {allDeals.filter(deal => deal.stage === "ganho" && (deal.clientId === id || (!!client.leadId && deal.leadId === client.leadId))).map(deal => <div key={deal.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"><span className="text-sm">{deal.title}</span><Button size="sm" variant="outline" onClick={() => setPlanDealId(deal.id)}>{deal.paymentPlan ? "Editar plano de cobrança" : "Personalizar cobrança"}</Button></div>)}
+                  {allDeals.filter(deal => (deal.clientId === id || (!!client.leadId && deal.leadId === client.leadId)) && deal.paymentPlan).map(deal => <div key={deal.id} className="space-y-3 rounded-lg border p-3">
+                    <p className="font-medium">Pagamento por etapas · {deal.title} · {PAYMENT_METHOD_LABEL[deal.paymentPlan!.method]}</p>
+                    {deal.paymentPlan!.method === "pix" && <p className="break-all text-sm text-muted-foreground">Chave Pix: {deal.paymentPlan!.pixKey}</p>}
+                    {deal.paymentPlan!.milestones.map(milestone => {
+                      const charge = data.charges.find(item => item.dealId === deal.id && item.milestoneId === milestone.id && item.status !== "cancelado")
+                      return <div key={milestone.id} className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm">{milestone.label} · {milestone.percent}% · {formatMoney(milestone.amount)} · {milestone.dueDate ? formatDate(milestone.dueDate) : "Data a definir"}</p>
+                        <Button size="sm" variant="outline" disabled={!charge} onClick={() => charge && setChargeId(charge.id)}>{charge ? "Abrir cobrança" : "Aguardando sincronização"}</Button>
+                      </div>
+                    })}
+                  </div>)}
+
+                </div>
                 <ChargeTable charges={data.charges} onOpen={(c) => setChargeId(c.id)} hideClient pageSize={10} />
               </TabsContent>
             )}
@@ -309,6 +329,8 @@ export function ClientDetail({ id }: { id: string }) {
         </div>
       </div>
 
+      {canFinance && !planDealId && missingPlanDeal && dismissedPlanId !== missingPlanDeal.id && <PaymentPlanDialog key={missingPlanDeal.id} deal={missingPlanDeal} onClose={() => setDismissedPlanId(missingPlanDeal.id)} />}
+      {planDealId && allDeals.find(deal => deal.id === planDealId) && <PaymentPlanDialog key={planDealId} deal={allDeals.find(deal => deal.id === planDealId)!} onClose={() => setPlanDealId(null)} />}
       <ClientFormDialog open={editOpen} onOpenChange={setEditOpen} client={client} />
       <SubscriptionFormDialog open={subOpen} onOpenChange={setSubOpen} clientId={client.id} />
       <InvoiceFormDialog open={invoiceOpen} onOpenChange={setInvoiceOpen} defaults={{ clientId: client.id }} />

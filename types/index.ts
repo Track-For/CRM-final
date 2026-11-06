@@ -123,6 +123,7 @@ export interface DealHistoryEntry {
 }
 
 export interface Deal {
+  paymentPlan?: { method: PaymentMethod; pixKey: string; milestones: { id: string; label: string; percent: number; amount: number; dueDate?: string }[] }
   id: ID
   title: string
   leadId: ID
@@ -310,6 +311,8 @@ export interface Address {
 }
 
 export interface Client {
+  deletedAt?: string
+  conversionReverted?: boolean
   id: ID
   name: string
   legalName: string
@@ -355,10 +358,15 @@ export interface Contract {
 /* Financeiro                                                          */
 /* ------------------------------------------------------------------ */
 
-export type PaymentMethod = "boleto" | "pix" | "cartao"
+export type PaymentMethod = "boleto" | "pix" | "cartao" | "asaas"
 export type ChargeStatus = "pendente" | "pago" | "vencido" | "cancelado"
 
 export interface Charge {
+  awaitingProjectPayment?: boolean
+  conversionReverted?: boolean
+  automatic?: boolean
+  pixKey?: string
+  milestoneId?: string
   id: ID
   number: string
   clientId: ID
@@ -386,9 +394,12 @@ export interface Charge {
   gatewayEnvironment?: "sandbox" | "producao"
 }
 
-export type SubscriptionStatus = "ativa" | "pausada" | "cancelada"
+export type SubscriptionStatus = "ativa" | "pausada" | "cancelada" | "aguardando"
 
 export interface Subscription {
+  conversionReverted?: boolean
+  dealId?: ID
+  pixKey?: string
   id: ID
   clientId: ID
   description: string
@@ -412,6 +423,8 @@ export interface FinancialCategory {
 }
 
 export interface FinancialEntry {
+  awaitingProjectPayment?: boolean
+  conversionReverted?: boolean
   id: ID
   type: EntryType
   description: string
@@ -633,6 +646,7 @@ export interface IntegrationLog {
 /* ------------------------------------------------------------------ */
 
 export interface Company {
+  pixKey?: string
   name: string
   legalName: string
   cnpj: string

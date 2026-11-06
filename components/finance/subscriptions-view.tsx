@@ -64,7 +64,7 @@ export function SubscriptionsView() {
       },
       { id: "amount", header: "Valor", accessorFn: (s) => s.amount, cell: ({ row }) => <span className="num font-medium">{formatMoney(row.original.amount)}/mês</span> },
       { id: "method", header: "Forma", accessorFn: (s) => s.method, cell: ({ row }) => PAYMENT_METHOD_LABEL[row.original.method] },
-      { id: "day", header: "Dia", accessorFn: (s) => s.billingDay, cell: ({ row }) => <span className="num">{row.original.billingDay}</span> },
+      { id: "day", header: "Dia", accessorFn: (s) => s.billingDay, cell: ({ row }) => <span className="num">{row.original.billingDay || "A definir"}</span> },
       { id: "next", header: "Próxima cobrança", accessorFn: (s) => s.nextBillingDate, cell: ({ row }) => <span className="num text-xs">{row.original.status === "ativa" ? formatDate(row.original.nextBillingDate) : "—"}</span> },
       { id: "status", header: "Status", accessorFn: (s) => s.status, cell: ({ row }) => <EnumBadge value={row.original.status} labels={SUBSCRIPTION_STATUS_LABEL} tones={SUBSCRIPTION_STATUS_TONE} /> },
       { id: "actions", header: "", enableSorting: false, size: 40, cell: ({ row }) => <RowActions sub={row.original} onCancel={setCanceling} onStatus={setStatusFor} /> },
@@ -200,7 +200,7 @@ function RowActions({ sub, onCancel, onStatus }: { sub: Subscription; onCancel: 
             Pausar
           </DropdownMenuItem>
         )}
-        {sub.status !== "ativa" && (
+        {sub.status !== "ativa" && sub.status !== "aguardando" && (
           <DropdownMenuItem onSelect={() => onStatus(sub, "ativa")}>
             <Play />
             Reativar
