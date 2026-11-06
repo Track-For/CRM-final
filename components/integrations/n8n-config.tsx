@@ -23,9 +23,11 @@ import { LogsTable } from "@/components/integrations/logs-table"
 import { randomToken, SecretInput } from "@/components/integrations/secret-input"
 import { WEBHOOK_EVENTS } from "@/lib/constants"
 import { copyToClipboard } from "@/lib/browser"
+import { flushPendingWrites } from "@/lib/data/api"
+import { createApiKeyAction } from "@/lib/integrations/actions"
 import { api, newId, useApiKeys, useCrm, useWebhooks } from "@/lib/data"
 import { formatDate, formatRelative } from "@/lib/format"
-import type { ApiKey, Integration, Webhook, WebhookEvent } from "@/types"
+import type { Integration, Webhook, WebhookEvent } from "@/types"
 
 const EVENT_OPTIONS = WEBHOOK_EVENTS.map((e) => ({ value: e.value, label: `${e.value} · ${e.label}` }))
 const SCOPES = [
@@ -47,10 +49,15 @@ function WebhookCard({ webhook }: { webhook: Webhook }) {
   const test = async () => {
     if (!urlValid) return toast.error("URL inválida")
     setTesting(true)
-    const res = await api.actions.testWebhook(url)
-    setTesting(false)
-    update("webhooks", webhook.id, { lastStatus: res.status, lastSentAt: new Date().toISOString() })
-    toast.success(`Teste enviado: HTTP ${res.status}`, { description: `${webhook.event} respondeu em ${res.ms} ms` })
+    try {
+      update("webhooks", webhook.id, { url })
+      await flushPendingWrites()
+      const res = await api.actions.testWebhook(webhook.id)
+      update("webhooks", webhook.id, { lastStatus: res.status, lastSentAt: new Date().toISOString() })
+      if (res.status >= 200 && res.status < 300) toast.success(`Teste enviado: HTTP ${res.status}`, { description: `${res.ms} ms` })
+      else toast.error(`Falha no teste: ${res.status ? `HTTP ${res.status}` : "sem resposta"}`)
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível testar") }
+    finally { setTesting(false) }
   }
 
   return (
@@ -153,7 +160,6 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
 function ApiKeysPanel() {
   const keys = useApiKeys()
-  const add = useCrm((s) => s.add)
   const remove = useCrm((s) => s.remove)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState("")
@@ -161,17 +167,16 @@ function ApiKeysPanel() {
   const [nameError, setNameError] = useState<string>()
   const [created, setCreated] = useState<string | null>(null)
 
-  const create = (e: React.FormEvent) => {
+  const create = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return setNameError("Nome é obrigatório")
     if (!scopes.length) return setNameError("Selecione ao menos uma permissão")
-    const full = randomToken("sk_live_", 32)
-    const key: ApiKey = { id: newId("key"), name: name.trim(), prefix: full.slice(0, 12), scopes, createdAt: new Date().toISOString() }
-    add("apiKeys", key)
-    setCreating(false)
-    setCreated(full)
-    setName("")
-    setNameError(undefined)
+    try {
+      const result = await createApiKeyAction(name, scopes)
+      useCrm.setState(state => ({ apiKeys: [...state.apiKeys, result.key] }))
+      setCreating(false); setCreated(result.token); setName(""); setNameError(undefined)
+    } catch (error) { setNameError(error instanceof Error ? error.message : "Falha ao criar chave") }
+
   }
 
   return (

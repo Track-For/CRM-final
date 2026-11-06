@@ -24,6 +24,8 @@ export const users = pgTable("users", {
   /** Sempre em minúsculo. */
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  active: boolean("active").notNull().default(true),
+  whatsapp: text("whatsapp").notNull().default(""),
   role: text("role").$type<UserRole>().notNull().default("admin"),
   totpSecret: text("totp_secret"),
   totpEnabled: boolean("totp_enabled").notNull().default(false),

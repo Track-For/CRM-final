@@ -1,21 +1,23 @@
 /** Acesso aos registros persistidos do CRM, sem dados de demonstração. */
+import { getCrmIdentity } from "@/lib/auth/user-actions"
+import { toast } from "sonner"
+import { testWebhookAction } from "@/lib/integrations/actions"
+import { resourcePolicy } from "@/lib/data/resource-policy"
 import { getGoogleCalendarState } from "@/lib/google-calendar/actions"
 import { sendWhatsappText } from "@/lib/whatsapp/actions"
-import type { Charge, ID, Invoice } from "@/types"
+import type { ID } from "@/types"
 import type { MockDatabase } from "@/lib/mock"
 import { initialDatabase } from "@/lib/data/initial"
 import { deleteRecord, loadRecordOverlay, saveRecord, type RecordOverlay } from "@/lib/data/records-actions"
-
-const LATENCY_MS = 450
-
-const delay = <T,>(value: T, ms = LATENCY_MS) => new Promise<T>((resolve) => setTimeout(() => resolve(structuredClone(value)), ms))
 
 /* ------------------------------ Leitura ------------------------------ */
 
 /** Carga inicial com os registros criados no banco e a agenda conectada. */
 export async function getDatabase(): Promise<MockDatabase> {
-  const [data, overlay, google] = await Promise.all([Promise.resolve(structuredClone(initialDatabase)), loadRecordOverlay().catch(() => [] as RecordOverlay[]), getGoogleCalendarState().catch(() => null)])
+  const [data, overlay, google] = await Promise.all([Promise.resolve(structuredClone(initialDatabase)), loadRecordOverlay(), getGoogleCalendarState().catch(() => null)])
   const result = applyOverlay(data, overlay)
+  const identity = await getCrmIdentity()
+  result.users = identity.users
   // A agenda é abastecida exclusivamente pela conexão Google do usuário.
   result.events = google?.events || []
   if (google && !result.users.some(user => user.id === google.owner.id)) result.users.push(google.owner)
@@ -36,10 +38,19 @@ function applyOverlay(data: MockDatabase, overlay: RecordOverlay[]): MockDatabas
   for (const r of overlay) byResource.set(r.resource, [...(byResource.get(r.resource) ?? []), r])
   const out = { ...data } as unknown as Record<string, { id: ID }[]>
   for (const [resource, records] of byResource) {
+    if (resource === "integrations") {
+      data.integrations = data.integrations.map(item => {
+        const record = records.find(row => row.id === item.key && !row.deleted)
+        return record ? { ...item, ...fromStored(record.data) } : item
+      })
+      out.integrations = data.integrations as unknown as { id: ID }[]
+      continue
+    }
     const list = out[resource]
     if (!Array.isArray(list)) {
       if (resource === "settings") {
         for (const record of records.filter(record => !record.deleted)) {
+          if (Array.isArray(record.data.adSpend)) out.adSpend = record.data.adSpend as unknown as { id: ID }[]
           for (const key of ["company", "pricingRules"] as const) {
             const value = record.data[key]
             if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -103,7 +114,6 @@ export type Resource =
   | "charges"
   | "subscriptions"
   | "entries"
-  | "invoices"
   | "events"
   | "tasks"
   | "forms"
@@ -114,35 +124,47 @@ export type Resource =
   | "apiKeys"
   | "settings"
   | "integrations"
+  | "catalog" | "addons" | "hostingPlans" | "pipelines" | "lostReasons" | "quickMessages" | "financialCategories" | "projects" | "contracts" | "notifications" | "integrationLogs"
 
 /** Coleções gravadas no banco (crm_records). As demais seguem só em memória. */
-const PERSISTED = new Set<Resource>(["leads", "deals", "quotes", "clients", "charges", "subscriptions", "entries", "events", "tasks", "forms", "notes", "activities", "messages", "webhooks", "apiKeys", "settings"])
+const PERSISTED = new Set(Object.keys(resourcePolicy))
+const pending = new Set<Promise<void>>()
+const queues = new Map<string, Promise<void>>()
 
-function persist(job: () => Promise<void>) {
-  job().catch((err) => console.error("[crm] Falha ao salvar alteração", err))
+function persist(key: string, job: () => Promise<void>) {
+  const previous = queues.get(key) ?? Promise.resolve()
+  const task = previous.catch(() => {}).then(job)
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("crm-save-pending", { detail: 1 }))
+  queues.set(key, task)
+  pending.add(task)
+  task.catch(() => {
+    toast.error("Alteração não salva", { description: "Confira sua conexão e permissões. Recarregue os dados antes de continuar.", duration: 10000 })
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("crm-save-error"))
+  }).finally(() => { pending.delete(task); if (queues.get(key) === task) queues.delete(key); if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("crm-save-pending", { detail: -1 })) })
+  return task
+}
+
+export async function flushPendingWrites() {
+  await Promise.all([...pending])
 }
 
 export async function createResource<T>(resource: Resource, data: T): Promise<T> {
   const id = (data as { id?: ID }).id
-  if (PERSISTED.has(resource) && id) persist(() => saveRecord(resource, id, toStored(data), true))
+  if (PERSISTED.has(resource) && id) await persist(`${resource}:${id}`, () => saveRecord(resource, id, toStored(data), true))
   return structuredClone(data)
 }
 
 export async function updateResource<T>(resource: Resource, id: ID, patch: Partial<T>): Promise<Partial<T>> {
-  if (PERSISTED.has(resource)) persist(() => saveRecord(resource, id, toStored(patch)))
+  if (PERSISTED.has(resource)) await persist(`${resource}:${id}`, () => saveRecord(resource, id, toStored(patch)))
   return structuredClone(patch)
 }
 
 export async function deleteResource(resource: Resource, id: ID): Promise<void> {
-  if (PERSISTED.has(resource)) persist(() => deleteRecord(resource, id))
+  if (PERSISTED.has(resource)) await persist(`${resource}:${id}`, () => deleteRecord(resource, id))
 }
 
 /** Ações que na API real disparam integrações (Asaas, Brasil NFe, Evolution). */
 export const actions = {
   sendWhatsapp: sendWhatsappText,
-  issueInvoice: async (invoice: Invoice) => delay({ ...invoice, status: "processando" as const }, 300), // POST /api/invoices
-  createCharge: async (charge: Charge) => delay(charge, 300), // POST /api/charges (Asaas)
-  testWebhook: async (url: string) => delay({ url, status: 200, ms: 182 }, 700), // POST /api/webhooks/test
-  submitPublicForm: async (slug: string, data: Record<string, string>) => delay({ slug, data, ok: true }, 600), // POST /api/public/forms/:slug
+  testWebhook: testWebhookAction,
 }
-

@@ -1,5 +1,8 @@
 "use client"
 
+import { canUseResource } from "@/lib/data/resource-policy"
+import { getCrmIdentity } from "@/lib/auth/user-actions"
+import { useUiStore } from "@/lib/store/ui-store"
 import { create } from "zustand"
 import type {
   Activity,
@@ -54,6 +57,7 @@ export interface CrmState extends MockDatabase {
 }
 
 const collectionResource: Partial<Record<CollectionKey, api.Resource>> = {
+  catalog: "catalog", addons: "addons", hostingPlans: "hostingPlans", pipelines: "pipelines", lostReasons: "lostReasons", quickMessages: "quickMessages", financialCategories: "financialCategories", projects: "projects", contracts: "contracts", notifications: "notifications", integrationLogs: "integrationLogs",
   leads: "leads",
   deals: "deals",
   quotes: "quotes",
@@ -61,7 +65,6 @@ const collectionResource: Partial<Record<CollectionKey, api.Resource>> = {
   charges: "charges",
   subscriptions: "subscriptions",
   entries: "entries",
-  invoices: "invoices",
   events: "events",
   tasks: "tasks",
   forms: "forms",
@@ -81,14 +84,16 @@ export function newId(prefix: string): ID {
 export const useCrmStore = create<CrmState>()((set, get) => ({
   ...structuredClone(initialDatabase),
   status: "idle",
-  currentUserId: "usr_rafael",
+  currentUserId: "",
 
   bootstrap: async () => {
     if (get().status === "loading" || get().status === "ready") return
     set({ status: "loading" })
     try {
       const data = await api.getDatabase()
-      set({ ...data, status: "ready" })
+      const identity = await getCrmIdentity()
+      useUiStore.getState().setRole(identity.current.role)
+      set({ ...data, currentUserId: identity.current.id, status: "ready" })
     } catch {
       set({ status: "error" })
     }
@@ -97,7 +102,7 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   add: (key, item) => {
     set((s) => ({ [key]: [item, ...(s[key] as WithId[])] }) as Partial<CrmState>)
     const resource = collectionResource[key]
-    if (resource) void api.createResource(resource, item)
+    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.createResource(resource, item).catch(() => {})
     if (key === "subscriptions") {
       const subscription = get().subscriptions.find(value => value.id === item.id)
       const receivable = subscription && subscription.dealId && firstMonthlyReceivable(subscription, get().charges)
@@ -112,7 +117,7 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   update: (key, id, patch) => {
     set((s) => ({ [key]: (s[key] as WithId[]).map((it) => (it.id === id ? { ...it, ...patch } : it)) }) as Partial<CrmState>)
     const resource = collectionResource[key]
-    if (resource) void api.updateResource(resource, id, patch)
+    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.updateResource(resource, id, patch).catch(() => {})
     if (key === "deals") {
       const deal = get().deals.find(item => item.id === id)
       if (deal) {
@@ -172,20 +177,20 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   remove: (key, id) => {
     set((s) => ({ [key]: (s[key] as WithId[]).filter((it) => it.id !== id) }) as Partial<CrmState>)
     const resource = collectionResource[key]
-    if (resource) void api.deleteResource(resource, id)
+    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.deleteResource(resource, id).catch(() => {})
   },
 
   replace: (key, items) => set({ [key]: items } as Partial<CrmState>),
 
   setSingleton: (key, value) => {
     set({ [key]: value } as Partial<CrmState>)
-    void api.updateResource("settings", key, { [key]: value })
+    void api.updateResource("settings", key, { [key]: value }).catch(() => {})
   },
 
   logActivity: (activity) => {
     const entry: Activity = { ...activity, id: newId("act"), authorId: activity.authorId ?? get().currentUserId, createdAt: new Date().toISOString() }
     set((s) => ({ activities: [entry, ...s.activities] }))
-    void api.createResource("activities", entry)
+    void api.createResource("activities", entry).catch(() => {})
   },
 
   moveDeal: (dealId, stage, extra) => {
@@ -240,9 +245,10 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
 
   updateIntegration: (key, patch) => {
     set((s) => ({ integrations: s.integrations.map((i) => (i.key === key ? { ...i, ...patch } : i)) }))
-    void api.updateResource("integrations", key, patch)
+    void api.updateResource("integrations", key, patch).catch(() => {})
   },
 
-  markNotificationsRead: (ids) =>
-    set((s) => ({ notifications: s.notifications.map((n) => (!ids || ids.includes(n.id) ? { ...n, read: true } : n)) })),
+  markNotificationsRead: (ids) => {
+    for (const notification of get().notifications) if (!ids || ids.includes(notification.id)) get().update("notifications", notification.id, { read: true })
+  },
 }))

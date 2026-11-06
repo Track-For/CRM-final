@@ -19,7 +19,7 @@ async function readAsaasStatus() {
 }
 
 export default async function IntegracoesPage() {
-  // Status real do Brasil NFe e do Asaas (as demais integrações ainda são mock).
+  // Status consultado nos serviços e configurações reais de cada integração.
   let fiscal: { connected: boolean; updatedAt: string | null } | undefined
   const user = await getCurrentUser()
   if (user && FISCAL_ROLES.has(user.role)) {

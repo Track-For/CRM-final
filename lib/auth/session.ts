@@ -64,6 +64,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const rows = await db
     .select({
       expiresAt: sessions.expiresAt,
+      active: users.active,
       id: users.id,
       name: users.name,
       email: users.email,
@@ -76,7 +77,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     .limit(1)
 
   const row = rows[0]
-  if (!row) return null
+  if (!row || !row.active) return null
   if (new Date(row.expiresAt).getTime() <= Date.now()) {
     await db.delete(sessions).where(eq(sessions.id, sessionId))
     return null
@@ -139,7 +140,7 @@ export async function readChallenge() {
     .where(eq(authChallenges.id, id))
     .limit(1)
   const row = rows[0]
-  if (!row) return null
+  if (!row || !row.user.active) return null
   if (new Date(row.challenge.expiresAt).getTime() <= Date.now()) {
     await db.delete(authChallenges).where(eq(authChallenges.id, id))
     return null

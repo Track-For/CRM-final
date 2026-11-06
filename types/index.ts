@@ -278,6 +278,8 @@ export interface Attachment {
 }
 
 export interface Task {
+  projectId?: ID
+  projectStageId?: ID
   id: ID
   title: string
   description: string
@@ -333,7 +335,22 @@ export interface Client {
 
 export type ProjectStatus = "planejamento" | "em_andamento" | "entregue" | "pausado"
 
+export type ProjectStageStatus = "pendente" | "em_andamento" | "em_revisao" | "bloqueada" | "concluida"
+
+export interface ProjectStage {
+  id: ID
+  name: string
+  description: string
+  status: ProjectStageStatus
+  assigneeId: ID
+  startDate: string
+  dueDate: string
+  paymentMilestoneId?: ID
+}
+
 export interface Project {
+  stages?: ProjectStage[]
+  executionVersion?: number
   id: ID
   clientId: ID
   dealId?: ID

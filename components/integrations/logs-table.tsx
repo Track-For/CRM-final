@@ -12,18 +12,20 @@ import { InfoRow } from "@/components/shared/panel"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { INTEGRATION_NAME, LOG_STATUS_LABEL, LOG_STATUS_TONE } from "@/components/integrations/meta"
 import { copyToClipboard } from "@/lib/browser"
+import { retryWebhookAction } from "@/lib/integrations/actions"
 import { useCrm, useIntegrationLogs } from "@/lib/data"
 import { formatDateTime } from "@/lib/format"
 import type { IntegrationKey, IntegrationLog } from "@/types"
 
 function useResend() {
-  const update = useCrm((s) => s.update)
-  return (log: IntegrationLog) => {
+  return async (log: IntegrationLog) => {
     const id = toast.loading(`Reenviando ${log.event}...`)
-    setTimeout(() => {
-      update("integrationLogs", log.id, { status: "sucesso", statusCode: 200, attempts: log.attempts + 1, response: JSON.stringify({ ok: true, reenviado: true }), createdAt: new Date().toISOString() })
-      toast.success("Evento reenviado com sucesso", { id })
-    }, 900)
+    try {
+      const result = await retryWebhookAction(log.id)
+      useCrm.setState({ status: "idle" }); await useCrm.getState().bootstrap()
+      if (result.status >= 200 && result.status < 300) toast.success("Evento reenviado", { id })
+      else toast.error("O destino não confirmou o recebimento", { id })
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha no reenvio", { id }) }
   }
 }
 

@@ -17,11 +17,13 @@ import { Panel } from "@/components/shared/panel"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { InitialsAvatar } from "@/components/shared/user-avatar"
 import { ROLE_LABEL, toOptions } from "@/lib/constants"
-import { newId, useCrm, useUsers } from "@/lib/data"
-import { initials, maskPhone } from "@/lib/format"
+import { inviteUserAction, updateUserAction } from "@/lib/auth/user-actions"
+import { copyToClipboard } from "@/lib/browser"
+import { useCrm, useUsers } from "@/lib/data"
+import { maskPhone } from "@/lib/format"
 import { NAV_ITEMS } from "@/lib/permissions"
 import { v } from "@/lib/validation"
-import type { Role, User } from "@/types"
+import type { Role } from "@/types"
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[]
 
@@ -36,24 +38,28 @@ type Values = z.infer<typeof schema>
 function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const add = useCrm((s) => s.add)
   const users = useUsers()
+  const [inviteLink, setInviteLink] = useState("")
   const { register, control, handleSubmit, reset, setError, formState } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", whatsapp: "", role: "comercial" },
   })
   const e = formState.errors
-  const onSubmit = handleSubmit((values) => {
+  const onSubmit = handleSubmit(async (values) => {
     if (users.some((u) => u.email.toLowerCase() === values.email.toLowerCase())) {
       setError("email", { message: "Já existe um usuário com este e-mail" })
       return
     }
-    const user: User = { id: newId("usr"), ...values, initials: initials(values.name), active: true, createdAt: new Date().toISOString() }
-    add("users", user)
-    toast.success("Convite enviado pelo WhatsApp", { description: `${values.name} receberá o link de acesso em ${values.whatsapp}` })
-    reset()
-    onOpenChange(false)
+    try {
+      const result = await inviteUserAction(values)
+      add("users", result.user)
+      setInviteLink(new URL(result.path, window.location.origin).href)
+      reset()
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao criar convite") }
+
   })
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title="Convidar usuário" description="O link de acesso é enviado pelo WhatsApp." onSubmit={onSubmit} submitLabel="Enviar convite" size="md">
+    <FormDialog open={open} onOpenChange={onOpenChange} title="Convidar usuário" description="Crie um convite válido por 48 horas e compartilhe o link com o usuário." onSubmit={onSubmit} submitLabel="Criar convite" size="md">
+      {inviteLink && <div className="space-y-2 rounded border p-3"><p className="text-sm">Convite criado. Copie e compartilhe o link:</p><Input readOnly value={inviteLink} /><Button type="button" variant="outline" onClick={() => copyToClipboard(inviteLink)}>Copiar link</Button></div>}
       <FormField label="Nome" required error={e.name?.message}>
         <Input {...register("name")} aria-invalid={!!e.name} />
       </FormField>
@@ -109,18 +115,16 @@ export function UsersSettings() {
                   className="w-40"
                   value={u.role}
                   disabled={u.id === currentUserId}
-                  onChange={(role) => {
-                    update("users", u.id, { role })
-                    toast.success(`${u.name.split(" ")[0]} agora é ${ROLE_LABEL[role]}`)
+                  onChange={async (role) => {
+                    try { const saved = await updateUserAction(u.id, { role }); update("users", u.id, saved); toast.success("Permissão atualizada") } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao atualizar") }
                   }}
                   options={toOptions(ROLE_LABEL)}
                 />
                 <Switch
                   checked={u.active}
                   disabled={u.id === currentUserId}
-                  onCheckedChange={(active) => {
-                    update("users", u.id, { active })
-                    toast.success(active ? "Usuário reativado" : "Usuário desativado")
+                  onCheckedChange={async (active) => {
+                    try { const saved = await updateUserAction(u.id, { active }); update("users", u.id, saved); toast.success(active ? "Usuário reativado" : "Usuário desativado") } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao atualizar") }
                   }}
                   aria-label="Ativo"
                 />

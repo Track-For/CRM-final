@@ -154,7 +154,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const { email, password } = parsed.data
 
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
-  if (!user) {
+  if (!user || !user.active) {
     await verifyDummyPassword(password)
     return { error: INVALID_CREDENTIALS }
   }

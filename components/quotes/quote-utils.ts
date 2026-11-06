@@ -30,20 +30,7 @@ export function paymentDescription(payment: PaymentCondition, calc: QuoteCalcula
   return `50% de entrada (${formatMoney(calc.entryValue)}) + 50% na entrega`
 }
 
-/** Divide o prazo total em fases do cronograma, somando exatamente o total. */
-export function schedulePhases(totalDays: number): { label: string; days: number }[] {
-  const weights: [string, number][] = [
-    ["Briefing e planejamento", 0.15],
-    ["Design e aprovação", 0.3],
-    ["Desenvolvimento", 0.4],
-    ["Testes e publicação", 0.15],
-  ]
-  if (totalDays < weights.length) return [{ label: "Execução completa", days: Math.max(1, totalDays) }]
-  const phases = weights.map(([label, w]) => ({ label, days: Math.max(1, Math.round(totalDays * w)) }))
-  const diff = totalDays - phases.reduce((s, p) => s + p.days, 0)
-  phases[2].days = Math.max(1, phases[2].days + diff)
-  return phases
-}
+export { schedulePhases } from "@/lib/projects/schedule"
 
 export function nextQuoteNumber(quotes: Quote[]): string {
   const max = quotes.reduce((m, q) => Math.max(m, Number(q.number.replace(/\D/g, "")) || 0), 0)

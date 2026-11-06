@@ -20,7 +20,7 @@ export function GenericConfig({ integration, title = "Credenciais" }: { integrat
   const updateIntegration = useCrm((s) => s.updateIntegration)
   const [config, setConfig] = useState<Record<string, string>>(integration.config)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [testing, setTesting] = useState(false)
+  const testing = false
   const keys = Object.keys(integration.config)
 
   const validate = () => {
@@ -48,12 +48,7 @@ export function GenericConfig({ integration, title = "Credenciais" }: { integrat
       toast.error("Preencha as credenciais antes de testar")
       return
     }
-    setTesting(true)
-    setTimeout(() => {
-      setTesting(false)
-      updateIntegration(integration.key, { config, status: "conectado", errorMessage: undefined, lastSyncAt: new Date().toISOString() })
-      toast.success("Conexão testada com sucesso", { description: "Resposta em 214 ms" })
-    }, 900)
+    toast.info("Esta integração ainda não possui teste automático. Configure um webhook para verificar o recebimento real.")
   }
 
   return (
@@ -89,7 +84,7 @@ export function GenericConfig({ integration, title = "Credenciais" }: { integrat
           })}
         </FormGrid>
       </Panel>
-      <Panel title="Webhook de entrada" description="Cadastre esta URL no painel do provedor para receber eventos.">
+      <Panel title="Webhook de entrada" description="Consulte a documentação de implantação para as rotas disponíveis de cada provedor.">
         <div className="space-y-3">
           <div className="flex items-center gap-1">
             <Input readOnly className="num text-xs" value={webhookUrlFor(integration.key)} />

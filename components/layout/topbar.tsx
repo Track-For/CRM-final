@@ -165,7 +165,6 @@ function UserMenu() {
   const user = sessionUser ? { id: storeUser?.id, name: sessionUser.name, email: sessionUser.email } : storeUser
   const logoutFormRef = useRef<HTMLFormElement>(null)
   const role = useUiStore((s) => s.role)
-  const setRole = useUiStore((s) => s.setRole)
   const period = useUiStore((s) => s.period)
   const setPeriod = useUiStore((s) => s.setPeriod)
   return (
@@ -186,14 +185,6 @@ function UserMenu() {
             <p className="text-xs font-normal text-muted-foreground">{user?.email}</p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Visualizar como</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={role} onValueChange={(v) => setRole(v as Role)}>
-            {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-              <DropdownMenuRadioItem key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
           <div className="md:hidden">
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">Período</DropdownMenuLabel>

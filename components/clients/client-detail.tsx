@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { ProjectExecutionDrawer } from "@/components/projects/project-execution-drawer"
+import { projectProgress } from "@/lib/projects/plan"
+import { Progress } from "@/components/ui/progress"
 import { DeleteClientButton } from "@/components/clients/delete-client-button"
 import { CheckSquare, FileSignature, MessageCircle, Pencil, Plus, Receipt, Repeat, Users, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +21,7 @@ import { AsaasSyncButton } from "@/components/finance/asaas-sync-button"
 import { ChargeDrawer } from "@/components/finance/charge-drawer"
 import { ChargeTable } from "@/components/finance/charge-table"
 import { SubscriptionFormDialog } from "@/components/finance/subscription-form-dialog"
+import { useRelatedInvoices } from "@/components/invoices/related-invoices"
 import { InvoiceDrawer } from "@/components/invoices/legacy/invoice-drawer"
 import { InvoiceFormDialog } from "@/components/invoices/legacy/invoice-form-dialog"
 import { openWhatsapp } from "@/lib/browser"
@@ -56,6 +60,8 @@ export function ClientDetail({ id }: { id: string }) {
   const allInvoices = useInvoices()
   const allContracts = useContracts()
   const role = useUiStore((s) => s.role)
+  const canFinance = role === "admin" || role === "financeiro"
+  useRelatedInvoices(canFinance)
   const openQuickCreate = useUiStore((s) => s.openQuickCreate)
   const [editOpen, setEditOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
@@ -66,6 +72,7 @@ export function ClientDetail({ id }: { id: string }) {
   const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null)
   const missingPlanDeal = allDeals.find(deal => deal.stage === "ganho" && !deal.paymentPlan && (deal.clientId === id || (!!client?.leadId && deal.leadId === client.leadId)))
   const [tab, setTab] = useState("projetos")
+  const [projectId, setProjectId] = useState<string | null>(null)
 
   const data = useMemo(() => {
     const summary = client ? clientSummary(client, allDeals, allProjects, allSubs, allCharges) : { projects: [], subscriptions: [], charges: [], paid: 0, open: 0, unbilled: 0, monthly: 0, monthlyFromDeals: false }
@@ -96,12 +103,12 @@ export function ClientDetail({ id }: { id: string }) {
     )
   }
 
-  const canFinance = role === "admin" || role === "financeiro"
   const a = client.address
   const message = `Olá, ${client.contactName.split(" ")[0]}! Aqui é da Track For.`
 
   return (
     <>
+      <ProjectExecutionDrawer clientId={id} projectId={projectId} onOpenChange={open => { if (!open) setProjectId(null) }} onBilling={() => { setProjectId(null); setTab("cobrancas") }} />
       <PageHeader
         backHref="/clientes"
         backLabel="Clientes"
@@ -194,7 +201,7 @@ export function ClientDetail({ id }: { id: string }) {
                     <div key={p.id} className="flex flex-col gap-2 rounded-xl border bg-card p-4 sm:flex-row sm:items-center">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium">{p.name}</p>
+                          <button type="button" className="text-left font-medium hover:text-primary hover:underline" onClick={() => setProjectId(p.id)}>{p.name}</button>
                           <EnumBadge value={p.status} labels={PROJECT_STATUS_LABEL} tones={PROJECT_STATUS_TONE} />
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -202,8 +209,12 @@ export function ClientDetail({ id }: { id: string }) {
                           {p.deliveryDate && p.status !== "entregue" && days >= 0 && ` (em ${formatDays(days)})`}
                           {p.deliveryDate && p.status !== "entregue" && days < 0 && <span className="text-danger"> (atrasado {formatDays(-days)})</span>}
                         </p>
+                        {p.stages?.length ? <div className="mt-3 max-w-sm space-y-1.5"><p className="text-xs text-muted-foreground">{projectProgress(p.stages).done}/{p.stages.length} etapas concluídas · {projectProgress(p.stages).percent}%</p><Progress value={projectProgress(p.stages).percent} aria-label={`Progresso de ${p.name}`} /></div> : <p className="mt-2 text-xs text-muted-foreground">Abra o projeto para definir as etapas de execução.</p>}
                       </div>
-                      <span className="num font-semibold">{formatMoney(p.value)}</span>
+                      <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+                        <span className="num font-semibold">{formatMoney(p.value)}</span>
+                        <Button variant="outline" size="sm" onClick={() => setProjectId(p.id)}>Acompanhar projeto</Button>
+                      </div>
                       {p.dealId && (
                         <Button asChild variant="ghost" size="xs">
                           <Link href={`/vendas/${p.dealId}`}>Ver negócio</Link>

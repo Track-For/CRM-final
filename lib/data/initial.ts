@@ -1,9 +1,9 @@
 import type { MockDatabase } from "@/lib/mock"
-import { users, pipelines, lostReasons, financialCategories, integrationsBase } from "@/lib/mock/static"
+import { pipelines, lostReasons, financialCategories, integrationsBase } from "@/lib/mock/static"
 
 /** Estado inicial sem registros de demonstração. */
 export const initialDatabase: MockDatabase = {
-  users,
+  users: [],
   pipelines,
   lostReasons,
   catalog: [],

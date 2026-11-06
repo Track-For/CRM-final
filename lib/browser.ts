@@ -30,11 +30,6 @@ export function downloadCsv(filename: string, rows: Record<string, string | numb
   toast.success(`${rows.length} registro(s) exportado(s)`)
 }
 
-/** Ações que ainda não têm backend: mostram um toast coerente. */
-export function mockAction(message: string, description?: string) {
-  toast.success(message, { description })
-}
-
 export function openWhatsapp(url: string) {
   window.open(url, "_blank", "noopener,noreferrer")
 }

@@ -1,5 +1,11 @@
 "use server"
 
+import { projectForDeal } from "@/lib/projects/plan"
+import type { Project, Quote } from "@/types"
+import { webhookUrl } from "@/lib/security/webhook-url"
+import { WEBHOOK_EVENTS } from "@/lib/constants"
+import { dispatchCrmEvent } from "@/lib/integrations/webhooks"
+import { encryptSecret, decryptSecret } from "@/lib/fiscal/crypto"
 import { syncAsaasReceivables } from "@/lib/boleto/import"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
@@ -8,6 +14,7 @@ import { conversionChanges } from "@/lib/data/conversion-lifecycle"
 import { projectReceivables } from "@/lib/data/project-receivables"
 import { firstMonthlyReceivable, monthlyForecastChanges, nextMonthlyBilling, subscriptionForDeal } from "@/lib/data/deal-subscription"
 import type { Charge, Client, Deal, FinancialEntry, Subscription } from "@/types"
+import { assertResourceAccess, canUseResource } from "@/lib/data/resource-policy"
 import { getCurrentUser } from "@/lib/auth/session"
 
 /**
@@ -22,7 +29,7 @@ const dataSchema = z.record(z.string(), z.unknown())
 
 export async function loadRecordOverlay(): Promise<RecordOverlay[]> {
   const user = await getCurrentUser()
-  if (!user) return []
+  if (!user) throw new Error("Sessão expirada. Entre novamente.")
   if (user.role === "admin" || user.role === "financeiro") {
     try { await syncAsaasReceivables() }
     catch (error) { console.error("[asaas] Não foi possível sincronizar cobranças:", error instanceof Error ? error.message : "falha de conexão") }
@@ -30,6 +37,18 @@ export async function loadRecordOverlay(): Promise<RecordOverlay[]> {
   const rows = await db
     .select({ resource: crmRecords.resource, id: crmRecords.id, data: crmRecords.data, created: crmRecords.created, deleted: crmRecords.deleted })
     .from(crmRecords)
+  const projects = rows.filter(row => row.resource === "projects" && !row.deleted).map(row => row.data as unknown as Project)
+  for (const row of rows.filter(row => row.resource === "deals" && !row.deleted && row.data.stage === "ganho")) {
+    const deal = row.data as unknown as Deal
+    if (projects.some(project => project.dealId === deal.id)) continue
+    const clientRow = rows.find(item => item.resource === "clients" && !item.deleted && !item.data.deletedAt && (item.id === deal.clientId || (deal.leadId && item.data.leadId === deal.leadId)))
+    if (!clientRow) continue
+    const project = projectForDeal(deal, clientRow.id, rows.filter(item => item.resource === "quotes" && !item.deleted).map(item => item.data as unknown as Quote))
+    const previous = rows.find(item => item.resource === "projects" && item.id === project.id)
+    if (previous) continue
+    const [inserted] = await db.insert(crmRecords).values({ resource: "projects", id: project.id, data: { ...project }, created: true }).onConflictDoNothing().returning({ id: crmRecords.id })
+    if (inserted) { rows.push({ resource: "projects", id: project.id, data: { ...project }, created: true, deleted: false }); projects.push(project) }
+  }
   const companySettings = rows.find(row => row.resource === "settings" && row.id === "company" && !row.deleted)?.data.company as { pixKey?: string } | undefined
   const pixKey = companySettings?.pixKey
   if (pixKey) {
@@ -119,15 +138,50 @@ export async function loadRecordOverlay(): Promise<RecordOverlay[]> {
     await db.insert(crmRecords).values({ resource: "subscriptions", id: row.id, data: { nextBillingDate } }).onConflictDoUpdate({ target: [crmRecords.resource, crmRecords.id], set: { data: sql`${crmRecords.data} || excluded.data`, updatedAt: new Date() } })
     row.data = { ...row.data, nextBillingDate }
   }
-  return rows
+  return rows.filter(row => canUseResource(user.role, row.resource, "read")).map(row => {
+    const data = { ...row.data }
+    delete data.tokenHash
+    if (typeof data.configEncrypted === "string") { data.config = JSON.parse(decryptSecret(data.configEncrypted)); delete data.configEncrypted }
+    return { ...row, data }
+  })
 }
 
 /** Cria o registro inteiro (`created`) ou acumula um patch sobre o que já foi salvo. */
 export async function saveRecord(resource: string, id: string, data: Record<string, unknown>, created = false): Promise<void> {
   const user = await getCurrentUser()
-  if (!user) return
+  if (!user) throw new Error("Sessão expirada. Entre novamente.")
+  assertResourceAccess(user.role, resource, "write")
   const key = keySchema.parse({ resource, id })
+  if (resource === "projects") throw new Error("Use o acompanhamento do projeto para editar suas etapas.")
   const value = dataSchema.parse(data)
+  if (resource === "tasks") {
+    const [previous] = await db.select({ data: crmRecords.data }).from(crmRecords).where(sql`${crmRecords.resource}='tasks' and ${crmRecords.id}=${id} and ${crmRecords.deleted}=false`).limit(1)
+    const task = { ...previous?.data, ...value }
+    if (task.projectId || task.projectStageId) {
+      if (!task.projectId || !task.projectStageId) throw new Error("Informe o projeto e a etapa da tarefa.")
+      const [record] = await db.select({ data: crmRecords.data }).from(crmRecords).where(sql`${crmRecords.resource}='projects' and ${crmRecords.id}=${String(task.projectId)} and ${crmRecords.deleted}=false`).limit(1)
+      const project = record?.data as unknown as Project | undefined
+      const stage = project?.stages?.find(stage => stage.id === task.projectStageId)
+      if (!project || !stage || task.clientId !== project.clientId) throw new Error("A tarefa deve pertencer ao mesmo cliente e a uma etapa válida do projeto.")
+      if (task.status !== "done" && stage.status === "concluida") throw new Error("Reabra a etapa do projeto antes de reabrir sua tarefa.")
+      if ((value.projectId !== undefined || value.projectStageId !== undefined) && !canUseResource(user.role, "projects", "write")) throw new Error("Sem permissão para vincular tarefas ao projeto.")
+    }
+  }
+  if (resource === "apiKeys") throw new Error("Crie chaves pela ação específica de chaves de API.")
+  if (resource === "integrations" && value.config) {
+    value.configEncrypted = encryptSecret(JSON.stringify(value.config))
+    delete value.config
+  }
+  if (resource === "webhooks") {
+    if (value.url !== undefined) webhookUrl(z.string().max(2000).parse(value.url))
+    if (value.event !== undefined && !WEBHOOK_EVENTS.some(event => event.value === value.event)) throw new Error("Evento inválido.")
+    if (value.secret !== undefined) z.string().min(16).max(200).parse(value.secret)
+    if (value.active !== undefined) z.boolean().parse(value.active)
+  }
+  if (JSON.stringify(value).length > 200_000) throw new Error("Registro excede o tamanho permitido.")
+  if (value.id !== undefined && value.id !== id) throw new Error("Identificador inválido.")
+  if (resource === "activities" || resource === "notes") value.authorId = user.id
+  if (resource === "settings" && !["company", "pricingRules", "adSpend"].includes(id)) throw new Error("Configuração inválida.")
   await db
     .insert(crmRecords)
     .values({ ...key, data: value, created, updatedBy: user.id })
@@ -141,11 +195,15 @@ export async function saveRecord(resource: string, id: string, data: Record<stri
         updatedAt: new Date(),
       },
     })
+  if (resource === "deals") await loadRecordOverlay()
+  const event = resource === "leads" ? (created ? "lead.created" : "lead.updated") : resource === "deals" ? (created ? "deal.created" : value.stage === "ganho" ? "deal.won" : value.stage === "perdido" ? "deal.lost" : value.stage ? "deal.stage_changed" : null) : resource === "quotes" ? (value.status === "enviado" ? "quote.sent" : value.status === "aceito" ? "quote.accepted" : null) : resource === "charges" ? (created ? "payment.created" : value.status === "pago" ? "payment.confirmed" : value.status === "vencido" ? "payment.overdue" : null) : null
+  if (event) await dispatchCrmEvent(event, { ...value, id }).catch(error => console.error("[webhook] Falha ao registrar entrega", error instanceof Error ? error.message : "erro"))
 }
 
 export async function deleteRecord(resource: string, id: string): Promise<void> {
   const user = await getCurrentUser()
-  if (!user) return
+  if (!user) throw new Error("Sessão expirada. Entre novamente.")
+  assertResourceAccess(user.role, resource, "write")
   const key = keySchema.parse({ resource, id })
   await db
     .insert(crmRecords)

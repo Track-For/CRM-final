@@ -1,0 +1,11 @@
+name: trackfor-crm
+version: 1.0.0
+description: Consulta de atendimento do CRM para o contato da conversa individual do WhatsApp.
+provides_tools:
+  - consultar_cliente_crm
+requires_env:
+  - name: TRACKFOR_CRM_URL
+    description: URL HTTPS do CRM publicado
+  - name: TRACKFOR_CRM_TOKEN
+    description: Chave exclusiva criada em WhatsApp > Hermes e dados do CRM
+    secret: true

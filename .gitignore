@@ -45,3 +45,5 @@ next-env.d.ts
 
 /services/prospecting/painel/dados/
 __pycache__/
+
+!.env.example

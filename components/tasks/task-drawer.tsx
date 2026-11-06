@@ -170,13 +170,14 @@ function TaskEditor({ task }: { task: Task }) {
           />
         </FormField>
         <FormField label="Cliente">
-          <EntityCombobox options={clientOptions} value={task.clientId} onChange={(id) => patch({ clientId: id })} placeholder="Sem cliente" />
+          {task.projectId ? <Input readOnly value={clientOptions.find(option => option.value === task.clientId)?.label || "Cliente do projeto"} /> : <EntityCombobox options={clientOptions} value={task.clientId} onChange={(id) => patch({ clientId: id })} placeholder="Sem cliente" />}
         </FormField>
         <FormField label="Projeto">
-          <Input defaultValue={task.projectName ?? ""} onBlur={(e) => e.target.value !== (task.projectName ?? "") && patch({ projectName: e.target.value || undefined })} placeholder="Ex.: Loja virtual" />
+          <Input readOnly={Boolean(task.projectId)} defaultValue={task.projectName ?? ""} onBlur={(e) => e.target.value !== (task.projectName ?? "") && patch({ projectName: e.target.value || undefined })} placeholder="Ex.: Loja virtual" />
         </FormField>
       </FormGrid>
 
+      {task.projectId && <p className="text-xs text-muted-foreground">Esta tarefa está vinculada a uma etapa. Gerencie o vínculo em Clientes → Projetos → Acompanhar projeto.</p>}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Checklist</h3>

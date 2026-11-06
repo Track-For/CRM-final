@@ -21,7 +21,8 @@ import { EnumBadge } from "@/components/shared/status-badge"
 import { PROJECT_TYPE_LABEL, QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE, toOptions } from "@/lib/constants"
 import { newId, useAddons, useCatalog, useClients, useCrm, useDeals, useHostingPlans, useLeads, usePricingRules, useQuotes } from "@/lib/data"
 import { useEntityOptions } from "@/lib/data/options"
-import { mockAction, openWhatsapp } from "@/lib/browser"
+import { generateQuotePdfAction } from "@/lib/quotes/actions"
+import { openWhatsapp } from "@/lib/browser"
 import { formatDate, formatDays, formatMoney, whatsappLink } from "@/lib/format"
 import { calculateQuote } from "@/lib/pricing"
 import { useUiStore } from "@/lib/store/ui-store"
@@ -253,7 +254,14 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
     if (!quote) router.replace(`/orcamentos/${saved.id}`)
   }, onInvalid)
 
-  const generatePdf = () => mockAction("Proposta em PDF gerada", "O download começará quando a API estiver conectada")
+  const generatePdf = handleSubmit(async () => {
+    try {
+      const result = await generateQuotePdfAction({ number: quote?.number || "Rascunho", company: useCrm.getState().company.name, customer: partyName || "Cliente", project: item?.name || "Projeto", pages: values.pages || 0, languages: values.languages || 1, addons: addons.filter(addon => values.addonIds?.includes(addon.id)).map(addon => addon.name), total: calc.total, monthlyFee: calc.monthlyFee, deadline: calc.deadlineDays, payment: paymentDescription(values.payment || "entrada", calc), validUntil: quote ? formatDate(quote.validUntil) : `${rules.quoteValidityDays} dias`, notes: values.notes || "" })
+      const bytes = Uint8Array.from(atob(result.base64), char => char.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }))
+      const link = document.createElement("a"); link.href = url; link.download = `proposta-${quote?.number || "rascunho"}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch { toast.error("Não foi possível gerar o PDF. Tente novamente.") }
+  }, onInvalid)
 
   const generateCharge = () => {
     if (!item) {

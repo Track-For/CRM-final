@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { buildFormSchema } from "@/lib/forms/validation"
 import { CheckCircle2, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,24 +12,13 @@ import { Logo } from "@/components/layout/logo"
 import { FormField } from "@/components/shared/form-field"
 import { MaskedInput } from "@/components/shared/money-input"
 import { OptionSelect } from "@/components/shared/option-select"
-import { maskPhone, onlyDigits, whatsappLink } from "@/lib/format"
+import { maskPhone, whatsappLink } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { FormFieldConfig, PublicForm } from "@/types"
+import type { PublicForm } from "@/types"
 
 export type FormValues = Record<string, string>
 
-/** Monta o schema zod a partir da configuração dos campos. */
-export function buildFormSchema(fields: FormFieldConfig[]) {
-  const shape: Record<string, z.ZodString> = {}
-  for (const f of fields) {
-    let s = z.string().trim()
-    if (f.required) s = z.string().trim().min(1, f.type === "select" ? `Selecione ${f.label.toLowerCase()}` : `${f.label} é obrigatório`)
-    if (f.type === "email") s = s.refine((v) => !v || z.string().email().safeParse(v).success, "E-mail inválido")
-    if (f.type === "tel") s = s.refine((v) => !v || onlyDigits(v).length >= 10, "WhatsApp inválido")
-    shape[f.key] = s
-  }
-  return z.object(shape)
-}
+export { buildFormSchema } from "@/lib/forms/validation"
 
 export function callMessage(form: PublicForm, name?: string) {
   const first = name?.trim().split(" ")[0]
@@ -48,6 +37,7 @@ interface FormRendererProps {
 
 /** Visual único do formulário público (página /f/[slug] e preview do editor). */
 export function FormRenderer({ form, onSubmit, showSuccess, compact, className }: FormRendererProps) {
+  const [submitError, setSubmitError] = useState("")
   const [submittedName, setSubmittedName] = useState<string | null>(null)
   const schema = useMemo(() => buildFormSchema(form.fields), [form.fields])
   const defaults = useMemo(() => Object.fromEntries(form.fields.map((f) => [f.key, ""])), [form.fields])
@@ -57,8 +47,9 @@ export function FormRenderer({ form, onSubmit, showSuccess, compact, className }
   const done = showSuccess || submittedName !== null
 
   const submit = handleSubmit(async (values) => {
-    await onSubmit?.(values)
-    setSubmittedName(values.name ?? "")
+    setSubmitError("")
+    try { await onSubmit?.(values); setSubmittedName(values.name ?? "") }
+    catch (error) { setSubmitError(error instanceof Error ? error.message : "Não foi possível enviar. Tente novamente.") }
   })
 
   return (
@@ -121,6 +112,7 @@ export function FormRenderer({ form, onSubmit, showSuccess, compact, className }
               )
             })}
           </div>
+          {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
           <Button type="submit" size="lg" className="w-full font-semibold" disabled={formState.isSubmitting}>
             {formState.isSubmitting ? "Enviando..." : form.submitLabel || "Enviar"}
           </Button>

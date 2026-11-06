@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/prepare-dev.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -22,7 +23,12 @@
     "instagram:check": "node scripts/check-instagram-local.mjs",
     "google-calendar:test": "node --test scripts/test-google-calendar.mjs",
     "google-calendar:check": "node scripts/check-google-calendar-local.mjs",
-    "google-calendar:check-actions": "node scripts/check-google-calendar-actions.mjs"
+    "google-calendar:check-actions": "node scripts/check-google-calendar-actions.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/test-*.mjs",
+    "crm:check": "node scripts/check-crm-foundation.mjs",
+    "readiness:check": "node scripts/check-readiness.mjs",
+    "hermes:test": "python3 -m unittest discover -s integrations/hermes/trackfor-crm -p test_plugin.py"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

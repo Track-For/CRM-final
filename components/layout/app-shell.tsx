@@ -35,7 +35,7 @@ function RoleGuard({ children }: { children: React.ReactNode }) {
     <EmptyState
       icon={Lock}
       title="Acesso restrito"
-      description={`O papel ${ROLE_LABEL[role]} não tem permissão para esta tela. Troque o papel no avatar ou fale com um administrador.`}
+      description={`O papel ${ROLE_LABEL[role]} não tem permissão para esta tela. Fale com um administrador.`}
       action={
         <Button asChild size="sm" variant="outline">
           <Link href="/dashboard">Ir para o Dashboard</Link>
@@ -48,7 +48,22 @@ function RoleGuard({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const hydrated = useAppBootstrap()
+  const [pendingWrites, setPendingWrites] = useState(0)
   const ready = useCrm((s) => s.status === "ready")
+  const status = useCrm((s) => s.status)
+  useEffect(() => {
+    const failed = () => useCrm.setState({ status: "error" })
+    const pending = (event: Event) => setPendingWrites(count => Math.max(0, count + (event as CustomEvent<number>).detail))
+    window.addEventListener("crm-save-pending", pending)
+    window.addEventListener("crm-save-error", failed)
+    return () => { window.removeEventListener("crm-save-error", failed); window.removeEventListener("crm-save-pending", pending) }
+  }, [])
+  useEffect(() => {
+    if (!pendingWrites) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = "" }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [pendingWrites])
   const density = useUiStore((s) => s.density)
   const showGrid = useUiStore((s) => s.showGrid)
   useEffect(() => {
@@ -56,12 +71,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [showGrid])
   return (
     <div className="flex min-h-dvh">
+      <div role="status" aria-live="polite" className="fixed right-4 bottom-4 z-50 rounded border bg-card px-3 py-2 text-xs">{pendingWrites ? "Salvando alterações…" : status === "error" ? "Há alterações sem confirmação" : "Dados sincronizados"}</div>
       <Sidebar />
       <MobileNav />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
         <main data-density={density} className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 data-[density=compacta]:py-4 lg:px-6">
-          {hydrated && ready ? <RoleGuard>{children}</RoleGuard> : <PageSkeleton />}
+          {status === "error" ? <EmptyState title="Não foi possível confirmar os dados" description="Uma leitura ou gravação falhou. Recarregue os registros salvos antes de continuar." action={<Button onClick={() => window.location.reload()}>Recarregar dados</Button>} /> : hydrated && ready ? <RoleGuard>{children}</RoleGuard> : <PageSkeleton />}
         </main>
       </div>
       <CommandPalette />

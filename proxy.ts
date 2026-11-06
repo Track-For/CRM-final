@@ -7,8 +7,8 @@ import { isLoginPaused } from "@/lib/auth/development"
  */
 const SESSION_COOKIE = "crm_session"
 // O webhook do Asaas não tem cookie: a rota valida o header asaas-access-token.
-const PUBLIC_EXACT = new Set(["/login", "/login/verificar", "/primeiro-acesso", "/api/webhooks/asaas", "/api/webhooks/evolution"])
-const PUBLIC_PREFIXES = ["/f/"]
+const PUBLIC_EXACT = new Set(["/login", "/login/verificar", "/primeiro-acesso", "/api/webhooks/asaas", "/api/webhooks/evolution", "/api/whatsapp/ai/context"])
+const PUBLIC_PREFIXES = ["/f/", "/convite/", "/api/v1/"]
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true
