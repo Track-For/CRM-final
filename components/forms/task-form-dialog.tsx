@@ -33,7 +33,7 @@ type Values = z.infer<typeof schema>
 interface TaskFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  defaults?: { clientId?: string; dealId?: string; leadId?: string; status?: string }
+  defaults?: { clientId?: string; dealId?: string; leadId?: string; status?: string; projectName?: string }
 }
 
 export function TaskFormDialog({ open, onOpenChange, defaults }: TaskFormDialogProps) {
@@ -51,7 +51,7 @@ export function TaskFormDialog({ open, onOpenChange, defaults }: TaskFormDialogP
     assigneeId: currentUserId,
     dueDate: format(addDays(new Date(), 3), "yyyy-MM-dd"),
     clientId: defaults?.clientId,
-    projectName: "",
+    projectName: defaults?.projectName || "",
   })
   const { register, control, handleSubmit, reset, formState } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: initial() })
   const errors = formState.errors

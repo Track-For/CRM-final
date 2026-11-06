@@ -45,11 +45,16 @@ try {
     }
   }
   process.env.FOUNDATION_ROLE = "admin"
-  for (const resource of ["catalog", "addons", "hostingPlans", "pipelines", "lostReasons", "quickMessages", "financialCategories"]) {
+  for (const resource of ["catalog", "addons", "hostingPlans", "pipelines", "lostReasons", "financialCategories"]) {
     await api.saveRecord(resource, "persisted", { id: "persisted", name: "Antes" }, true)
     await api.saveRecord(resource, "persisted", { name: "Depois" })
     assert.equal((await api.loadRecordOverlay()).find(row => row.resource === resource).data.name, "Depois")
   }
+  const template = { id: "persisted", title: "Primeiro contato", category: "primeiro_contato", text: "Olá {nome}" }
+  await api.saveRecord("quickMessages", template.id, template, true)
+  await api.saveRecord("quickMessages", template.id, { ...template, title: "Contato revisado" })
+  assert.equal((await api.loadRecordOverlay()).find(row => row.resource === "quickMessages").data.title, "Contato revisado")
+  await assert.rejects(api.saveRecord("quickMessages", "invalid", { title: "Sem texto" }, true))
   await api.saveRecord("integrations", "n8n", { config: { apiKey: "secret-fixture" } })
   assert.ok(!(await sql`select data from crm_records where resource='integrations'`)[0].data.config)
   assert.equal((await api.loadRecordOverlay()).find(row => row.resource === "integrations").data.config.apiKey, "secret-fixture")

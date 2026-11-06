@@ -37,4 +37,8 @@ jobs:
       - run: npm run prospecting:test
       - run: npm run db:migrate
       - run: npm run crm:check
+      - run: npm run auth:check
+      - run: npm run asaas:check-webhook
+      - run: npm run google-calendar:check-actions
+      - run: npm run sales:check
       - run: npm run build

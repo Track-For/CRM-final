@@ -1,5 +1,6 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import { useCallback, useMemo, useState } from "react"
 import { CheckSquare, Columns3, List, Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -43,6 +44,11 @@ const getId = (t: Task) => t.id
 const getColumnId = (t: Task) => t.status
 
 export function TasksView() {
+  const initialTask = useSearchParams().get("tarefa")
+  return <TasksViewContent key={initialTask || "list"} initialTask={initialTask} />
+}
+
+function TasksViewContent({ initialTask }: { initialTask: string | null }) {
   const tasks = useTasks()
   const clients = useClients()
   const clientMap = useById("clients")
@@ -56,7 +62,7 @@ export function TasksView() {
   const [priority, setPriority] = useState(ALL)
   const [client, setClient] = useState(ALL)
   const [onlyOverdue, setOnlyOverdue] = useState(false)
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(initialTask)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

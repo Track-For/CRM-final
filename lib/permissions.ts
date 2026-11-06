@@ -32,10 +32,11 @@ export interface NavItem {
 const ALL: Role[] = ["admin", "comercial", "operacao", "financeiro"]
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL, group: "comercial" },
+  { href: "/dashboard", label: "Início", icon: LayoutDashboard, roles: ALL, group: "comercial" },
   { href: "/instagram", label: "Instagram", icon: Instagram, roles: ["admin", "comercial", "operacao"], group: "comercial" },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin", "comercial", "operacao"], group: "comercial" },
   { href: "/buscas", label: "Buscar clientes", icon: Search, roles: ["admin", "comercial"], group: "comercial" },
+  { href: "/mensagens", label: "Mensagens", icon: MessageCircle, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/leads", label: "Leads", icon: UserRound, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/vendas", label: "Vendas", icon: Handshake, roles: ["admin", "comercial", "financeiro"], group: "comercial" },
   { href: "/kanban", label: "Kanban", icon: Columns3, roles: ["admin", "comercial"], group: "comercial" },

@@ -119,7 +119,7 @@ export function FinanceOverview() {
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="month" {...chartAxis} />
               <YAxis {...chartAxis} width={68} tickFormatter={moneyTick} />
-              <Tooltip content={FlowTooltip} cursor={{ fill: "#141414" }} />
+              <Tooltip content={FlowTooltip} cursor={{ fill: "#e9f2ff" }} />
               <Bar dataKey="entradasPagas" name="Entradas recebidas" stackId="entradas" fill="var(--success)" maxBarSize={18} />
               <Bar dataKey="entradasAbertas" name="Entradas em aberto" stackId="entradas" fill={OPEN_IN} radius={[3, 3, 0, 0]} maxBarSize={18} />
               <Bar dataKey="saidasPagas" name="Saídas pagas" stackId="saidas" fill="var(--danger)" maxBarSize={18} />

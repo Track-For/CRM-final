@@ -34,7 +34,7 @@ export const useUiStore = create<UiState>()(
       role: "admin",
       period: "mes",
       sidebarCollapsed: false,
-      showGrid: true,
+      showGrid: false,
       density: "confortavel",
       commandOpen: false,
       mobileNavOpen: false,

@@ -500,6 +500,7 @@ export interface Invoice {
 /* ------------------------------------------------------------------ */
 
 export type ActivityType =
+  | "email"
   | "nota"
   | "ligacao"
   | "whatsapp"
@@ -542,6 +543,7 @@ export interface WhatsappMessage {
 }
 
 export interface QuickMessage {
+  subject?: string
   id: ID
   title: string
   category: "primeiro_contato" | "follow_up" | "proposta" | "cobranca" | "pos_venda"

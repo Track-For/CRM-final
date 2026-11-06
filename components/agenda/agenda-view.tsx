@@ -145,7 +145,7 @@ export function AgendaView({ googleNotice }: { googleNotice?: string }) {
               type="button"
               onClick={() => toggleType(t)}
               aria-pressed={!off}
-              className={cn("inline-flex h-7 items-center gap-1.5 rounded-md border bg-card px-2 text-xs transition-colors hover:border-[#3a3a3a]", off && "text-muted-foreground line-through")}
+              className={cn("inline-flex h-7 items-center gap-1.5 rounded-md border bg-card px-2 text-xs transition-colors hover:border-[#9abcec]", off && "text-muted-foreground line-through")}
             >
               <span className="size-2 rounded-sm" style={{ backgroundColor: off ? "var(--chart-muted)" : EVENT_TYPE_COLOR[t] }} />
               {EVENT_TYPE_LABEL[t]}

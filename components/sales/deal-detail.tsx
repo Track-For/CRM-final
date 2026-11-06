@@ -47,12 +47,13 @@ import { formatDate, formatDateTime, formatDays, formatMoney, whatsappLink } fro
 import { useUiStore } from "@/lib/store/ui-store"
 import { cn } from "@/lib/utils"
 import { v } from "@/lib/validation"
+import { dealValuesSchema } from "@/lib/data/deal-values"
 import type { Deal } from "@/types"
 
 const schema = z.object({
   title: v.required("Título"),
-  value: v.money("Valor do projeto"),
-  monthlyFee: z.number().min(0, "Mensalidade inválida"),
+  value: dealValuesSchema.shape.value,
+  monthlyFee: dealValuesSchema.shape.monthlyFee,
   probability: z.number({ error: "Informe a probabilidade" }).min(0, "Mínimo 0%").max(100, "Máximo 100%"),
   expectedCloseDate: v.date("Previsão de fechamento"),
   ownerId: v.required("Responsável"),
@@ -236,7 +237,7 @@ export function DealDetail({ id }: { id: string }) {
                   type="button"
                   onClick={() => requestMove(deal, s.key)}
                   className={cn(
-                    "flex h-10 items-center justify-between gap-1 rounded-lg border px-2.5 text-left text-xs transition-colors hover:border-[#444]",
+                    "flex h-10 items-center justify-between gap-1 rounded-lg border px-2.5 text-left text-xs transition-colors hover:border-[#365b87]",
                     active && "border-primary bg-brand-soft font-semibold text-primary",
                     done && !active && "bg-surface text-foreground",
                     !done && !active && "text-muted-foreground",

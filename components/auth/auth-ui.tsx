@@ -26,7 +26,7 @@ export function FormMessage({ id, tone, children, className }: { id?: string; to
       role={tone === "error" ? "alert" : "status"}
       className={cn(
         "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm",
-        tone === "error" ? "border-[#4a1c1c] bg-danger-soft text-[#fca5a5]" : "border-[#1c4a2c] bg-success-soft text-[#86efac]",
+        tone === "error" ? "border-danger/25 bg-danger-soft text-danger" : "border-success/25 bg-success-soft text-success",
         className,
       )}
     >
@@ -114,7 +114,7 @@ export function OtpInput({
           onValueChange(digits)
         }
       }}
-      className={cn(authInputClass, "num h-12 text-center text-2xl tracking-[0.5em] md:text-2xl placeholder:text-[#2e2e2e]", className)}
+      className={cn(authInputClass, "num h-12 text-center text-2xl tracking-[0.5em] md:text-2xl placeholder:text-[#365b87]", className)}
       {...props}
     />
   )

@@ -27,7 +27,7 @@ export function TaskCard({ task, clientName, now, onOpen, overlay }: TaskCardPro
       onClick={() => onOpen?.(task)}
       onKeyDown={(e) => e.key === "Enter" && onOpen?.(task)}
       className={cn(
-        "flex cursor-grab flex-col gap-2.5 rounded-lg border bg-surface p-3 text-left transition-colors hover:border-[#3a3a3a]",
+        "flex cursor-grab flex-col gap-2.5 rounded-lg border bg-surface p-3 text-left transition-colors hover:border-[#9abcec]",
         overlay && "border-primary/35",
         task.status === "done" && "opacity-70",
       )}

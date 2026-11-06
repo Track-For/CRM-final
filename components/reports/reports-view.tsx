@@ -361,7 +361,7 @@ export function ReportsView() {
                       <CartesianGrid {...chartGrid} horizontal={false} vertical />
                       <XAxis type="number" {...chartAxis} allowDecimals={false} />
                       <YAxis type="category" dataKey="label" {...chartAxis} width={150} />
-                      <Tooltip cursor={{ fill: "#141414" }} content={tooltipContent(false)} />
+                      <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(false)} />
                       <Bar dataKey="count" name="Negócios" fill="var(--danger)" radius={[0, 4, 4, 0]} barSize={14} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -412,7 +412,7 @@ export function ReportsView() {
                 <CartesianGrid {...chartGrid} />
                 <XAxis dataKey="month" {...chartAxis} />
                 <YAxis {...chartAxis} width={64} tickFormatter={moneyTick} />
-                <Tooltip cursor={{ fill: "#141414" }} content={tooltipContent(true)} />
+                <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(true)} />
                 <Bar dataKey="novo" name="Novo" fill="var(--success)" radius={[4, 4, 0, 0]} barSize={14} />
                 <Bar dataKey="churn" name="Churn" fill="var(--danger)" radius={[4, 4, 0, 0]} barSize={14} />
                 <Line dataKey="mrr" name="MRR" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3, fill: "var(--primary)" }} />
@@ -444,8 +444,8 @@ export function ReportsView() {
                   <CartesianGrid {...chartGrid} />
                   <XAxis dataKey="name" {...chartAxis} />
                   <YAxis {...chartAxis} width={64} tickFormatter={moneyTick} />
-                  <Tooltip cursor={{ fill: "#141414" }} content={tooltipContent(true)} />
-                  <Bar dataKey="pipeline" name="Pipeline aberto" fill="#2a2a2a" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(true)} />
+                  <Bar dataKey="pipeline" name="Pipeline aberto" fill="#c9ddfa" radius={[4, 4, 0, 0]} barSize={24} />
                   <Bar dataKey="valor" name="Ganho" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>

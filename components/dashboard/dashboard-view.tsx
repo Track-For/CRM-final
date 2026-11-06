@@ -1,8 +1,9 @@
 "use client"
 
+import { DailyActions } from "@/components/dashboard/daily-actions"
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { AlarmClock, ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, Clock, Percent, Receipt, Repeat, TrendingUp, TriangleAlert, UserRound } from "lucide-react"
+import { AlarmClock, ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, Clock, Percent, Receipt, Repeat, TriangleAlert, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -94,17 +95,17 @@ export function DashboardView() {
     <div className="space-y-6">
       <PageHeader
         title={`Olá, ${user?.name.split(" ")[0] ?? "time"}`}
-        description={`Resumo de ${range.label.toLowerCase()} comparado ao período anterior.`}
+        description="Organize o dia, acompanhe seus projetos e mantenha os clientes por perto."
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/relatorios">
-              <TrendingUp />
-              Ver relatórios
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/agenda"><CalendarDays />Agenda</Link></Button><Button onClick={() => useUiStore.getState().openQuickCreate("task")}><CheckCircle2 />Nova tarefa</Button></div>
         }
       />
 
+      <DailyActions />
+
+      <details className="group rounded-2xl border bg-card p-5">
+        <summary className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Resultados e indicadores</h2><p className="mt-1 text-sm text-muted-foreground">{range.label} · Conversão, receita e histórico</p></div><span className="text-sm font-medium text-primary">Ver análise +</span></summary>
+        <div className="mt-6 space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-7">
         <StatCard label="Leads no período" icon={UserRound} value={formatNumber(kpis.leads)} delta={delta(kpis.leads, prev.leads)} hint="vs anterior" />
         <StatCard label="Taxa de conversão" icon={Percent} value={formatPercent(kpis.conversion)} delta={delta(kpis.conversion, prev.conversion)} hint="ganhos / leads" />
@@ -225,6 +226,8 @@ export function DashboardView() {
           )}
         </Panel>
       </div>
+        </div>
+      </details>
     </div>
   )
 }

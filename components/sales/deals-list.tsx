@@ -1,5 +1,6 @@
 "use client"
 
+import { SalesViewNav } from "@/components/sales/sales-view-nav"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { CalendarCheck, Handshake, Plus, Repeat, Scale, Target } from "lucide-react"
@@ -132,6 +133,7 @@ export function DealsList() {
         }
         className="mb-0"
       />
+      <SalesViewNav />
       <StatGrid>
         <StatCard label={`Fechado (${kpis.label})`} value={formatMoney(kpis.closed)} icon={Handshake} highlight delta={kpis.closedDelta} hint={`${kpis.wonCount} ganho(s)`} />
         <StatCard label="Previsto ponderado" value={formatMoney(kpis.weighted)} icon={Scale} hint={`${kpis.openCount} negócio(s) abertos`} />

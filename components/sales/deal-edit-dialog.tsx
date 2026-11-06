@@ -20,6 +20,7 @@ import { PROJECT_TYPE_LABEL, toOptions } from "@/lib/constants"
 import { newId, useCrm, useLeads, usePipelines } from "@/lib/data"
 import { useEntityOptions } from "@/lib/data/options"
 import { v } from "@/lib/validation"
+import { dealValuesSchema } from "@/lib/data/deal-values"
 import type { Deal, DealHistoryEntry, StageKey } from "@/types"
 
 const schema = z.object({
@@ -27,8 +28,8 @@ const schema = z.object({
   clientId: z.string(),
   stage: v.required("Etapa"),
   projectType: v.select(["app", "sistema", "site", "anuncio", "outros"], "o tipo de projeto"),
-  value: v.money("Valor do projeto"),
-  monthlyFee: z.number().min(0),
+  value: dealValuesSchema.shape.value,
+  monthlyFee: dealValuesSchema.shape.monthlyFee,
   expectedCloseDate: v.date("Previsão de fechamento"),
   ownerId: v.required("Responsável"),
 })

@@ -38,9 +38,10 @@ interface LeadFormDialogProps {
   /** Quando informado, o formulário edita o lead existente. */
   lead?: Lead
   onSaved?: (lead: Lead) => void
+  defaults?: { name?: string; whatsapp?: string }
 }
 
-export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDialogProps) {
+export function LeadFormDialog({ open, onOpenChange, lead, onSaved, defaults: initialContact }: LeadFormDialogProps) {
   const router = useRouter()
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
@@ -49,8 +50,8 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
   const { userOptions } = useEntityOptions()
 
   const defaults: LeadFormValues = {
-    name: lead?.name ?? "",
-    whatsapp: lead?.whatsapp ?? "",
+    name: lead?.name ?? initialContact?.name ?? "",
+    whatsapp: lead?.whatsapp ?? initialContact?.whatsapp ?? "",
     email: lead?.email ?? "",
     company: lead?.company ?? "",
     projectType: lead?.projectType ?? "site",
@@ -109,6 +110,8 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
         <FormField label="Empresa" className="sm:col-span-2">
           <Input {...register("company")} placeholder="Nome da empresa" />
         </FormField>
+      </FormGrid>
+      <details className="rounded-xl border bg-surface p-4" open={Boolean(lead || errors.ownerId || errors.projectType || errors.revenue)}><summary className="flex items-center justify-between text-sm font-semibold text-primary">Mais detalhes e qualificação<span aria-hidden>+</span></summary><p className="mt-2 text-xs text-muted-foreground">Origem, interesse e responsável já vêm preenchidos. Ajuste quando necessário.</p><FormGrid className="mt-4">
         <FormField label="Tipo de projeto" required error={errors.projectType?.message}>
           <Controller control={control} name="projectType" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PROJECT_TYPE_LABEL)} />} />
         </FormField>
@@ -124,7 +127,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
         <FormField label="Responsável" required error={errors.ownerId?.message} className="sm:col-span-2">
           <Controller control={control} name="ownerId" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={userOptions} />} />
         </FormField>
-      </FormGrid>
+      </FormGrid></details>
     </FormDialog>
   )
 }

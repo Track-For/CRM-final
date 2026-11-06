@@ -1,5 +1,6 @@
 "use client"
 
+import { SalesViewNav } from "@/components/sales/sales-view-nav"
 import { useCallback, useMemo, useState } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -72,7 +73,7 @@ export function KanbanView() {
   return (
     <div>
       <PageHeader
-        title="Kanban de negócios"
+        title="Vendas"
         description={`${filtered.length} negócio(s) · ${stale} parado(s) há mais de 7 dias`}
         actions={
           <Button onClick={() => openQuickCreate("deal")}>
@@ -81,6 +82,7 @@ export function KanbanView() {
           </Button>
         }
       />
+      <SalesViewNav />
       <FilterBar
         search={search}
         onSearch={setSearch}

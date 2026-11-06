@@ -57,7 +57,7 @@ export function TimeGrid({ days, events, onCreate, onOpen, now }: TimeGridProps)
                       type="button"
                       aria-label={`Criar evento às ${h}:00`}
                       style={{ height: HOUR_HEIGHT }}
-                      className="block w-full border-b border-[#161616] hover:bg-accent"
+                      className="block w-full border-b border-[#f0f6ff] hover:bg-accent"
                       onClick={() => {
                         const d = new Date(day)
                         d.setHours(h, 0, 0, 0)
@@ -75,7 +75,7 @@ export function TimeGrid({ days, events, onCreate, onOpen, now }: TimeGridProps)
                       key={event.id}
                       type="button"
                       onClick={() => onOpen(event)}
-                      className="absolute z-[6] overflow-hidden rounded-md border bg-surface px-1.5 py-1 text-left text-[11px] leading-tight hover:border-[#3a3a3a]"
+                      className="absolute z-[6] overflow-hidden rounded-md border bg-surface px-1.5 py-1 text-left text-[11px] leading-tight hover:border-[#9abcec]"
                       style={{
                         top,
                         height,

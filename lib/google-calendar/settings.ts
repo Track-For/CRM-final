@@ -19,12 +19,14 @@ export async function readGoogleConnection(userId: string) {
 }
 const refreshing = new Map<string, Promise<string>>()
 export async function googleAccessToken(userId: string): Promise<string> {
-  const connection = await readGoogleConnection(userId)
-  const settings = await googleCredentials()
-  if (!connection || connection.clientId !== settings.clientId || connection.status !== "connected") throw new Error("Conecte sua conta Google para continuar.")
-  if (connection.tokenExpiresAt.getTime() > Date.now() + 60000) return decryptSecret(connection.accessTokenEncrypted)
   if (refreshing.has(userId)) return refreshing.get(userId)!
+  // Reserve antes da primeira leitura: outra chamada pode ter lido um token
+  // expirado enquanto a renovação anterior terminava e removia a promessa.
   const job = (async () => {
+    const connection = await readGoogleConnection(userId)
+    const settings = await googleCredentials()
+    if (!connection || connection.clientId !== settings.clientId || connection.status !== "connected") throw new Error("Conecte sua conta Google para continuar.")
+    if (connection.tokenExpiresAt.getTime() > Date.now() + 60000) return decryptSecret(connection.accessTokenEncrypted)
     try {
       const result = await googleTokenRequest<{ access_token: string; expires_in: number; refresh_token?: string }>({ client_id: settings.clientId, client_secret: settings.clientSecret, grant_type: "refresh_token", refresh_token: decryptSecret(connection.refreshTokenEncrypted) })
       if (!result.access_token || !Number.isFinite(result.expires_in) || result.expires_in <= 0) throw new Error("O Google não retornou uma autorização válida. Conecte sua conta novamente.")

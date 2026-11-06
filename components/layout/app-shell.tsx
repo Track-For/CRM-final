@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [showGrid])
   return (
     <div className="flex min-h-dvh">
-      <div role="status" aria-live="polite" className="fixed right-4 bottom-4 z-50 rounded border bg-card px-3 py-2 text-xs">{pendingWrites ? "Salvando alterações…" : status === "error" ? "Há alterações sem confirmação" : "Dados sincronizados"}</div>
+      <div role="status" aria-live="polite" className={pendingWrites || status === "error" ? "fixed right-4 bottom-4 z-50 rounded-xl border border-primary/25 bg-background px-4 py-3 text-sm shadow-lg" : "sr-only"}>{pendingWrites ? "Salvando alterações…" : status === "error" ? "Há alterações sem confirmação" : "Dados sincronizados"}</div>
       <Sidebar />
       <MobileNav />
       <div className="flex min-w-0 flex-1 flex-col">

@@ -70,7 +70,7 @@ export function useStageMover() {
           else toast.error(`Cobrança salva no CRM, mas não emitida no Asaas: ${result.error || charge.description}`)
         } catch { toast.error("A emissão no Asaas não foi concluída. Abra a cobrança para tentar novamente.") }
       }
-      toast.success("Negócio ganho", { description: issued ? `${issued} cobrança(s) emitida(s) no Asaas com envio habilitado.` : charges.some(charge => !charge.dueDate) ? "Defina os vencimentos para emitir as etapas pelo Asaas." : "Dados do cliente e plano confirmados. Cobranças registradas no CRM." })
+      toast.success("Negócio ganho", { description: winning.value === 0 ? "Projeto sem cobrança. A manutenção segue o valor definido no negócio." : issued ? `${issued} cobrança(s) emitida(s) no Asaas com envio habilitado.` : charges.some(charge => !charge.dueDate) ? "Defina os vencimentos para emitir as etapas pelo Asaas." : "Dados do cliente e plano confirmados. Cobranças registradas no CRM." })
       setWinning(null)
       setWinClient(null)
     }} />}

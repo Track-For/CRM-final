@@ -30,6 +30,8 @@ Acesse **Clientes → abrir cliente → Projetos → Acompanhar projeto**. O pai
 
 Projetos de vendas ganhas são persistidos automaticamente, inclusive para o acesso da Operação. Quando há orçamento vinculado, o projeto começa com o cronograma previsto (priorizando o orçamento aceito); sem orçamento, as datas de entrega ficam a definir. Planos já existentes são preservados. Projetos antigos recebem etapas ao abrir o acompanhamento.
 
+Negócios aceitam R$ 0,00 no valor do projeto e na manutenção, tanto na criação quanto na edição. Projeto gratuito pode ser ganho sem parcelas; manutenção zero não cria uma mensalidade automática. Se apenas a manutenção for paga, sua primeira previsão usa três dias após o ganho, mantendo o intervalo aplicado após a quitação de projetos pagos. Zerar um projeto remove somente previsões de parcelas ainda editáveis; pagamentos e cobranças já emitidas são preservados.
+
 O progresso conta as etapas concluídas. Uma etapa com tarefas abertas precisa ter suas tarefas concluídas antes de ser finalizada. Etapas com tarefas devem ser desvinculadas antes da remoção. O salvamento detecta edições simultâneas para evitar sobrescrever o planejamento de outra pessoa.
 
 Etapas de execução podem ser vinculadas a etapas de pagamento por Admin ou Comercial. As cobranças seguem em **Cobranças**, com atalho disponível aos perfis financeiros. Concluir uma etapa de execução não emite cobrança automaticamente.
@@ -50,7 +52,7 @@ Os cartões genéricos de WhatsApp Cloud/Meta Lead Ads ainda não implementam es
 
 ## IA do WhatsApp com Hermes
 
-Em **WhatsApp → Hermes e dados do CRM**, o administrador pode criar um acesso de consulta para o Hermes da Hostinger. Projetos, propostas e financeiro têm permissões separadas. A ferramenta identifica o contato pela conversa individual e devolve somente os campos de atendimento desse cadastro, com encaminhamento para a equipe em caso de cadastro desconhecido ou ambíguo.
+Em **Integrações → WhatsApp / Evolution → Hermes e dados do CRM**, o administrador pode criar um acesso de consulta para o Hermes da Hostinger. Projetos, propostas e financeiro têm permissões separadas. A ferramenta identifica o contato pela conversa individual e devolve somente os campos de atendimento desse cadastro, com encaminhamento para a equipe em caso de cadastro desconhecido ou ambíguo.
 
 O plugin e o endpoint estão no repositório; a instalação no Hermes, a URL HTTPS e a validação do agente remoto precisam ser concluídas no ambiente de hospedagem. Instruções: [docs/hermes-whatsapp.md](docs/hermes-whatsapp.md).
 
@@ -62,6 +64,10 @@ npm run typecheck
 npm test
 npm run prospecting:test
 npm run crm:check
+npm run sales:check
+npm run auth:check
+npm run google-calendar:check-actions
+npm run asaas:check-webhook
 npm run build
 # Se o ambiente impedir o Turbopack de abrir uma porta local:
 npm run build -- --webpack
@@ -71,3 +77,15 @@ npm run readiness:check
 `crm:check` exige Postgres local, usa schema temporário e remove os dados sintéticos ao terminar. Cobre permissões, persistência, criptografia, convites, revogação de sessões, formulários públicos, idempotência, limites e API. Os testes não enviam mensagens, não emitem notas e não criam cobranças reais. `readiness:check` apenas consulta configuração e disponibilidade; pode apontar pendências esperadas no desenvolvimento local. O GitHub Actions valida código, testes, migração e build.
 
 Instruções de implantação, variáveis, webhooks e verificações externas: [docs/implantacao.md](docs/implantacao.md). Nenhum comando de desenvolvimento publica automaticamente em produção.
+
+`sales:check` valida um ciclo encadeado no Postgres local, em schema temporário removido ao terminar: formulário → lead → etapas de venda → proposta enviada/aceita → conversão em cliente/projeto → parcelas → baixa local → mensalidade → entrega. Usa as regras reais do store e as ações de persistência, com transporte e provedores externos isolados. Verifica também recargas e reconversão sem duplicação. Não substitui teste no navegador nem homologação de pagamento no Asaas.
+
+Resultados e limites da revisão local: [revisão de 06/11/2026](docs/revisao-local-2026-11-06.md).
+
+## Modelos e envio para leads
+
+Em **Mensagens**, administradores e equipe comercial criam modelos de primeiro contato, follow-up, proposta, cobrança e pós-venda. O editor inclui assunto de e-mail, variáveis e prévia. Os modelos são persistidos no banco.
+
+Na ficha do lead, a aba **Enviar mensagem** permite escolher um modelo, preencher os dados do contato, ajustar o texto e revisar o destinatário antes de enviar por WhatsApp ou e-mail. Variáveis sem valor bloqueiam o envio. O destinatário é consultado no servidor e os envios confirmados entram na timeline.
+
+WhatsApp usa a conexão Evolution existente. E-mail requer `SMTP_HOST`, `EMAIL_FROM` e, conforme o servidor, `SMTP_PORT`, `SMTP_USER` e `SMTP_PASS`. Sem configuração, o envio fica indisponível. A confirmação SMTP indica aceitação pelo servidor, sem afirmar entrega ou leitura pelo destinatário.

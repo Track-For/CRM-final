@@ -27,7 +27,7 @@ function MethodOption({ active, icon: Icon, title, description, onClick }: { act
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "flex min-w-0 items-start gap-3 rounded-lg border bg-surface p-3 text-left transition-colors outline-none hover:border-[#333] focus-visible:ring-3 focus-visible:ring-ring/50",
+        "flex min-w-0 items-start gap-3 rounded-lg border bg-surface p-3 text-left transition-colors outline-none hover:border-[#80ace9] focus-visible:ring-3 focus-visible:ring-ring/50",
         active && "border-primary/35 bg-brand-soft",
       )}
     >

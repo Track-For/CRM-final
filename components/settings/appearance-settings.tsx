@@ -7,14 +7,10 @@ import { useUiStore } from "@/lib/store/ui-store"
 import { cn } from "@/lib/utils"
 
 const TOKENS = [
-  { name: "Fundo", value: "#202020", var: "--background" },
-  { name: "Cards", value: "#242424", var: "--card" },
-  { name: "Borda", value: "#393939", var: "--border" },
-  { name: "Destaque", value: "#008BD2", var: "--primary" },
-  { name: "Sucesso", value: "#22C55E", var: "--success" },
-  { name: "Alerta", value: "#F59E0B", var: "--warning" },
-  { name: "Erro", value: "#EF4444", var: "--danger" },
-  { name: "Info", value: "#3B82F6", var: "--info" },
+  { name: "Fundo branco", value: "#FFFFFF", var: "--background" },
+  { name: "Menu preto", value: "#000000", var: "--sidebar" },
+  { name: "Azul principal", value: "#005BE7", var: "--primary" },
+  { name: "Azul de apoio", value: "#F0F6FF", var: "--surface" },
 ]
 
 function ToggleRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -41,7 +37,7 @@ export function AppearanceSettings() {
     <div className="grid gap-6 lg:grid-cols-2">
       <Panel title="Interface" description="Preferências salvas neste navegador.">
         <div className="divide-y">
-          <ToggleRow title="Grid de fundo" description="Malha escura e sutil atrás do conteúdo" checked={showGrid} onChange={(v) => { setShowGrid(v); toast.success(v ? "Grid ativado" : "Grid desativado") }} />
+          <ToggleRow title="Grid de fundo" description="Malha azul suave atrás do conteúdo" checked={showGrid} onChange={(v) => { setShowGrid(v); toast.success(v ? "Grid ativado" : "Grid desativado") }} />
           <ToggleRow title="Menu lateral recolhido" description="Mostra só os ícones no desktop" checked={collapsed} onChange={() => toggleSidebar()} />
           <div className="py-3">
             <p className="text-sm font-medium">Densidade</p>
@@ -52,7 +48,7 @@ export function AppearanceSettings() {
                   key={d}
                   type="button"
                   onClick={() => setDensity(d)}
-                  className={cn("rounded-lg border bg-surface p-3 text-left text-sm transition-colors hover:border-[#333]", density === d && "border-primary/35 text-primary")}
+                  className={cn("rounded-lg border bg-surface p-3 text-left text-sm transition-colors hover:border-[#80ace9]", density === d && "border-primary/35 text-primary")}
                 >
                   {d === "confortavel" ? "Confortável" : "Compacta"}
                 </button>
@@ -61,7 +57,7 @@ export function AppearanceSettings() {
           </div>
         </div>
       </Panel>
-      <Panel title="Identidade visual" description="Tokens do tema escuro (definidos em CSS vars).">
+      <Panel title="Identidade visual" description="Branco, preto e tons de azul em toda a interface.">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {TOKENS.map((t) => (
             <div key={t.var} className="space-y-2 rounded-lg border bg-surface p-2">

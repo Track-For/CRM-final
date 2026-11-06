@@ -398,7 +398,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
                             const matching = plans.find((p) => p.monthly === c.monthlyFee)
                             setValue("hostingPlanId", matching?.id ?? plans[0]?.id ?? "")
                           }}
-                          className={cn("flex flex-col gap-2 rounded-xl border bg-surface p-3 text-left transition-colors hover:border-[#333]", active && "border-primary bg-brand-soft")}
+                          className={cn("flex flex-col gap-2 rounded-xl border bg-surface p-3 text-left transition-colors hover:border-[#80ace9]", active && "border-primary bg-brand-soft")}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <p className="font-medium">{c.name}</p>
@@ -646,7 +646,7 @@ function Stepper({ step, onStep }: { step: number; onStep: (i: number) => void }
               type="button"
               onClick={() => onStep(i)}
               className={cn(
-                "flex w-full min-w-24 flex-col gap-1.5 rounded-lg border bg-card px-2.5 py-2 text-left transition-colors hover:border-[#333]",
+                "flex w-full min-w-24 flex-col gap-1.5 rounded-lg border bg-card px-2.5 py-2 text-left transition-colors hover:border-[#80ace9]",
                 active && "border-primary",
                 done && "border-primary/35",
               )}
@@ -685,7 +685,7 @@ function ChoiceCard({ active, onClick, title, subtitle, value, icon }: { active:
     <button
       type="button"
       onClick={onClick}
-      className={cn("flex flex-col gap-1 rounded-xl border bg-surface p-3 text-left transition-colors hover:border-[#333]", active && "border-primary bg-brand-soft")}
+      className={cn("flex flex-col gap-1 rounded-xl border bg-surface p-3 text-left transition-colors hover:border-[#80ace9]", active && "border-primary bg-brand-soft")}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 font-medium">

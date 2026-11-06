@@ -37,7 +37,7 @@ interface EventDetailDrawerProps {
 
 function LinkRow({ href, icon: Icon, label, value }: { href: string; icon: typeof UserRound; label: string; value: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 rounded-lg border bg-surface px-3 py-2 hover:border-[#3a3a3a]">
+    <Link href={href} className="flex items-center gap-3 rounded-lg border bg-surface px-3 py-2 hover:border-[#9abcec]">
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <p className="text-[11px] text-muted-foreground">{label}</p>

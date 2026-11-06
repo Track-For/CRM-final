@@ -1,5 +1,6 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import { useMemo, useState } from "react"
 import { AlertTriangle, CircleCheck, Clock, Download, Plus, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,11 @@ import { getPeriodRange, inRange } from "@/lib/period"
 import { useUiStore } from "@/lib/store/ui-store"
 
 export function ChargesView() {
+  const initialCharge = useSearchParams().get("cobranca")
+  return <ChargesViewContent key={initialCharge || "list"} initialCharge={initialCharge} />
+}
+
+function ChargesViewContent({ initialCharge }: { initialCharge: string | null }) {
   const charges = useCharges()
   const clients = useById("clients")
   const period = useUiStore((s) => s.period)
@@ -25,7 +31,7 @@ export function ChargesView() {
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState(ALL)
   const [method, setMethod] = useState(ALL)
-  const [chargeId, setChargeId] = useState<string | null>(null)
+  const [chargeId, setChargeId] = useState<string | null>(initialCharge)
 
   const range = getPeriodRange(period)
   const stats = useMemo(() => {

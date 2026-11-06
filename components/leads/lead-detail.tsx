@@ -26,6 +26,7 @@ import { EnumBadge, StatusBadge } from "@/components/shared/status-badge"
 import { InitialsAvatar, UserAvatar } from "@/components/shared/user-avatar"
 import { LeadFormDialog } from "@/components/forms/lead-form-dialog"
 import { LeadTimeline } from "@/components/leads/lead-timeline"
+import { LeadMessageComposer } from "@/components/leads/lead-message-composer"
 import { WhatsappChat } from "@/components/leads/whatsapp-chat"
 import {
   EVENT_TYPE_COLOR,
@@ -240,9 +241,10 @@ export function LeadDetail({ id }: { id: string }) {
         </div>
 
         <div className="min-w-0 lg:col-span-2">
-          <Tabs defaultValue="conversa" className="gap-3">
+          <Tabs defaultValue="mensagens" className="gap-3">
             <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
               <TabsList className="w-max">
+                <TabsTrigger value="mensagens">Enviar mensagem</TabsTrigger>
                 <TabsTrigger value="conversa">Conversa</TabsTrigger>
                 <TabsTrigger value="timeline">
                   Timeline
@@ -270,6 +272,8 @@ export function LeadDetail({ id }: { id: string }) {
                 </TabsTrigger>
               </TabsList>
             </div>
+
+            <TabsContent value="mensagens"><LeadMessageComposer key={lead.id} lead={lead} /></TabsContent>
 
             <TabsContent value="conversa">
               <WhatsappChat lead={lead} className="h-[560px] max-h-[75dvh]" />

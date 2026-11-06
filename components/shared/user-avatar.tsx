@@ -5,7 +5,7 @@ import { initials } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { ID } from "@/types"
 
-const palette = ["#008bd2", "#3b82f6", "#22c55e", "#a855f7", "#f97316", "#14b8a6", "#ec4899"]
+const palette = ["#005be7", "#0075b9", "#003c9e", "#315ed0", "#1668a8", "#00576d", "#244b95"]
 
 function colorFor(id: string) {
   let h = 0
@@ -20,7 +20,7 @@ export function InitialsAvatar({ name, id, size = "sm", className }: { name: str
   const color = colorFor(id ?? name)
   return (
     <span
-      className={cn("inline-flex shrink-0 items-center justify-center rounded-full border bg-[#111] font-semibold", sizeClass[size], className)}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded-full border bg-brand-soft font-semibold", sizeClass[size], className)}
       style={{ color, borderColor: color }}
       title={name}
     >

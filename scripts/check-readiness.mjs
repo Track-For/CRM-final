@@ -14,6 +14,10 @@ if (process.env.DATABASE_URL) {
   try {
     const users = await sql`select column_name from information_schema.columns where table_schema=current_schema() and table_name='users' and column_name in ('active','whatsapp')`
     check("Migração de usuários", users.length === 2, "Colunas active e whatsapp")
+    const [admin] = await sql`select count(*)::int as total from users where active=true and role='admin' and id <> 'crm_local_development' and password_hash like 'scrypt$%'`
+    check("Administrador definitivo", admin.total > 0, "Crie o administrador em /primeiro-acesso; a identidade de desenvolvimento não habilita login em produção")
+    const [forms] = await sql`select count(*)::int as total from crm_records where resource='forms' and deleted=false and data->>'active'='true'`
+    check("Formulário público ativo", forms.total > 0, "Necessário para captar leads por /f/slug")
     const billing = await sql`select api_key_encrypted is not null as configured, webhook_token_encrypted is not null as webhook from billing_settings limit 1`
     check("Asaas cadastrado", billing[0]?.configured, "Somente verifica configuração; não emite cobranças")
     check("Token webhook Asaas", billing[0]?.webhook, "O cadastro da URL no painel Asaas ainda deve ser conferido")

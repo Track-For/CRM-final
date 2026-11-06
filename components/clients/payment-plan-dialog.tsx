@@ -28,14 +28,15 @@ export function PaymentPlanDialog({ deal, onClose, onSaved, confirmingWin = fals
   const [saving, setSaving] = useState(false)
   const locked = (id: string) => charges.some(charge => charge.dealId === deal.id && charge.milestoneId === id && charge.status !== "cancelado" && !editableForecast(charge))
   const hasCharges = stages.some(stage => locked(stage.id))
+  const noProjectCharge = deal.value === 0 && !hasCharges
   const change = (id: string, patch: Partial<Stage>) => setStages(rows => rows.map(row => row.id === id ? { ...row, ...patch } : row))
   const total = Math.round(stages.reduce((sum, stage) => sum + stage.amount, 0) * 100)
   const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!stages.length || stages.some(stage => !stage.label.trim() || !Number.isFinite(stage.amount) || stage.amount <= 0 || !Number.isFinite(stage.percent) || stage.percent <= 0)) return void toast.error("Preencha o nome e um valor positivo para cada etapa")
-    if (total !== Math.round(deal.value * 100)) return void toast.error("A soma das etapas deve ser igual ao valor do projeto")
-    if (method === "pix" && !pixKey.trim()) return void toast.error("Cadastre a chave Pix em Configurações → Empresa")
-    const paymentPlan = { method, pixKey: method === "pix" ? pixKey.trim() : "", milestones: stages.map(stage => ({ ...stage, label: stage.label.trim() })) }
+    if (!noProjectCharge && (!stages.length || stages.some(stage => !stage.label.trim() || !Number.isFinite(stage.amount) || stage.amount <= 0 || !Number.isFinite(stage.percent) || stage.percent <= 0))) return void toast.error("Preencha o nome e um valor positivo para cada etapa")
+    if (!noProjectCharge && total !== Math.round(deal.value * 100)) return void toast.error("A soma das etapas deve ser igual ao valor do projeto")
+    if (!noProjectCharge && method === "pix" && !pixKey.trim()) return void toast.error("Cadastre a chave Pix em Configurações → Empresa")
+    const paymentPlan = { method, pixKey: method === "pix" ? pixKey.trim() : "", milestones: noProjectCharge ? [] : stages.map(stage => ({ ...stage, label: stage.label.trim() })) }
     setSaving(true)
     try {
       await saveRecord("deals", deal.id, { paymentPlan })
@@ -50,6 +51,7 @@ export function PaymentPlanDialog({ deal, onClose, onSaved, confirmingWin = fals
     finally { setSaving(false) }
   }
   return <FormDialog open onOpenChange={open => !open && !saving && onClose()} title={confirmingWin ? "2 de 2 · Pagamento do projeto" : "Personalizar cobrança"} submitLabel={confirmingWin ? "Confirmar ganho e cobranças" : "Salvar"} description={`${deal.title} · Total ${formatMoney(deal.value)}`} onSubmit={save} submitting={saving} size="xl">
+    {noProjectCharge ? <p className="rounded-lg border bg-surface p-4 text-sm">O projeto tem valor R$ 0,00. A venda pode ser confirmada sem parcelas de projeto. A manutenção é tratada separadamente.</p> : <>
     {confirmingWin && (method === "asaas" || method === "boleto") && <p className="rounded-lg border p-3 text-sm">Ao confirmar o ganho, as etapas com vencimento definido serão emitidas no Asaas, com envio habilitado ao cliente. Etapas sem data ficam no CRM até você informar o vencimento.</p>}
     <FormField label="Forma de pagamento"><OptionSelect value={method} onChange={setMethod} options={toOptions(PAYMENT_METHOD_LABEL)} disabled={hasCharges} /></FormField>
     {method === "pix" && <FormField label="Chave Pix"><Input value={pixKey} readOnly aria-label="Chave Pix da empresa" /></FormField>}
@@ -70,5 +72,6 @@ export function PaymentPlanDialog({ deal, onClose, onSaved, confirmingWin = fals
     </fieldset>)}
     <Button type="button" variant="outline" disabled={saving} onClick={() => setStages(rows => [...rows, { id: newId("etapa"), label: "", percent: 0, amount: 0 }])}>Adicionar etapa</Button>
     <p className="text-sm">Total das etapas: {formatMoney(total / 100)} de {formatMoney(deal.value)} · restante: {formatMoney((Math.round(deal.value * 100) - total) / 100)}</p>
+    </>}
   </FormDialog>
 }

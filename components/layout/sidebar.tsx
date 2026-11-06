@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 
 function useVisibleGroups() {
   const role = useUiStore((s) => s.role)
-  const items = NAV_ITEMS.filter((i) => i.roles.includes(role))
+  const items = NAV_ITEMS.filter((i) => i.roles.includes(role) && !["/kanban", "/funil"].includes(i.href))
   const groups = (Object.keys(NAV_GROUP_LABEL) as NavItem["group"][])
     .map((g) => ({ group: g, items: items.filter((i) => i.group === g) }))
     .filter((g) => g.items.length)
@@ -29,14 +29,15 @@ function NavLinks({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?:
         <div key={group} className="flex flex-col gap-0.5">
           {!collapsed && <p className="px-2.5 pb-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">{NAV_GROUP_LABEL[group]}</p>}
           {items.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.href === "/vendas" && ["/kanban", "/funil"].includes(pathname))
             const link = (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 onClick={onNavigate}
                 className={cn(
-                  "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+                  "group relative flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
                   active && "bg-sidebar-accent font-medium text-foreground",
                   collapsed && "justify-center px-0",
                 )}
@@ -65,7 +66,7 @@ export function Sidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed)
   const toggle = useUiStore((s) => s.toggleSidebar)
   return (
-    <aside className={cn("sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-sidebar transition-[width] duration-200 lg:flex", collapsed ? "w-16" : "w-60")}>
+    <aside className={cn("crm-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-sidebar transition-[width] duration-200 lg:flex", collapsed ? "w-16" : "w-60")}>
       <div className={cn("flex h-14 items-center border-b px-3", collapsed ? "justify-center" : "justify-between")}>
         <Link href="/dashboard" aria-label="Track For — início">
           <Logo collapsed={collapsed} />
@@ -89,7 +90,7 @@ export function MobileNav() {
   const setOpen = useUiStore((s) => s.setMobileNavOpen)
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="left" className="w-72 gap-0 bg-sidebar p-0">
+      <SheetContent side="left" className="crm-sidebar w-72 gap-0 bg-sidebar p-0">
         <div className="flex h-14 items-center border-b px-4">
           <SheetTitle asChild>
             <div>

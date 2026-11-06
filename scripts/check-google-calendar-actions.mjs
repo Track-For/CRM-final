@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url"
 import path from "node:path"
 
 config({ path: ".env.local", quiet: true })
+process.env.APP_ENCRYPTION_KEY ||= randomBytes(32).toString("base64")
 const originalUrl = process.env.DATABASE_URL
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(originalUrl).hostname), "Teste restrito ao Postgres local")
 const base = postgres(originalUrl, { max: 1, onnotice: () => {} })

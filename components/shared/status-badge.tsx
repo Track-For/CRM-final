@@ -3,12 +3,12 @@ import type { Tone } from "@/lib/constants"
 
 const toneClass: Record<Tone, string> = {
   neutral: "bg-muted text-muted-foreground border-border",
-  brand: "bg-brand-soft text-primary border-primary/35",
-  success: "bg-success-soft text-success border-[#16391f]",
-  warning: "bg-warning-soft text-warning border-[#4a330b]",
-  danger: "bg-danger-soft text-danger border-[#4a1818]",
-  info: "bg-info-soft text-info border-[#17305a]",
-  purple: "bg-[#1d1230] text-[#c084fc] border-[#352056]",
+  brand: "bg-brand-soft text-primary border-primary/20",
+  success: "bg-success-soft text-success border-success/20",
+  warning: "bg-warning-soft text-warning border-warning/20",
+  danger: "bg-danger-soft text-danger border-danger/20",
+  info: "bg-info-soft text-info border-info/20",
+  purple: "bg-brand-soft text-primary border-primary/20",
 }
 
 const dotClass: Record<Tone, string> = {
@@ -18,7 +18,7 @@ const dotClass: Record<Tone, string> = {
   warning: "bg-warning",
   danger: "bg-danger",
   info: "bg-info",
-  purple: "bg-[#c084fc]",
+  purple: "bg-primary",
 }
 
 interface StatusBadgeProps {
@@ -53,5 +53,5 @@ export const toneTextClass: Record<Tone, string> = {
   warning: "text-warning",
   danger: "text-danger",
   info: "text-info",
-  purple: "text-[#c084fc]",
+  purple: "text-primary",
 }

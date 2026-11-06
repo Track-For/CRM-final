@@ -27,15 +27,15 @@ export function ChartCard({ title, description, actions, loading, height = 260, 
   )
 }
 
-/** Props comuns para eixos/grade do Recharts no tema escuro. */
+/** Props comuns para eixos e grade dos gráficos. */
 export const chartAxis = {
-  stroke: "#3a3a3a",
-  tick: { fill: "#8c8c8c", fontSize: 11 },
+  stroke: "#9abcec",
+  tick: { fill: "#365b87", fontSize: 11 },
   tickLine: false,
   axisLine: false,
 } as const
 
-export const chartGrid = { stroke: "#1c1c1c", vertical: false } as const
+export const chartGrid = { stroke: "#dceaff", vertical: false } as const
 
 interface TooltipPayload {
   name?: string | number

@@ -1,9 +1,10 @@
 "use client"
-
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { WhatsappConnectionCard } from "@/components/whatsapp/connection-card"
-
+import { HermesAccessCard } from "@/components/whatsapp/hermes-access-card"
+import { useUiStore } from "@/lib/store/ui-store"
 export function EvolutionConfig() {
-  return <div className="space-y-4"><WhatsappConnectionCard /><Button variant="outline" asChild><Link href="/whatsapp">Abrir conversas do WhatsApp</Link></Button></div>
+  const canManage = useUiStore(state => state.role === "admin")
+  return <div className="space-y-5"><Button variant="outline" asChild><Link href="/whatsapp">Voltar às conversas</Link></Button><WhatsappConnectionCard canManage={canManage} />{canManage && <HermesAccessCard />}</div>
 }

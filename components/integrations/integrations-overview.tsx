@@ -72,7 +72,7 @@ export function IntegrationsOverview({ fiscal, asaas, evolution, googleCalendar 
             <Link
               key={i.key}
               href={`/integracoes/${i.key}`}
-              className={cn("group flex flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-[#333]", i.status === "erro" && "border-[#4a1818]")}
+              className={cn("group flex flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-[#80ace9]", i.status === "erro" && "border-[#4a1818]")}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">

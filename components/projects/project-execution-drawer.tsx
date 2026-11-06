@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, CheckSquare, Link2, Loader2, Plus, Save, Trash2, Unlink } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarDays, CheckSquare, ChevronDown, ChevronUp, Link2, Loader2, Pencil, Plus, Save, Trash2, Unlink, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,7 @@ import { EnumBadge, StatusBadge } from "@/components/shared/status-badge"
 import { TaskDrawer } from "@/components/tasks/task-drawer"
 import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TONE, TASK_STATUS_LABEL, TASK_STATUS_TONE, toOptions, type Tone } from "@/lib/constants"
 import { useCrm, useTasks, useUsers } from "@/lib/data"
+import { formatDate } from "@/lib/format"
 import { flushPendingWrites } from "@/lib/data/api"
 import { STAGE_LABEL, projectProgress, projectStatus, type ProjectPlanInput } from "@/lib/projects/plan"
 import { createProjectTaskAction, getProjectExecutionAction, linkProjectTaskAction, saveProjectExecutionAction } from "@/lib/projects/actions"
@@ -44,6 +45,9 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
   const [discardOpen, setDiscardOpen] = useState(false)
   const [reload, setReload] = useState(0)
   const [taskId, setTaskId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingDates, setEditingDates] = useState(false)
   const tasks = useTasks()
   const users = useUsers()
   const role = useCrm(state => state.users.find(user => user.id === state.currentUserId)?.role)
@@ -54,7 +58,7 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
     let active = true
     getProjectExecutionAction(clientId, projectId).then(value => {
       if (!active) return
-      setLoaded(value); const plan = planFor(value.project); setDraft(plan); setBaseline(JSON.stringify(plan)); setError(""); reflectProject(value.project)
+      setLoaded(value); const plan = planFor(value.project); setDraft(plan); setBaseline(JSON.stringify(plan)); setError(""); setExpandedId(value.project.stages.find(stage => stage.status !== "concluida")?.id || null); setEditingId(null); setEditingDates(false); reflectProject(value.project)
     }).catch(error => { if (active) setError(error instanceof Error ? error.message : "Não foi possível carregar o projeto.") })
     return () => { active = false }
   }, [clientId, projectId, reload])
@@ -72,7 +76,7 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
     try {
       await flushPendingWrites()
       const project = await saveProjectExecutionAction(draft)
-      const next = planFor(project); setDraft(next); setBaseline(JSON.stringify(next)); setLoaded({ ...loaded, project }); reflectProject(project); toast.success("Etapas do projeto salvas")
+      const next = planFor(project); setDraft(next); setBaseline(JSON.stringify(next)); setLoaded({ ...loaded, project }); reflectProject(project); setEditingId(null); setEditingDates(false); toast.success("Etapas do projeto salvas")
     } catch (error) { setError(error instanceof Error ? error.message : "Não foi possível salvar o projeto.") }
     finally { setBusy(false) }
   }
@@ -89,6 +93,7 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
     ;[stages[index], stages[target]] = [stages[target], stages[index]]
     return { ...plan, stages }
   })
+  const currentStage = draft?.stages.find(stage => ["em_andamento", "em_revisao", "bloqueada"].includes(stage.status)) || draft?.stages.find(stage => stage.status !== "concluida")
   const progress = projectProgress(draft?.stages)
   const canEdit = loaded?.canEdit && !busy
   const status = draft ? projectStatus(draft.stages, draft.paused) : "planejamento"
@@ -99,34 +104,42 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
         <section className="space-y-3 rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold">Andamento do projeto</h2><span className="num text-sm">{progress.done}/{progress.total} etapas · {progress.percent}%</span></div>
           <Progress value={progress.percent} aria-label="Progresso das etapas" aria-valuenow={progress.percent} />
-          <fieldset disabled={!canEdit} className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-4 rounded-xl bg-surface p-4 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Etapa atual</p><p className="mt-1 font-semibold">{currentStage?.name || "Todas as etapas concluídas"}</p><p className="mt-1 text-xs text-muted-foreground">{users.find(user => user.id === currentStage?.assigneeId)?.name || (currentStage ? "Responsável a definir" : "Projeto finalizado")}</p></div><div><p className="text-xs text-muted-foreground">Próximo prazo</p><p className="mt-1 font-semibold">{currentStage?.dueDate ? formatDate(currentStage.dueDate) : "A definir"}</p><p className="mt-1 text-xs text-muted-foreground">Entrega do projeto: {draft.deliveryDate ? formatDate(draft.deliveryDate) : "A definir"}</p></div></div>
+          {loaded.canEdit && <Button variant="ghost" size="sm" disabled={busy} onClick={() => setEditingDates(value => !value)}><Pencil />{editingDates ? "Recolher datas" : "Editar datas e situação"}</Button>}
+          {editingDates && <fieldset disabled={!canEdit} className="grid gap-3 sm:grid-cols-3">
             <FormField label="Início do projeto"><Input type="date" value={draft.startDate} onChange={event => setDraft({ ...draft, startDate: event.target.value })} /></FormField>
             <FormField label="Entrega prevista"><Input type="date" value={draft.deliveryDate} onChange={event => setDraft({ ...draft, deliveryDate: event.target.value })} /></FormField>
             <FormField label="Situação"><OptionSelect value={draft.paused ? "pausado" : "ativo"} onChange={value => setDraft({ ...draft, paused: value === "pausado" })} options={[{ value: "ativo", label: "Ativo" }, { value: "pausado", label: "Pausado" }]} /></FormField>
-          </fieldset>
+          </fieldset>}
           {dirty && <p className="text-xs text-warning">Você tem alterações não salvas.</p>}
           {!loaded.canEdit && <p className="text-xs text-muted-foreground">Acompanhamento disponível para consulta.</p>}
         </section>
         {error && <div role="alert" className="space-y-2 rounded-lg border border-destructive p-3"><p className="text-sm text-destructive">{error}</p><Button variant="outline" size="sm" disabled={busy} onClick={() => { if (dirty) setDiscardOpen(true); else setReload(value => value + 1) }}>Recarregar projeto</Button></div>}
-        <div className="flex items-center justify-between"><h2 className="font-semibold">Etapas de execução</h2>{loaded.canEdit && <Button variant="outline" size="sm" disabled={!canEdit || draft.stages.length >= 50} onClick={() => setDraft({ ...draft, stages: [...draft.stages, { id: crypto.randomUUID(), name: "Nova etapa", description: "", status: "pendente", assigneeId: "", startDate: "", dueDate: "" }] })}><Plus /> Adicionar etapa</Button>}</div>
+        <div className="flex items-center justify-between"><h2 className="font-semibold">Etapas de execução</h2>{loaded.canEdit && <Button variant="outline" size="sm" disabled={!canEdit || draft.stages.length >= 50} onClick={() => { const id = crypto.randomUUID(); setDraft({ ...draft, stages: [...draft.stages, { id, name: "Nova etapa", description: "", status: "pendente", assigneeId: "", startDate: "", dueDate: "" }] }); setExpandedId(id); setEditingId(id) }}><Plus /> Adicionar etapa</Button>}</div>
         <div className="space-y-4">{draft.stages.map((stage, index) => {
           const stageTasks = tasks.filter(task => task.projectId === projectId && task.projectStageId === stage.id)
           const availableTasks = tasks.filter(task => task.clientId === clientId && (!task.projectId || task.projectId === projectId) && task.projectStageId !== stage.id)
           const overdue = Boolean(stage.dueDate && stage.dueDate < today && stage.status !== "concluida")
           const payment = loaded.paymentMilestones.find(item => item.id === stage.paymentMilestoneId)
-          return <section key={stage.id} className="space-y-4 rounded-xl border bg-card p-4">
-            <div className="flex flex-wrap items-center gap-2"><span className="num flex size-7 items-center justify-center rounded-full bg-muted text-xs">{index + 1}</span><h3 className="min-w-0 flex-1 text-sm font-semibold">{stage.name || "Etapa sem nome"}</h3><StatusBadge tone={STAGE_TONE[stage.status]}>{STAGE_LABEL[stage.status]}</StatusBadge>{overdue && <StatusBadge tone="danger">Atrasada</StatusBadge>}
-              {loaded.canEdit && <div className="flex gap-1"><Button variant="ghost" size="icon-xs" disabled={!canEdit || index === 0} aria-label={`Mover ${stage.name} para cima`} onClick={() => move(index, -1)}><ArrowUp /></Button><Button variant="ghost" size="icon-xs" disabled={!canEdit || index === draft.stages.length - 1} aria-label={`Mover ${stage.name} para baixo`} onClick={() => move(index, 1)}><ArrowDown /></Button><Button variant="ghost" size="icon-xs" className="text-destructive" disabled={!canEdit || draft.stages.length === 1 || stageTasks.length > 0} aria-label={`Remover ${stage.name}`} title={stageTasks.length ? "Desvincule as tarefas antes de remover" : "Remover etapa"} onClick={() => setDraft({ ...draft, stages: draft.stages.filter(item => item.id !== stage.id) })}><Trash2 /></Button></div>}
+          const expanded = expandedId === stage.id
+          const editing = editingId === stage.id
+          return <section key={stage.id} className={`space-y-4 rounded-2xl border bg-card p-4 sm:p-5 ${stage.id === currentStage?.id ? "border-primary/50" : ""}`}>
+            <div className="flex flex-wrap items-center gap-2"><span className="num flex size-7 items-center justify-center rounded-full bg-muted text-xs">{index + 1}</span><button className="min-w-0 flex-1 text-left text-sm font-semibold hover:text-primary" aria-expanded={expanded} aria-controls={`stage-${stage.id}`} onClick={() => setExpandedId(expanded ? null : stage.id)}>{stage.name || "Etapa sem nome"}</button><StatusBadge tone={STAGE_TONE[stage.status]}>{STAGE_LABEL[stage.status]}</StatusBadge>{overdue && <StatusBadge tone="danger">Atrasada</StatusBadge>}
+              {loaded.canEdit && editing && <div className="flex gap-1"><Button variant="ghost" size="icon-xs" disabled={!canEdit || index === 0} aria-label={`Mover ${stage.name} para cima`} onClick={() => move(index, -1)}><ArrowUp /></Button><Button variant="ghost" size="icon-xs" disabled={!canEdit || index === draft.stages.length - 1} aria-label={`Mover ${stage.name} para baixo`} onClick={() => move(index, 1)}><ArrowDown /></Button><Button variant="ghost" size="icon-xs" className="text-destructive" disabled={!canEdit || draft.stages.length === 1 || stageTasks.length > 0} aria-label={`Remover ${stage.name}`} title={stageTasks.length ? "Desvincule as tarefas antes de remover" : "Remover etapa"} onClick={() => setDraft({ ...draft, stages: draft.stages.filter(item => item.id !== stage.id) })}><Trash2 /></Button></div>}
             </div>
-            <fieldset disabled={!canEdit} className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><UserRound className="size-3.5" />{users.find(user => user.id === stage.assigneeId)?.name || "Responsável a definir"}</span><span className="flex items-center gap-1.5"><CalendarDays className="size-3.5" />{stage.dueDate ? formatDate(stage.dueDate) : "Prazo a definir"}</span><span className="flex items-center gap-1.5"><CheckSquare className="size-3.5" />{stageTasks.filter(task => task.status === "done").length}/{stageTasks.length} tarefas</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><Button variant="ghost" size="sm" className="px-0 text-primary" aria-expanded={expanded} aria-controls={`stage-${stage.id}`} onClick={() => setExpandedId(expanded ? null : stage.id)}>{expanded ? <ChevronUp /> : <ChevronDown />}{expanded ? "Recolher detalhes" : "Ver detalhes e tarefas"}</Button>{loaded.canEdit && <Button variant="outline" size="sm" disabled={busy} onClick={() => { setExpandedId(stage.id); setEditingId(editing ? null : stage.id) }}><Pencil />{editing ? "Recolher edição" : "Editar etapa"}</Button>}</div>
+            {expanded && <div id={`stage-${stage.id}`} className="space-y-4 border-t pt-4">
+            {!editing && stage.description && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{stage.description}</p>}
+            {editing && <fieldset disabled={!canEdit} className="grid gap-3 sm:grid-cols-2">
               <FormField label="Nome da etapa"><Input value={stage.name} maxLength={150} onChange={event => changeStage(stage.id, { name: event.target.value })} /></FormField>
               <FormField label="Status"><OptionSelect value={stage.status} onChange={status => changeStage(stage.id, { status })} options={toOptions(STAGE_LABEL)} /></FormField>
               <FormField label="Responsável"><OptionSelect value={stage.assigneeId || "none"} onChange={value => changeStage(stage.id, { assigneeId: value === "none" ? "" : value })} options={[{ value: "none", label: "A definir" }, ...users.filter(user => user.active || user.id === stage.assigneeId).map(user => ({ value: user.id, label: `${user.name}${user.active ? "" : " (inativo)"}` }))]} /></FormField>
               <div className="grid grid-cols-2 gap-3"><FormField label="Início"><Input type="date" value={stage.startDate} onChange={event => changeStage(stage.id, { startDate: event.target.value })} /></FormField><FormField label="Prazo"><Input type="date" value={stage.dueDate} onChange={event => changeStage(stage.id, { dueDate: event.target.value })} /></FormField></div>
               <FormField label="Descrição" className="sm:col-span-2"><Textarea value={stage.description} rows={2} maxLength={4000} onChange={event => changeStage(stage.id, { description: event.target.value })} /></FormField>
               {canEditBilling && loaded.paymentMilestones.length > 0 && <FormField label="Etapa de pagamento vinculada" className="sm:col-span-2"><OptionSelect value={stage.paymentMilestoneId || "none"} onChange={value => changeStage(stage.id, { paymentMilestoneId: value === "none" ? undefined : value })} options={[{ value: "none", label: "Sem vínculo" }, ...loaded.paymentMilestones.map(item => ({ value: item.id, label: item.label }))]} /><p className="mt-1 text-xs text-muted-foreground">As cobranças são gerenciadas na aba Cobranças.</p></FormField>}
-            </fieldset>
-            {!canEditBilling && stage.paymentMilestoneId && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Link2 className="size-3.5" />{payment ? `Pagamento vinculado: ${payment.label}` : "Etapa com pagamento vinculado"}</p>}
+            </fieldset>}
+            {(!editing || !canEditBilling) && stage.paymentMilestoneId && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Link2 className="size-3.5" />{payment ? `Pagamento vinculado: ${payment.label}` : "Etapa com pagamento vinculado"}</p>}
             {canFinance && stage.paymentMilestoneId && <Button variant="link" size="sm" className="px-0" disabled={dirty || busy} onClick={onBilling}>Ver cobranças do projeto</Button>}
             <div className="space-y-2 border-t pt-3"><div className="flex items-center gap-2 text-sm font-medium"><CheckSquare className="size-4" /> Tarefas da etapa <span className="text-xs text-muted-foreground">{stageTasks.filter(task => task.status === "done").length}/{stageTasks.length}</span></div>
               {stageTasks.map(task => <div key={task.id} className="flex items-center gap-2"><button className="min-w-0 flex-1 truncate text-left text-sm text-primary hover:underline" onClick={() => setTaskId(task.id)}>{task.title}</button><EnumBadge value={task.status} labels={TASK_STATUS_LABEL} tones={TASK_STATUS_TONE} />{loaded.canEdit && <Button variant="ghost" size="icon-xs" disabled={busy || dirty} aria-label={`Desvincular ${task.title}`} onClick={() => taskAction(() => linkProjectTaskAction(clientId, projectId, task.id, null))}><Unlink /></Button>}</div>)}
@@ -134,6 +147,7 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
               {loaded.canEdit && stage.status !== "concluida" && <StageTaskControls disabled={busy || dirty} availableTasks={availableTasks} onCreate={async title => { const task = await taskAction(() => createProjectTaskAction(clientId, projectId, stage.id, title)); if (task) setTaskId(task.id); return Boolean(task) }} onLink={id => taskAction(() => linkProjectTaskAction(clientId, projectId, id, stage.id))} />}
               {dirty && loaded.canEdit && <p className="text-xs text-muted-foreground">Salve as etapas para criar ou vincular tarefas.</p>}
             </div>
+            </div>}
           </section>
         })}</div>
       </div>}
@@ -145,5 +159,5 @@ function ProjectExecution({ clientId, projectId, onOpenChange, onBilling }: { cl
 function StageTaskControls({ disabled, availableTasks, onCreate, onLink }: { disabled: boolean; availableTasks: Task[]; onCreate: (title: string) => Promise<boolean>; onLink: (id: string) => Promise<unknown> }) {
   const [title, setTitle] = useState("")
   const [selected, setSelected] = useState("")
-  return <div className="space-y-2 pt-1"><form className="flex gap-2" onSubmit={async event => { event.preventDefault(); if (title.trim() && await onCreate(title.trim())) setTitle("") }}><Input disabled={disabled} required maxLength={300} aria-label="Título da nova tarefa" value={title} onChange={event => setTitle(event.target.value)} placeholder="Nova tarefa desta etapa" /><Button type="submit" variant="outline" size="sm" disabled={disabled || !title.trim()}><Plus /> Criar tarefa</Button></form>{availableTasks.length > 0 && <div className="flex gap-2"><OptionSelect disabled={disabled} value={selected} onChange={setSelected} placeholder="Vincular tarefa existente" options={availableTasks.map(task => ({ value: task.id, label: task.title }))} /><Button variant="outline" size="sm" disabled={disabled || !selected} onClick={async () => { await onLink(selected); setSelected("") }}><Link2 /> Vincular</Button></div>}</div>
+  return <div className="space-y-2 pt-1"><form className="flex flex-col gap-2 sm:flex-row" onSubmit={async event => { event.preventDefault(); if (title.trim() && await onCreate(title.trim())) setTitle("") }}><Input disabled={disabled} required maxLength={300} aria-label="Título da nova tarefa" value={title} onChange={event => setTitle(event.target.value)} placeholder="Nova tarefa desta etapa" /><Button type="submit" variant="outline" size="sm" disabled={disabled || !title.trim()}><Plus /> Criar tarefa</Button></form>{availableTasks.length > 0 && <div className="flex flex-col gap-2 sm:flex-row"><OptionSelect disabled={disabled} value={selected} onChange={setSelected} placeholder="Vincular tarefa existente" options={availableTasks.map(task => ({ value: task.id, label: task.title }))} /><Button variant="outline" size="sm" disabled={disabled || !selected} onClick={async () => { await onLink(selected); setSelected("") }}><Link2 /> Vincular</Button></div>}</div>
 }

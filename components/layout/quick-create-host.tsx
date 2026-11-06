@@ -20,7 +20,7 @@ export function QuickCreateHost() {
   }
   return (
     <>
-      <LeadFormDialog open={kind === "lead"} onOpenChange={onOpenChange} />
+      <LeadFormDialog open={kind === "lead"} onOpenChange={onOpenChange} defaults={defaults} />
       <DealFormDialog open={kind === "deal"} onOpenChange={onOpenChange} defaults={defaults} />
       <TaskFormDialog open={kind === "task"} onOpenChange={onOpenChange} defaults={defaults} />
       <EventFormDialog open={kind === "event"} onOpenChange={onOpenChange} defaults={defaults} />

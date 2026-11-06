@@ -14,7 +14,7 @@ export function EventChip({ event, onClick, className }: { event: CalendarEvent;
         ev.stopPropagation()
         onClick(event)
       }}
-      className={cn("flex w-full min-w-0 items-center gap-1.5 rounded-md border bg-surface px-1.5 py-0.5 text-left text-[11px] hover:border-[#3a3a3a]", className)}
+      className={cn("flex w-full min-w-0 items-center gap-1.5 rounded-md border bg-surface px-1.5 py-0.5 text-left text-[11px] hover:border-[#9abcec]", className)}
       title={event.google ? `Google Agenda · ${event.title}` : event.title}
     >
       <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: EVENT_TYPE_COLOR[event.type] }} />

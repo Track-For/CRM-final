@@ -1,5 +1,7 @@
 "use server"
 
+import { messageTemplateSchema } from "@/lib/messages/validation"
+import { dealValuesSchema } from "@/lib/data/deal-values"
 import { projectForDeal } from "@/lib/projects/plan"
 import type { Project, Quote } from "@/types"
 import { webhookUrl } from "@/lib/security/webhook-url"
@@ -153,7 +155,11 @@ export async function saveRecord(resource: string, id: string, data: Record<stri
   assertResourceAccess(user.role, resource, "write")
   const key = keySchema.parse({ resource, id })
   if (resource === "projects") throw new Error("Use o acompanhamento do projeto para editar suas etapas.")
-  const value = dataSchema.parse(data)
+  const value: Record<string, unknown> = resource === "quickMessages" ? messageTemplateSchema.parse({ ...data, id }) : dataSchema.parse(data)
+  if (resource === "deals") {
+    if (value.value !== undefined) dealValuesSchema.shape.value.parse(value.value)
+    if (value.monthlyFee !== undefined) dealValuesSchema.shape.monthlyFee.parse(value.monthlyFee)
+  }
   if (resource === "tasks") {
     const [previous] = await db.select({ data: crmRecords.data }).from(crmRecords).where(sql`${crmRecords.resource}='tasks' and ${crmRecords.id}=${id} and ${crmRecords.deleted}=false`).limit(1)
     const task = { ...previous?.data, ...value }

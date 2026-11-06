@@ -6,8 +6,9 @@ export const editableForecast = (charge: Charge) => !charge.deletedAt && charge.
 export function projectReceivables(deal: Deal, charges: Charge[]) {
   const result: { charge: Charge; entry: FinancialEntry }[] = []
   const remove: Charge[] = []
-  if (deal.stage !== "ganho" || !deal.clientId || !(deal.value > 0)) return { records: result, remove }
+  if (deal.stage !== "ganho" || !deal.clientId || !(deal.value >= 0)) return { records: result, remove }
   const existing = charges.filter(charge => charge.dealId === deal.id && !charge.subscriptionId)
+  if (deal.value === 0) return { records: result, remove: existing.filter(editableForecast) }
   const stages = deal.paymentPlan?.milestones || []
   for (const charge of existing) {
     if (editableForecast(charge) && !stages.some(stage => stage.id === charge.milestoneId)) remove.push(charge)

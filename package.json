@@ -27,6 +27,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test scripts/test-*.mjs",
     "crm:check": "node scripts/check-crm-foundation.mjs",
+    "sales:check": "node scripts/check-sales-cycle.mjs",
+    "auth:check": "node scripts/check-auth-local.mjs",
+    "asaas:check-webhook": "node scripts/check-asaas-webhook.mjs",
     "readiness:check": "node scripts/check-readiness.mjs",
     "hermes:test": "python3 -m unittest discover -s integrations/hermes/trackfor-crm -p test_plugin.py"
   },

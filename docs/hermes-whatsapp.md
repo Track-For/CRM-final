@@ -4,7 +4,7 @@ A integração está preparada no repositório. A instalação na Hostinger e a 
 
 ## O que o agente pode consultar
 
-Em **WhatsApp → Hermes e dados do CRM**, um administrador cria uma chave exclusiva e escolhe as categorias:
+Em **Integrações → WhatsApp / Evolution → Hermes e dados do CRM**, um administrador cria uma chave exclusiva e escolhe as categorias:
 
 - Projetos: nome, andamento, etapas e datas previstas; sem descrições internas das etapas ou responsáveis.
 - Propostas: número, status, valores, mensalidade, validade e prazo das propostas já enviadas, visualizadas ou aceitas. Rascunhos não são disponibilizados.
@@ -18,7 +18,7 @@ A chave tem somente `whatsapp:context:read`, é exibida uma vez e fica no banco 
 A integração usa o mecanismo oficial de [plugins do Hermes](https://hermes-agent.nousresearch.com/docs/developer-guide/plugins/). O pacote está em `integrations/hermes/trackfor-crm/`, com manifesto e ferramenta Python sem dependências adicionais.
 
 1. Publique esta versão do CRM. A URL local `http://localhost:3000` desta máquina não é acessível pela VPS da Hostinger.
-2. Abra **WhatsApp → Hermes e dados do CRM** como administrador. Selecione as categorias e crie a chave. Copie a chave para o cadastro de segredos do Hermes, sem colocá-la no prompt ou na memória do agente.
+2. Abra **Integrações → WhatsApp / Evolution → Hermes e dados do CRM** como administrador. Selecione as categorias e crie a chave. Copie a chave para o cadastro de segredos do Hermes, sem colocá-la no prompt ou na memória do agente.
 3. No perfil do Hermes que atende os clientes, cadastre `TRACKFOR_CRM_URL=https://SEU-DOMINIO` e `TRACKFOR_CRM_TOKEN=CHAVE_CRIADA`. O primeiro valor é a origem HTTPS, sem caminho de página ou parâmetros.
 4. Copie `plugin.yaml` e `__init__.py` do pacote para o diretório de plugins do perfil, por exemplo `~/.hermes/plugins/trackfor-crm/`. Não sobrescreva a configuração geral nem outros plugins.
 5. Na VPS, valide e habilite:

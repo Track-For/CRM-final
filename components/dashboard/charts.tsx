@@ -25,7 +25,7 @@ export function SourceBarChart({ data, money = false }: { data: { label: string;
         <CartesianGrid {...chartGrid} horizontal={false} vertical />
         <XAxis type="number" {...chartAxis} allowDecimals={false} tickFormatter={money ? moneyTick : (v: number) => formatNumber(v)} />
         <YAxis type="category" dataKey="label" {...chartAxis} width={92} />
-        <Tooltip cursor={{ fill: "#141414" }} content={tooltipContent(money)} />
+        <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(money)} />
         <Bar dataKey="value" name={money ? "Valor" : "Leads"} radius={[0, 4, 4, 0]} barSize={16}>
           {data.map((d) => (
             <Cell key={d.label} fill={d.color} />
@@ -43,8 +43,8 @@ export function RevenueChart({ data }: { data: { month: string; realizado: numbe
         <CartesianGrid {...chartGrid} />
         <XAxis dataKey="month" {...chartAxis} />
         <YAxis {...chartAxis} width={64} tickFormatter={moneyTick} />
-        <Tooltip cursor={{ fill: "#141414" }} content={tooltipContent(true)} />
-        <Bar dataKey="previsto" name="Previsto" fill="#2a2a2a" radius={[4, 4, 0, 0]} barSize={22} />
+        <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(true)} />
+        <Bar dataKey="previsto" name="Previsto" fill="#c9ddfa" radius={[4, 4, 0, 0]} barSize={22} />
         <Bar dataKey="realizado" name="Realizado" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={22} />
         <Line dataKey="previsto" name="Previsto" stroke="var(--info)" strokeWidth={2} dot={false} legendType="none" tooltipType="none" />
       </ComposedChart>
@@ -75,7 +75,7 @@ export function FunnelBars({ data }: { data: { stage: StageKey; count: number; c
               className="flex h-full items-center justify-center rounded-md"
               style={{ width: `${Math.max(8, (d.count / max) * 100)}%`, backgroundColor: toneColor[STAGE_TONE[d.stage]] }}
             >
-              <span className="num font-semibold" style={{ color: ["brand", "warning", "success"].includes(STAGE_TONE[d.stage]) ? "#0a0a0a" : "#f2f2f2" }}>
+              <span className="num font-semibold" style={{ color: "#ffffff" }}>
                 {d.count}
               </span>
             </div>

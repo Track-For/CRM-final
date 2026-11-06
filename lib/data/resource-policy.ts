@@ -29,6 +29,7 @@ export const resourcePolicy: Record<string, { read: Role[]; write: Role[] }> = {
 for (const key of ["catalog", "addons", "hostingPlans", "pipelines", "lostReasons", "quickMessages", "financialCategories"]) {
   resourcePolicy[key] = { read: all, write: ["admin"] }
 }
+resourcePolicy.quickMessages = { read: all, write: ["admin", "comercial"] }
 export function canUseResource(role: Role, resource: string, operation: "read" | "write") {
   return Boolean(resourcePolicy[resource]?.[operation].includes(role))
 }

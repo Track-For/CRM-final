@@ -1,5 +1,6 @@
 "use client"
 
+import { SalesViewNav } from "@/components/sales/sales-view-nav"
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -20,7 +21,8 @@ export default function FunilPage() {
 
   return (
     <div>
-      <PageHeader title="Funil de vendas" description={`Conversão entre etapas, gargalos e motivos de perda · ${PERIOD_LABEL[period]}`} />
+      <PageHeader title="Vendas" description={`Conversão entre etapas, gargalos e motivos de perda · ${PERIOD_LABEL[period]}`} />
+      <SalesViewNav />
       <Tabs defaultValue="analise" className="gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>

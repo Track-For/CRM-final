@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { CalendarDays, CheckSquare, FileText, FormInput, Handshake, MessageCircle, Phone, RefreshCw, StickyNote } from "lucide-react"
+import { Mail, CalendarDays, CheckSquare, FileText, FormInput, Handshake, MessageCircle, Phone, RefreshCw, StickyNote } from "lucide-react"
 import { UserAvatar } from "@/components/shared/user-avatar"
 import { formatDateTime } from "@/lib/format"
 import type { Activity, ActivityType } from "@/types"
@@ -8,6 +8,7 @@ const ICON: Record<ActivityType, LucideIcon> = {
   nota: StickyNote,
   ligacao: Phone,
   whatsapp: MessageCircle,
+  email: Mail,
   reuniao: CalendarDays,
   status: RefreshCw,
   negocio: Handshake,
@@ -20,6 +21,7 @@ const COLOR: Record<ActivityType, string> = {
   nota: "text-warning",
   ligacao: "text-info",
   whatsapp: "text-success",
+  email: "text-primary",
   reuniao: "text-info",
   status: "text-muted-foreground",
   negocio: "text-primary",

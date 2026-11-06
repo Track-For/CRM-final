@@ -138,7 +138,7 @@ export function FunnelAnalysis({ pipelineId }: { pipelineId: string | null }) {
                       <div className="flex justify-center">
                         <div
                           className={cn("flex h-9 items-center justify-center rounded-md border text-sm font-semibold transition-all", isBottleneck && "outline-2 outline-offset-2 outline-warning")}
-                          style={{ width: `${width}%`, backgroundColor: TONE_COLOR[STAGE_TONE[stage.key]], color: STAGE_TONE[stage.key] === "neutral" ? "var(--foreground)" : "#0a0a0a", borderColor: "transparent" }}
+                          style={{ width: `${width}%`, backgroundColor: TONE_COLOR[STAGE_TONE[stage.key]], color: STAGE_TONE[stage.key] === "neutral" ? "var(--foreground)" : "#000000", borderColor: "transparent" }}
                         >
                           <span className="num">{count}</span>
                         </div>
@@ -229,7 +229,7 @@ export function FunnelAnalysis({ pipelineId }: { pipelineId: string | null }) {
               <CartesianGrid {...chartGrid} horizontal={false} vertical />
               <XAxis type="number" allowDecimals={false} {...chartAxis} />
               <YAxis type="category" dataKey="name" width={150} {...chartAxis} />
-              <Tooltip cursor={{ fill: "#141414" }} content={<ChartTooltip money={false} />} />
+              <Tooltip cursor={{ fill: "#e9f2ff" }} content={<ChartTooltip money={false} />} />
               <Bar dataKey="value" name="Negócios" radius={[0, 4, 4, 0]} barSize={18}>
                 {data.lostChart.map((_, i) => (
                   <Cell key={i} fill={i === 0 ? "var(--danger)" : "var(--chart-muted)"} />

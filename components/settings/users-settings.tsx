@@ -158,7 +158,7 @@ export function UsersSettings() {
                   </td>
                   {ROLES.map((r) => (
                     <td key={r} className="px-3 py-2 text-center">
-                      {item.roles.includes(r) ? <Check className="mx-auto size-4 text-primary" aria-label="Permitido" /> : <Minus className="mx-auto size-4 text-[#3a3a3a]" aria-label="Bloqueado" />}
+                      {item.roles.includes(r) ? <Check className="mx-auto size-4 text-primary" aria-label="Permitido" /> : <Minus className="mx-auto size-4 text-[#9abcec]" aria-label="Bloqueado" />}
                     </td>
                   ))}
                 </tr>

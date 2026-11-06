@@ -49,7 +49,7 @@ const CONTRACT_STATUS: Record<Contract["status"], { label: string; tone: "warnin
   encerrado: { label: "Encerrado", tone: "neutral" },
 }
 
-export function ClientDetail({ id }: { id: string }) {
+export function ClientDetail({ id, initialProjectId }: { id: string; initialProjectId?: string }) {
   const router = useRouter()
   const client = useClient(id)
   const lead = useLead(client?.leadId)
@@ -72,7 +72,7 @@ export function ClientDetail({ id }: { id: string }) {
   const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null)
   const missingPlanDeal = allDeals.find(deal => deal.stage === "ganho" && !deal.paymentPlan && (deal.clientId === id || (!!client?.leadId && deal.leadId === client.leadId)))
   const [tab, setTab] = useState("projetos")
-  const [projectId, setProjectId] = useState<string | null>(null)
+  const [projectId, setProjectId] = useState<string | null>(initialProjectId || null)
 
   const data = useMemo(() => {
     const summary = client ? clientSummary(client, allDeals, allProjects, allSubs, allCharges) : { projects: [], subscriptions: [], charges: [], paid: 0, open: 0, unbilled: 0, monthly: 0, monthlyFromDeals: false }

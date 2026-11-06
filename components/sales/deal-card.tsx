@@ -24,7 +24,7 @@ export function DealCard({ deal, lead, clientName, overlay, onOpen }: DealCardPr
     <div
       onClick={onOpen}
       className={cn(
-        "cursor-grab space-y-2.5 rounded-lg border bg-surface p-3 text-left transition-colors hover:border-[#333]",
+        "cursor-grab space-y-2.5 rounded-lg border bg-surface p-3 text-left transition-colors hover:border-[#80ace9]",
         overlay && "border-primary/35 shadow-lg",
         stale && "border-l-2 border-l-danger",
       )}

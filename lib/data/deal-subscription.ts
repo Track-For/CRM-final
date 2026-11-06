@@ -10,11 +10,15 @@ export function subscriptionForDeal(deal: Deal, subscriptions: Subscription[], c
   const paid = charges.filter(charge => charge.dealId === deal.id && !charge.subscriptionId && charge.status === "pago")
   const totalPaid = paid.reduce((sum, charge) => sum + Math.round(charge.amount * 100), 0)
   const paymentDates = paid.map(charge => charge.paidAt).filter((value): value is string => !!value && Number.isFinite(new Date(value).getTime())).sort()
-  const settled = totalPaid >= Math.round(deal.value * 100) && deal.value > 0 && paymentDates.length === paid.length && paid.length > 0
+  // Sem implantação a pagar, a venda ganha é a referência para a manutenção.
+  const settlementDate = deal.value === 0 ? deal.wonAt || deal.stageChangedAt : paymentDates[paymentDates.length - 1]
+  const settled = deal.value === 0
+    ? Boolean(settlementDate && Number.isFinite(new Date(settlementDate).getTime()))
+    : totalPaid >= Math.round(deal.value * 100) && deal.value > 0 && paymentDates.length === paid.length && paid.length > 0
   let start = ""
   let day = 0
   if (settled) {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(paymentDates[paymentDates.length - 1]))
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(settlementDate))
     const part = (type: string) => parts.find(item => item.type === type)!.value
     const date = new Date(`${part("year")}-${part("month")}-${part("day")}T15:00:00.000Z`)
     date.setUTCDate(date.getUTCDate() + 3)
