@@ -24,7 +24,10 @@ try {
   await sql`insert into users(id,name,email,password_hash,role) values ('test-user','Teste','test@example.invalid','disabled','admin')`
   const dir = path.resolve(".next/local-asaas-outbound"); await mkdir(dir, { recursive: true })
   const outfile = path.join(dir, "actions.mjs")
-  await build({ stdin: { contents: 'export { saveClientAndSyncAsaasAction } from "./lib/boleto/customer-actions"; export { issueBoletoAction } from "./lib/boleto/actions"; export { encryptSecret } from "./lib/fiscal/crypto"; import { db } from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "asaas-outbound-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "fixture-auth", setup(plugin) {
+  await build({ stdin: { contents: 'export { saveClientAndSyncAsaasAction } from "./lib/boleto/customer-actions"; export { issueBoletoAction } from "./lib/boleto/actions"; export { encryptSecret } from "./lib/fiscal/crypto"; import { db } from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "asaas-outbound-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolate-fiscal-scheduling", setup(plugin) {
+    plugin.onResolve({ filter: /^@\/lib\/fiscal\/automatic-schedule$/ }, () => ({ path: "fiscal-schedule", namespace: "fiscal-fixture" }))
+    plugin.onLoad({ filter: /.*/, namespace: "fiscal-fixture" }, () => ({ contents: "export async function schedulePaidChargeInvoice(){}", loader: "js" }))
+  } }, { name: "fixture-auth", setup(plugin) {
     plugin.onResolve({ filter: /^@\/lib\/auth\/session$/ }, () => ({ path: "auth", namespace: "fixture" }))
     plugin.onResolve({ filter: /^next\/cache$/ }, () => ({ path: "cache", namespace: "fixture" }))
     plugin.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: args.path === "auth" ? 'export async function getCurrentUser(){return {id:"test-user",role:process.env.ASAAS_OUTBOUND_ROLE || "admin"}}' : 'export function revalidatePath(){}', loader: "ts" }))

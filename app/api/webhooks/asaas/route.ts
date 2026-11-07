@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto"
 import type { AsaasPayment } from "@/lib/boleto/asaas"
 import { applyWebhookPayment, isEventProcessed, markEventProcessed, readWebhookToken } from "@/lib/boleto/sync"
 
+export const maxDuration = 60
+
 /** Compara os hashes: tempo constante, sem revelar nem o tamanho do token. */
 function sameToken(received: string, expected: string): boolean {
   const digest = (value: string) => createHash("sha256").update(value).digest()

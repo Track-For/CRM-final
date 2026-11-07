@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -109,6 +110,7 @@ export const fiscalSettings = pgTable("fiscal_settings", {
   rpsSeries: text("rps_series").default("A"),
   nextRpsNumber: integer("next_rps_number").notNull().default(1),
   sendEmailToClient: boolean("send_email_to_client").default(true),
+  autoIssueOnPayment: boolean("auto_issue_on_payment").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
@@ -206,6 +208,7 @@ export const invoices = pgTable(
   },
   (t) => [
     index("invoices_status_idx").on(t.status),
+    uniqueIndex("invoices_charge_environment_unique").on(t.chargeId, t.environment).where(sql`${t.chargeId} is not null and ${t.status} <> 'cancelada'`),
     index("invoices_client_id_idx").on(t.clientId),
     index("invoices_created_at_idx").on(t.createdAt),
   ],

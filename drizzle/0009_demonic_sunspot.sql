@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "invoices_charge_environment_unique" ON "invoices" USING btree ("charge_id","environment") WHERE "invoices"."charge_id" is not null and "invoices"."status" <> 'cancelada';

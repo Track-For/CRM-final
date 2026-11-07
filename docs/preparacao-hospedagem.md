@@ -67,3 +67,17 @@ O navegador automatizado não estava disponível nesta sessão. A rota `/f/conta
 - Backup final criado após o cadastro do formulário e restaurado com sucesso em banco temporário, removido ao terminar.
 - Prospecção reiniciada com o novo iniciador; checagem confirmou o motor funcionando e WhatsApp conectado.
 - Prontidão ainda retorna pendências esperadas: SMTP, domínio HTTPS, administrador definitivo, webhook público WhatsApp, Brasil NFe e Instagram. A publicação e a homologação externa ficam para a hospedagem.
+
+## NFS-e automática após pagamento
+
+A confirmação de pagamento cria uma pendência fiscal persistida em `crm_records` (`fiscalJobs`). O envio é executado com `after` após a resposta HTTP: uma falha fiscal não desfaz a baixa financeira. O mesmo fluxo recebe pagamentos confirmados pelo Asaas (webhook ou sincronização de uma cobrança pendente) e baixas manuais gravadas pelo CRM. A importação inicial de cobranças históricas já pagas não emite notas retroativas.
+
+Em Integrações → Brasil NFe, configure token da empresa, município, item de serviço e alíquota; mantenha Homologação para validar. A opção **Emitir automaticamente após o pagamento** vem desligada e precisa ser ativada e salva. Os padrões dessa automação são ISS não retido e ausência de retenções federais; só ative se forem adequados às operações da empresa. Casos diferentes devem ser emitidos manualmente com as retenções corretas. A descrição e o valor vêm da cobrança, e o tomador vem do cadastro fiscal do cliente. O município do tomador é conferido pelo CEP; dados faltantes ficam pendentes, sem inventar endereço ou documento. A competência adotada é a data de pagamento; se a competência da prestação for diferente, use emissão manual.
+
+Em Notas fiscais, o painel **Emissões após pagamento** mostra dados incompletos, token ausente, automação desligada e outras pendências. Após corrigir cadastro ou configuração, use **Tentar novamente**. Notas rejeitadas pelo provedor são corrigidas pela ação existente na própria nota. Se houver transmissão sem confirmação ou interrupção após reservar a nota, consulte o Brasil NFe antes de reenviar: o sistema mantém a tentativa para consulta e não a retransmite automaticamente. Alterar o ambiente não move uma tentativa anterior para produção. Pagamentos sandbox do Asaas não geram notas em produção.
+
+O banco garante no máximo uma nota não cancelada por cobrança e ambiente, inclusive quando emissão manual e automática ocorrem ao mesmo tempo. Antes de aplicar as migrações em um banco existente, confira eventuais duplicidades nesse vínculo: a migração recusa duplicados em vez de apagar notas. Faça backup antes de `npm run db:migrate`.
+
+Para recuperar pendências após reinício/timeout, execute **`npm run fiscal:process`**, ou mantenha **`npm run fiscal:worker`** em um processo separado na hospedagem (requer as dependências usadas pelos scripts, incluindo esbuild). Também é possível agendar `fiscal:process` periodicamente. O worker só retoma pendências e tentativas interrompidas; falhas de configuração exigem correção e nova tentativa pelo painel. Nenhum endpoint fiscal público foi adicionado. Estornos de pagamento não cancelam automaticamente notas já emitidas.
+
+Validação: `npm run fiscal:check` usa um schema temporário no Postgres local e simula Brasil NFe e consulta de CEP. Cobre webhook e baixa manual, duplicidade, concorrência, falhas, recuperação e bloqueio de pagamentos sandbox em produção; não emite documentos reais. A homologação externa ainda exige token, empresa/certificado e dados fiscais válidos.

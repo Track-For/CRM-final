@@ -1,8 +1,10 @@
 // Somente servidor. Merge em crm_records sem exigir sessão: o webhook não tem cookie.
+import { schedulePaidChargeInvoice } from "@/lib/fiscal/automatic-schedule"
 import { and, eq, sql } from "drizzle-orm"
 import { crmRecords, db } from "@/lib/db"
 
 type MergeOptions = {
+  skipFiscal?: boolean
   created?: boolean
   /** Omitido, não mexe em `deleted`: um webhook não ressuscita o que foi excluído na tela. */
   deleted?: boolean
@@ -29,6 +31,7 @@ export async function mergeRecord(resource: "charges" | "entries", id: string, d
         ...(userId ? { updatedBy: userId } : {}),
       },
     })
+  if (resource === "charges" && data.status === "pago" && !options.skipFiscal) await schedulePaidChargeInvoice(id)
 }
 
 export async function readRecord(resource: "charges" | "entries", id: string): Promise<Record<string, unknown> | null> {

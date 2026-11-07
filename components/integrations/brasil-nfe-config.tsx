@@ -70,6 +70,7 @@ export function BrasilNfeConfig({ settings }: { settings: FiscalSettingsView }) 
   const [issRate, setIssRate] = useState(rateText(settings.defaultIssRate))
   const [rpsSeries, setRpsSeries] = useState(settings.rpsSeries)
   const [nextRps, setNextRps] = useState(String(settings.nextRpsNumber))
+  const [autoIssue, setAutoIssue] = useState(settings.autoIssueOnPayment)
   const [sendEmail, setSendEmail] = useState(settings.sendEmailToClient)
 
   const [state, formAction, saving] = useActionState(async (prev: ActionState, formData: FormData): Promise<ActionState> => {
@@ -165,6 +166,7 @@ export function BrasilNfeConfig({ settings }: { settings: FiscalSettingsView }) 
           <input type="hidden" name="environment" value={environment} />
           <input type="hidden" name="uf" value={uf} />
           <input type="hidden" name="defaultServiceItem" value={serviceItem} />
+          {autoIssue && <input type="hidden" name="autoIssueOnPayment" value="on" />}
           {sendEmail && <input type="hidden" name="sendEmailToClient" value="on" />}
 
           {state.error && (
@@ -172,6 +174,13 @@ export function BrasilNfeConfig({ settings }: { settings: FiscalSettingsView }) 
               {state.error}
             </FormMessage>
           )}
+
+          <Panel title="Emissão após pagamento" description="Ao confirmar o pagamento, o CRM prepara uma NFS-e por cobrança. Falhas e dados incompletos aparecem em Notas fiscais.">
+            <div className="flex items-start justify-between gap-4">
+              <div className="text-sm"><p>Emitir automaticamente após o pagamento</p><p className="mt-1 text-muted-foreground">Usa o ambiente, serviço e alíquota configurados abaixo, com ISS não retido e sem retenções federais. Ative somente se esses padrões se aplicam às suas cobranças. Pagamentos de teste do Asaas ficam bloqueados em produção.</p></div>
+              <Switch checked={autoIssue} onCheckedChange={setAutoIssue} aria-label="Emitir automaticamente após pagamento" />
+            </div>
+          </Panel>
 
           <Panel title="Conexão" description="Notas fiscais de serviço (NFS-e) emitidas direto para a prefeitura, com PDF e XML guardados no CRM.">
             <FormGrid>

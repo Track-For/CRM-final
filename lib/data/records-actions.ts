@@ -1,5 +1,6 @@
 "use server"
 
+import { schedulePaidChargeInvoice } from "@/lib/fiscal/automatic-schedule"
 import { messageTemplateSchema } from "@/lib/messages/validation"
 import { dealValuesSchema } from "@/lib/data/deal-values"
 import { projectForDeal } from "@/lib/projects/plan"
@@ -202,6 +203,7 @@ export async function saveRecord(resource: string, id: string, data: Record<stri
       },
     })
   if (resource === "deals") await loadRecordOverlay()
+  if (resource === "charges" && value.status === "pago") await schedulePaidChargeInvoice(id)
   const event = resource === "leads" ? (created ? "lead.created" : "lead.updated") : resource === "deals" ? (created ? "deal.created" : value.stage === "ganho" ? "deal.won" : value.stage === "perdido" ? "deal.lost" : value.stage ? "deal.stage_changed" : null) : resource === "quotes" ? (value.status === "enviado" ? "quote.sent" : value.status === "aceito" ? "quote.accepted" : null) : resource === "charges" ? (created ? "payment.created" : value.status === "pago" ? "payment.confirmed" : value.status === "vencido" ? "payment.overdue" : null) : null
   if (event) await dispatchCrmEvent(event, { ...value, id }).catch(error => console.error("[webhook] Falha ao registrar entrega", error instanceof Error ? error.message : "erro"))
 }

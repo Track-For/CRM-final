@@ -64,6 +64,20 @@
       "when": 1793965847762,
       "tag": "0008_perfect_talkback",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794073207803,
+      "tag": "0009_demonic_sunspot",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794073309798,
+      "tag": "0010_normal_sabretooth",
+      "breakpoints": true
     }
   ]
 }

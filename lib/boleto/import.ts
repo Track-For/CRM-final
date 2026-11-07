@@ -57,7 +57,7 @@ export async function syncAsaasReceivables(force = false): Promise<ImportResult>
       const entryRow = rows.find(row => row.resource === "entries" && row.data.chargeId === id)
       const record = importedReceivable(payment, client, environment, mapAsaasStatus(payment.status, payment.deleted), existing, subscription, entryRow?.id)
       if (!record) { unmatched++; continue }
-      await mergeRecord("charges", id, { ...record.charge }, { created: true })
+      await mergeRecord("charges", id, { ...record.charge }, { created: true, skipFiscal: !existing || existing.status === "pago" })
       await mergeRecord("entries", record.entry.id, { ...record.entry }, { created: true, deleted: record.entryDeleted || !!entryRow?.deleted && existing?.status !== "cancelado" })
       const index = charges.findIndex(charge => charge.id === id)
       if (index >= 0) charges[index] = record.charge

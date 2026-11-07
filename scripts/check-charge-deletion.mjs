@@ -24,7 +24,10 @@ try {
   const dir = path.resolve(".next/local-charge-deletion")
   await mkdir(dir, { recursive: true })
   const outfile = path.join(dir, "actions.mjs")
-  await build({ stdin: { contents: 'export { archiveChargeAction, loadRecordOverlay } from "./lib/data/records-actions"; export { syncAsaasReceivables } from "./lib/boleto/import"; export { encryptSecret } from "./lib/fiscal/crypto"; import { db } from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "charge-deletion-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolated-fixture", setup(plugin) {
+  await build({ stdin: { contents: 'export { archiveChargeAction, loadRecordOverlay } from "./lib/data/records-actions"; export { syncAsaasReceivables } from "./lib/boleto/import"; export { encryptSecret } from "./lib/fiscal/crypto"; import { db } from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "charge-deletion-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolate-fiscal-scheduling", setup(plugin) {
+    plugin.onResolve({ filter: /^@\/lib\/fiscal\/automatic-schedule$/ }, () => ({ path: "fiscal-schedule", namespace: "fiscal-fixture" }))
+    plugin.onLoad({ filter: /.*/, namespace: "fiscal-fixture" }, () => ({ contents: "export async function schedulePaidChargeInvoice(){}", loader: "js" }))
+  } }, { name: "isolated-fixture", setup(plugin) {
     plugin.onResolve({ filter: /^@\/lib\/auth\/session$/ }, () => ({ path: "auth", namespace: "fixture" }))
     plugin.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: args.path === "auth" ? 'export async function getCurrentUser(){return {id:"test-user",role:process.env.CHARGE_DELETE_TEST_ROLE || "admin"}}' : 'export async function syncAsaasReceivables(){return {connected:false,imported:0,unmatched:0,linkedClients:0}}', loader: "ts" }))
   } }] })

@@ -1,0 +1,1 @@
+ALTER TABLE "fiscal_settings" ADD COLUMN "auto_issue_on_payment" boolean DEFAULT false NOT NULL;

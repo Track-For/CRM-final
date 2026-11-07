@@ -35,7 +35,10 @@
     "whatsapp:check-ai": "node scripts/check-whatsapp-ai.mjs",
     "db:backup": "node scripts/backup-db.mjs",
     "forms:prepare": "node scripts/prepare-contact-form.mjs",
-    "db:backup-check": "node scripts/check-backup-local.mjs"
+    "db:backup-check": "node scripts/check-backup-local.mjs",
+    "fiscal:process": "node scripts/process-fiscal-jobs.mjs",
+    "fiscal:worker": "node scripts/process-fiscal-jobs.mjs --watch",
+    "fiscal:check": "node scripts/check-fiscal-automatic.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

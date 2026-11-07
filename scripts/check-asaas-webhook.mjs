@@ -22,7 +22,10 @@ try {
   for (const table of ["users", "crm_records", "billing_settings", "boletos", "gateway_events"]) await base.unsafe(`create table "${schema}"."${table}" (like public."${table}" including all)`)
   const dir = path.resolve(".next/local-asaas-webhook"); await mkdir(dir, { recursive: true })
   const outfile = path.join(dir, "route.mjs")
-  await build({ stdin: { contents: 'export {POST} from "./app/api/webhooks/asaas/route";export {encryptSecret} from "./lib/fiscal/crypto";import {db} from "./lib/db";export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "webhook-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent" })
+  await build({ stdin: { contents: 'export {POST} from "./app/api/webhooks/asaas/route";export {encryptSecret} from "./lib/fiscal/crypto";import {db} from "./lib/db";export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "webhook-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolate-fiscal-scheduling", setup(plugin) {
+    plugin.onResolve({ filter: /^@\/lib\/fiscal\/automatic-schedule$/ }, () => ({ path: "fiscal-schedule", namespace: "fiscal-fixture" }))
+    plugin.onLoad({ filter: /.*/, namespace: "fiscal-fixture" }, () => ({ contents: "export async function schedulePaidChargeInvoice(){}", loader: "js" }))
+  } }] })
   process.env.DATABASE_URL = url.toString()
   api = await import(pathToFileURL(outfile).href + `?run=${Date.now()}`)
   globalThis.fetch = async () => { throw Error("Rede externa proibida neste teste") }

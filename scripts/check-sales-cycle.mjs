@@ -51,7 +51,10 @@ try {
     "@/lib/integrations/webhooks": 'export async function dispatchCrmEvent(){}',
     "next/headers": 'export async function headers(){return new Headers({"x-forwarded-for":"203.0.113.20"})}',
   }
-  await build({ stdin: { contents: 'export * from "./lib/data/records-actions"; export * from "./lib/forms/public-actions"; export * from "./lib/projects/actions"; export {useCrmStore} from "./lib/store/crm-store"; import {db} from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "sales-cycle.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolated-transport", setup(builder) {
+  await build({ stdin: { contents: 'export * from "./lib/data/records-actions"; export * from "./lib/forms/public-actions"; export * from "./lib/projects/actions"; export {useCrmStore} from "./lib/store/crm-store"; import {db} from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "sales-cycle.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolate-fiscal-scheduling", setup(plugin) {
+    plugin.onResolve({ filter: /^@\/lib\/fiscal\/automatic-schedule$/ }, () => ({ path: "fiscal-schedule", namespace: "fiscal-fixture" }))
+    plugin.onLoad({ filter: /.*/, namespace: "fiscal-fixture" }, () => ({ contents: "export async function schedulePaidChargeInvoice(){}", loader: "js" }))
+  } }, { name: "isolated-transport", setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => args.path in fixtures ? { path: args.path, namespace: "fixture" } : undefined)
     builder.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: fixtures[args.path], loader: "js" }))
   } }] })

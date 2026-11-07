@@ -1,3 +1,5 @@
+import { getAutomaticFiscalJobs } from "@/lib/fiscal/automatic-actions"
+import { AutomaticFiscalJobs } from "@/components/invoices/automatic-fiscal-jobs"
 import { InvoicesView } from "@/components/invoices/invoices-view"
 import { getCurrentUser } from "@/lib/auth/session"
 import { getFiscalSettings, listInvoices, type FiscalSettingsView, type InvoiceView } from "@/lib/fiscal/actions"
@@ -19,5 +21,6 @@ export default async function NotasFiscaisPage() {
   }
 
   if (!data) return <InvoicesView initialInvoices={[]} settings={null} loadError="Não foi possível carregar as notas do banco de dados. Tente recarregar a página." />
-  return <InvoicesView initialInvoices={data.invoices} settings={data.settings} />
+  const jobs = await getAutomaticFiscalJobs()
+  return <><AutomaticFiscalJobs jobs={jobs} /><InvoicesView initialInvoices={data.invoices} settings={data.settings} /></>
 }

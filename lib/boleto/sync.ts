@@ -1,4 +1,5 @@
 // Somente servidor. Regras compartilhadas entre as actions e o webhook.
+import { schedulePaidChargeInvoice } from "@/lib/fiscal/automatic-schedule"
 import { and, eq, isNull, or, sql } from "drizzle-orm"
 import { billingSettings, boletos, crmRecords, db, gatewayEvents } from "@/lib/db"
 import type { BillingSettings, BoletoRow, BoletoStatus } from "@/lib/db"
@@ -170,6 +171,8 @@ export async function applyWebhookPayment(event: string, payment: AsaasPayment, 
         // Um evento de nova cobrança pode chegar antes da primeira sincronização.
         const { syncAsaasReceivables } = await import("./import")
         await syncAsaasReceivables(true)
+        const [imported] = await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "charges"), eq(crmRecords.deleted, false), sql`${crmRecords.data}->>'gatewayId' = ${payment.id}`, sql`${crmRecords.data}->>'gatewayEnvironment' = ${settings.environment}`)).limit(1)
+        if (imported?.data.status === "pago" && mapAsaasStatus(payment.status, payment.deleted) === "pago") await schedulePaidChargeInvoice(imported.id)
         return
       }
       const existing = record.data as unknown as Charge
@@ -185,6 +188,7 @@ export async function applyWebhookPayment(event: string, payment: AsaasPayment, 
       const chargeData = Object.fromEntries(Object.entries(snapshot.charge).map(([key, value]) => [key, value === undefined ? null : value]))
       const [saved] = await db.update(crmRecords).set({ data: sql`${crmRecords.data} || ${JSON.stringify(chargeData)}::jsonb`, updatedAt: new Date() }).where(and(eq(crmRecords.resource, "charges"), eq(crmRecords.id, existing.id), eq(crmRecords.deleted, false), sql`${crmRecords.data}->>'status' = ${existing.status}`)).returning()
       if (!saved) continue
+      if (status === "pago") await schedulePaidChargeInvoice(existing.id)
       await mergeRecord("entries", snapshot.entry.id, { ...snapshot.entry }, { created: true, deleted: snapshot.entryDeleted || !!entryRow?.deleted && existing.status !== "cancelado" })
       return
     }
