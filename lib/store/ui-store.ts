@@ -53,7 +53,13 @@ export const useUiStore = create<UiState>()(
     {
       name: "solidtech-ui",
       skipHydration: true,
-      partialize: (s) => ({ role: s.role, period: s.period, sidebarCollapsed: s.sidebarCollapsed, showGrid: s.showGrid, density: s.density }),
+      version: 1,
+      migrate: (state) => {
+        const preferences = { ...(state as Record<string, unknown>) }
+        delete preferences.role
+        return preferences
+      },
+      partialize: (s) => ({ period: s.period, sidebarCollapsed: s.sidebarCollapsed, showGrid: s.showGrid, density: s.density }),
     },
   ),
 )

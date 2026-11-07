@@ -9,7 +9,7 @@ import { hashPassword } from "@/lib/auth/password"
 import type { User } from "@/types"
 
 function publicUser(row: typeof users.$inferSelect): User {
-  return { id: row.id, name: row.name, email: row.email, role: row.role, whatsapp: row.whatsapp, active: row.active, initials: row.name.split(" ").map(p => p[0]).slice(0, 2).join(""), createdAt: row.createdAt.toISOString() }
+  return { id: row.id, name: row.name, email: row.email, role: row.role, whatsapp: row.whatsapp, active: row.active, invitationPending: row.passwordHash === "convite-pendente", initials: row.name.split(" ").map(p => p[0]).slice(0, 2).join(""), createdAt: row.createdAt.toISOString() }
 }
 export async function getCrmIdentity() {
   const current = await getCurrentUser()
@@ -34,8 +34,22 @@ export async function inviteUserAction(input: z.infer<typeof inviteSchema>) {
     from invited returning id`)
   const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows || []
   if (!rows.length) throw new Error("Já existe um usuário com esse e-mail.")
-  const user: User = { ...value, id, active: false, initials: value.name.split(" ").map(part => part[0]).slice(0, 2).join(""), createdAt: new Date().toISOString() }
+  const user: User = { ...value, id, active: false, invitationPending: true, initials: value.name.split(" ").map(part => part[0]).slice(0, 2).join(""), createdAt: new Date().toISOString() }
   return { user, path: `/convite/${token}` }
+}
+export async function renewInvitationAction(id: string) {
+  const actor = await getCurrentUser()
+  if (actor?.role !== "admin") throw new Error("Somente administradores podem renovar convites.")
+  z.string().min(1).max(120).parse(id)
+  const token = randomBytes(32).toString("base64url")
+  await db.transaction(async tx => {
+    const [user] = await tx.select().from(users).where(eq(users.id, id)).for("update")
+    if (!user || user.passwordHash !== "convite-pendente") throw new Error("Este usuário não possui convite pendente.")
+    await tx.update(crmRecords).set({ deleted: true, updatedAt: new Date(), updatedBy: actor.id })
+      .where(sql`${crmRecords.resource} = 'userInvitations' and ${crmRecords.data}->>'userId' = ${id} and ${crmRecords.deleted} = false`)
+    await tx.insert(crmRecords).values({ resource: "userInvitations", id: sha256Hex(token), data: { userId: id, expiresAt: new Date(Date.now() + 48 * 3600000).toISOString() }, created: true, updatedBy: actor.id })
+  })
+  return { path: `/convite/${token}` }
 }
 export async function updateUserAction(id: string, input: { role?: User["role"]; active?: boolean }) {
   const actor = await getCurrentUser()

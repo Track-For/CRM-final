@@ -37,6 +37,10 @@ async function prepare() {
   }
 
   run("docker", ["compose", "-f", "docker-compose.local.yml", "up", "-d", "--wait", "--wait-timeout", "90", "postgres"])
+  if (["127.0.0.1", "localhost"].includes(process.env.SMTP_HOST) && process.env.SMTP_PORT === "1025") {
+    run("docker", ["compose", "-f", "docker-compose.local.yml", "up", "-d", "mailpit"])
+    console.log("Caixa de e-mail de testes: http://localhost:8025")
+  }
   run("npm", ["run", "db:migrate"])
   console.log("Banco local pronto. Iniciando Next.js...")
 }

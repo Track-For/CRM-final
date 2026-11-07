@@ -111,14 +111,26 @@ try {
   await api.createProjectTaskAction("fixture-client", legacy.id, legacyLoaded.project.stages[0].id, "Tarefa de projeto antigo")
   await assert.rejects(api.saveRecord("projects", savedProject.id, { stages: [] }))
   const invite = await api.inviteUserAction({ name: "Convidado", email: "invite@example.invalid", whatsapp: "71999999999", role: "comercial" })
-  const token = invite.path.split("/").pop()
+  let token = invite.path.split("/").pop()
   assert.equal(invite.user.active, false)
+  assert.equal(invite.user.invitationPending, true)
   assert.equal(JSON.stringify(await api.loadRecordOverlay()).includes(token), false)
+  for (const role of ["anonymous", "comercial", "operacao", "financeiro"]) {
+    process.env.FOUNDATION_ROLE = role
+    await assert.rejects(api.renewInvitationAction(invite.user.id), /administradores/)
+  }
+  process.env.FOUNDATION_ROLE = "admin"
+  const renewed = await api.renewInvitationAction(invite.user.id)
+  await assert.rejects(api.acceptInvitationAction(token, "senha-forte-de-teste-123"), /inválido/)
+  token = renewed.path.split("/").pop()
+  assert.equal((await sql`select id from crm_records where resource='userInvitations' and data->>'userId'=${invite.user.id} and deleted=false`).length, 1)
   const expired = await api.inviteUserAction({ name: "Expirado", email: "expired@example.invalid", whatsapp: "", role: "operacao" })
   await sql`update crm_records set data=jsonb_set(data,'{expiresAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) where resource='userInvitations' and data->>'userId'=${expired.user.id}`
   await assert.rejects(api.acceptInvitationAction(expired.path.split("/").pop(), "senha-forte-de-teste-123"))
   await api.acceptInvitationAction(token, "senha-forte-de-teste-123")
   assert.equal((await sql`select active from users where id=${invite.user.id}`)[0].active, true)
+  assert.equal((await api.getCrmIdentity()).users.find(user => user.id === invite.user.id).invitationPending, false)
+  await assert.rejects(api.renewInvitationAction(invite.user.id), /pendente/)
   await assert.rejects(api.acceptInvitationAction(token, "senha-forte-de-teste-123"))
   await sql`insert into sessions(id,user_id,expires_at) values('fixture-session',${invite.user.id},now()+interval '1 day')`
   await api.updateUserAction(invite.user.id, { active: false })

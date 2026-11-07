@@ -9,10 +9,6 @@ function smtpConfigured(): boolean {
 /** Envia o código de verificação de login por e-mail (SMTP). */
 export async function sendLoginCodeEmail(to: string, code: string, name?: string): Promise<SendResult> {
   if (!smtpConfigured()) {
-    if (process.env.NODE_ENV !== "production") {
-      console.info(`[auth] SMTP não configurado. Código de verificação para ${to}: ${code}`)
-      return { ok: true }
-    }
     return { ok: false, error: "O envio de e-mail não está configurado. Use o aplicativo autenticador ou fale com o administrador." }
   }
 
@@ -21,6 +17,9 @@ export async function sendLoginCodeEmail(to: string, code: string, name?: string
     host: process.env.SMTP_HOST,
     port,
     secure: port === 465,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
   })
 

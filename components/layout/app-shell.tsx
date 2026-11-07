@@ -21,8 +21,13 @@ export function useAppBootstrap() {
   const bootstrap = useCrm((s) => s.bootstrap)
   const [hydrated, setHydrated] = useState(false)
   useEffect(() => {
-    void Promise.resolve(useUiStore.persist.rehydrate()).then(() => setHydrated(true))
-    void bootstrap()
+    let active = true
+    void (async () => {
+      await useUiStore.persist.rehydrate()
+      await bootstrap(true)
+      if (active) setHydrated(true)
+    })()
+    return () => { active = false }
   }, [bootstrap])
   return hydrated
 }
@@ -69,6 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.body.classList.toggle("no-grid", !showGrid)
   }, [showGrid])
+  if (!hydrated || (!ready && status !== "error")) return <div className="p-6"><PageSkeleton /></div>
   return (
     <div className="flex min-h-dvh">
       <div role="status" aria-live="polite" className={pendingWrites || status === "error" ? "fixed right-4 bottom-4 z-50 rounded-xl border border-primary/25 bg-background px-4 py-3 text-sm shadow-lg" : "sr-only"}>{pendingWrites ? "Salvando alterações…" : status === "error" ? "Há alterações sem confirmação" : "Dados sincronizados"}</div>

@@ -197,6 +197,9 @@ function UserMenu() {
             </DropdownMenuRadioGroup>
           </div>
           <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/minha-conta"><UserRound />Minha conta</Link>
+          </DropdownMenuItem>
           {role === "admin" && (
             <DropdownMenuItem asChild>
               <Link href="/configuracoes">

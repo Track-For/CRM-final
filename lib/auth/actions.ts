@@ -290,14 +290,16 @@ export async function createFirstUserAction(_prev: ActionState, formData: FormDa
   const { name, email, password } = parsed.data
 
   try {
-    await db.insert(users).values({
-      name,
-      email,
-      passwordHash: await hashPassword(password),
-      role: "admin",
-      totpEnabled: false,
-      failedLoginCount: 0,
+    const passwordHash = await hashPassword(password)
+    const created = await db.transaction(async tx => {
+      // Serializa dois primeiros cadastros enviados ao mesmo tempo.
+      await tx.execute(sql`select pg_advisory_xact_lock(731905284)`)
+      const existing = await tx.select({ id: users.id }).from(users).where(ne(users.id, DEVELOPMENT_USER_ID)).limit(1)
+      if (existing.length) return false
+      await tx.insert(users).values({ name, email, passwordHash, role: "admin", totpEnabled: false, failedLoginCount: 0 })
+      return true
     })
+    if (!created) return { error: "O primeiro acesso já foi configurado. Entre com seu e-mail e senha." }
   } catch (err) {
     console.error("[auth] Falha ao criar primeiro usuário", err)
     return { error: "Não foi possível criar o usuário. Tente novamente." }

@@ -38,7 +38,7 @@ type SingletonKey = "pricingRules" | "company" | "adSpend"
 export interface CrmState extends MockDatabase {
   status: "idle" | "loading" | "ready" | "error"
   currentUserId: ID
-  bootstrap: () => Promise<void>
+  bootstrap: (force?: boolean) => Promise<void>
 
   /* CRUD genérico — use nas telas quando não houver ação específica */
   add: <K extends CollectionKey>(key: K, item: EntityOf<K>) => EntityOf<K>
@@ -81,21 +81,24 @@ export function newId(prefix: string): ID {
 
 
 
+let bootstrapRun = 0
 export const useCrmStore = create<CrmState>()((set, get) => ({
   ...structuredClone(initialDatabase),
   status: "idle",
   currentUserId: "",
 
-  bootstrap: async () => {
-    if (get().status === "loading" || get().status === "ready") return
-    set({ status: "loading" })
+  bootstrap: async (force = false) => {
+    if (!force && (get().status === "loading" || get().status === "ready")) return
+    const run = ++bootstrapRun
+    set({ ...structuredClone(initialDatabase), currentUserId: "", status: "loading" })
     try {
       const data = await api.getDatabase()
       const identity = await getCrmIdentity()
+      if (run !== bootstrapRun) return
       useUiStore.getState().setRole(identity.current.role)
       set({ ...data, currentUserId: identity.current.id, status: "ready" })
     } catch {
-      set({ status: "error" })
+      if (run === bootstrapRun) set({ status: "error" })
     }
   },
 

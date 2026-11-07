@@ -31,9 +31,9 @@ try {
   const fixtures = {
     "next/headers": 'export async function cookies(){return globalThis.__authCheck.cookies};export async function headers(){return new Headers({"user-agent":"auth-local-test","x-forwarded-for":"203.0.113.30"})}',
     "next/navigation": 'export function redirect(path){throw Error(`REDIRECT:${path}`)}',
-    "@/lib/auth/email": 'export async function sendLoginCodeEmail(to,code){globalThis.__authCheck.email={to,code};return {ok:true}}',
+    "@/lib/auth/email": 'import nodemailer from "nodemailer"; export async function sendLoginCodeEmail(to,code){if(process.env.AUTH_CHECK_SMTP==="true"){await nodemailer.createTransport({host:"127.0.0.1",port:1025,secure:false}).sendMail({from:"test@localhost.test",to,subject:"Teste de login CRM",text:`Código: ${code}`});const response=await fetch("http://127.0.0.1:8025/api/v1/messages");const inbox=await response.json();const message=await (await fetch(`http://127.0.0.1:8025/api/v1/message/${inbox.messages.find(m=>m.Subject==="Teste de login CRM").ID}`)).json();if(!message.Text.includes(code))throw Error("Código não recebido na caixa local")}globalThis.__authCheck.email={to,code};return {ok:true}}',
   }
-  await build({ stdin: { contents: 'export * from "./lib/auth/actions"; export * from "./lib/auth/session"; export {hashPassword} from "./lib/auth/password"; export {generateTotpSecret,generateTotp} from "./lib/auth/totp"; export {sendLoginCodeEmail as realLoginEmail} from "./lib/auth/email"; import {db} from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "auth-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "request-context", setup(builder) {
+  await build({ stdin: { contents: 'export * from "./lib/auth/actions"; export * from "./lib/auth/session"; export {hashPassword} from "./lib/auth/password"; export {generateTotpSecret,generateTotp} from "./lib/auth/totp"; export {sendLoginCodeEmail as realLoginEmail} from "./lib/auth/email"; import {db} from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "auth-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", external: ["nodemailer"], logLevel: "silent", plugins: [{ name: "request-context", setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => args.path in fixtures ? { path: args.path, namespace: "fixture" } : undefined)
     builder.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: fixtures[args.path], loader: "js" }))
   } }] })
@@ -46,7 +46,10 @@ try {
   assert.equal((await api.realLoginEmail("test@example.invalid", "123456")).ok, false, "Sem SMTP produção deve bloquear envio")
   const password = "Senha-sintetica-12345"
   const first = { name: "Admin Teste", email: "admin@example.invalid", password, confirmPassword: password }
-  await redirectTo(api.createFirstUserAction({}, form(first)), "/login?conta=criada")
+  const firstAttempts = await Promise.allSettled([api.createFirstUserAction({}, form(first)), api.createFirstUserAction({}, form(first))])
+  assert.equal(firstAttempts.filter(result => result.status === "rejected" && result.reason.message === "REDIRECT:/login?conta=criada").length, 1)
+  assert.equal(firstAttempts.filter(result => result.status === "fulfilled" && /já foi configurado/.test(result.value.error)).length, 1)
+  assert.equal((await sql`select id from users`).length, 1, "Somente um administrador pode nascer do primeiro acesso concorrente")
   assert.match((await api.createFirstUserAction({}, form(first))).error, /já foi configurado/)
   for (let attempt = 0; attempt < 5; attempt++) {
     const result = await api.loginAction({}, form({ email: first.email, password: "errada" }))
@@ -110,7 +113,7 @@ try {
   }
   assert.equal(await api.getPendingChallenge(), null)
   console.log("OK: TOTP, usuário desativado, sessão expirada, identidade dos quatro perfis, desafio expirado e limite de tentativas 2FA.")
-  console.log("Banco temporário; e-mail de login simulado; nenhuma conta ou senha real foi alterada.")
+  console.log("Banco temporário; nenhuma conta ou senha real foi alterada.")
 } finally {
   if (api) await api.closeDatabase()
   await sql.end()

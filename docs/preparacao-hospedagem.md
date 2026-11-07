@@ -37,6 +37,14 @@ Para restaurar em outro Postgres, crie um banco vazio e use `pg_restore --no-own
 
 Nenhuma senha de administrador, conta da equipe ou credencial externa foi inventada. Nenhuma cobrança, nota ou mensagem foi emitida durante a preparação.
 
+## Login e usuários
+
+O login local está reativado (`LOCAL_LOGIN_PAUSED=false`). Abra `/primeiro-acesso` para criar seu administrador; nenhum acesso definitivo foi criado automaticamente. Depois use `/login` com e-mail, senha e segundo fator. O envio de códigos por e-mail exige SMTP também no ambiente local; sem configuração, o login informa a indisponibilidade e não simula um envio bem-sucedido. Para testes locais, use o Mailpit do Docker (`SMTP_HOST=127.0.0.1`, `SMTP_PORT=1025`, sem usuário/senha e com `EMAIL_FROM` preenchido). O `npm run dev` inicia a caixa automaticamente nessa configuração; as mensagens ficam em http://localhost:8025 e não são encaminhadas para e-mails reais. Valide cadastro e login com entrega SMTP usando `AUTH_CHECK_SMTP=true npm run auth:check`. Ative o autenticador em `/minha-conta` após seu primeiro login.
+
+Todos os perfis podem abrir Minha conta para alterar a própria senha e configurar o autenticador. As configurações administrativas continuam restritas a administradores, inclusive no servidor. Convites pendentes aparecem identificados e podem ser renovados em Configurações → Usuários e permissões; o novo link vale 48 horas e invalida os anteriores. Copie e compartilhe o link com a pessoa; não há envio automático do convite por e-mail.
+
+O primeiro cadastro é serializado no banco para evitar dois administradores criados por solicitações simultâneas. A aplicação recarrega os dados na entrada da sessão e não reutiliza o papel salvo no navegador como identidade do usuário.
+
 ## Ao publicar
 
 1. Escolha hospedagem Node e Postgres. Evolution e prospecção precisam de serviço persistente; não cabem nas funções da Vercel.

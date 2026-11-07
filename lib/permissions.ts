@@ -51,6 +51,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/formularios", label: "Formulários", icon: FormInput, roles: ["admin", "comercial", "operacao"], group: "sistema" },
   { href: "/integracoes", label: "Integrações", icon: Plug, roles: ["admin", "operacao", "financeiro"], group: "sistema" },
   { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["admin"], group: "sistema" },
+  { href: "/minha-conta", label: "Minha conta", icon: UserRound, roles: ALL, group: "sistema" },
 ]
 
 export const NAV_GROUP_LABEL: Record<NavItem["group"], string> = {

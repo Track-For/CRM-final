@@ -24,6 +24,7 @@ import { maskPhone } from "@/lib/format"
 import { NAV_ITEMS } from "@/lib/permissions"
 import { v } from "@/lib/validation"
 import { DeleteUserButton } from "@/components/settings/delete-user-button"
+import { RenewInvitationButton } from "@/components/settings/renew-invitation-button"
 import type { Role } from "@/types"
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[]
@@ -104,7 +105,7 @@ export function UsersSettings() {
                   <p className="flex items-center gap-2 truncate font-medium">
                     {u.name}
                     {u.id === currentUserId && <StatusBadge tone="brand">Você</StatusBadge>}
-                    {!u.active && <StatusBadge>Inativo</StatusBadge>}
+                    {u.invitationPending ? <StatusBadge>Convite pendente</StatusBadge> : !u.active && <StatusBadge>Inativo</StatusBadge>}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {u.email} · <span className="num">{u.whatsapp}</span>
@@ -112,10 +113,11 @@ export function UsersSettings() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {u.invitationPending && <RenewInvitationButton id={u.id} />}
                 <OptionSelect
                   className="w-40"
                   value={u.role}
-                  disabled={u.id === currentUserId}
+                  disabled={u.id === currentUserId || u.invitationPending}
                   onChange={async (role) => {
                     try { const saved = await updateUserAction(u.id, { role }); update("users", u.id, saved); toast.success("Permissão atualizada") } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao atualizar") }
                   }}
@@ -123,7 +125,7 @@ export function UsersSettings() {
                 />
                 <Switch
                   checked={u.active}
-                  disabled={u.id === currentUserId}
+                  disabled={u.id === currentUserId || u.invitationPending}
                   onCheckedChange={async (active) => {
                     try { const saved = await updateUserAction(u.id, { active }); update("users", u.id, saved); toast.success(active ? "Usuário reativado" : "Usuário desativado") } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao atualizar") }
                   }}

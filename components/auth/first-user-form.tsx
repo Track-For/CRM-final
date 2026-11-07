@@ -50,7 +50,7 @@ export function FirstUserForm() {
     <>
       <AuthHeading
         title="Primeiro acesso"
-        description="Crie a conta de administrador do CRM. Depois do login, ative o Google Authenticator em Configurações > Segurança."
+        description="Crie a conta de administrador do CRM. Depois do login, ative o Google Authenticator em Minha conta."
       />
       <form action={formAction} className="flex flex-col gap-4">
         {state.error && (

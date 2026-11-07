@@ -14,6 +14,7 @@ export type ISODate = string
 export type Role = "admin" | "comercial" | "operacao" | "financeiro"
 
 export interface User {
+  invitationPending?: boolean
   id: ID
   name: string
   email: string
