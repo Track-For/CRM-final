@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto"
 import { and, eq, sql } from "drizzle-orm"
 import { z } from "zod"
-import { db, users, sessions, authChallenges } from "@/lib/db"
+import { db, users, sessions, authChallenges, crmRecords } from "@/lib/db"
 import { getCurrentUser, sha256Hex } from "@/lib/auth/session"
 import { hashPassword } from "@/lib/auth/password"
 import type { User } from "@/types"
@@ -46,6 +46,24 @@ export async function updateUserAction(id: string, input: { role?: User["role"];
   await db.delete(sessions).where(eq(sessions.userId, id))
   await db.delete(authChallenges).where(eq(authChallenges.userId, id))
   return publicUser(row)
+}
+export async function deleteUserAction(id: string) {
+  const actor = await getCurrentUser()
+  if (actor?.role !== "admin") throw new Error("Somente administradores podem excluir usuários.")
+  z.string().min(1).max(120).parse(id)
+  if (actor.id === id) throw new Error("Não é permitido excluir seu próprio acesso.")
+  await db.transaction(async tx => {
+    const [target] = await tx.select({ id: users.id }).from(users).where(eq(users.id, id)).for("update")
+    if (!target) throw new Error("Usuário não encontrado. Atualize a página.")
+    await tx.update(crmRecords).set({ deleted: true, updatedAt: new Date(), updatedBy: actor.id })
+      .where(sql`${crmRecords.resource} = 'userInvitations' and ${crmRecords.data}->>'userId' = ${id} and ${crmRecords.deleted} = false`)
+    await tx.delete(sessions).where(eq(sessions.userId, id))
+    await tx.delete(authChallenges).where(eq(authChallenges.userId, id))
+    // As FKs removem conexões pessoais e preservam documentos com autor nulo.
+    // Registros comerciais em crm_records não são excluídos.
+    await tx.delete(users).where(eq(users.id, id))
+  })
+  return { id }
 }
 export async function acceptInvitationAction(token: string, password: string) {
   z.string().regex(/^[A-Za-z0-9_-]{43}$/).parse(token)

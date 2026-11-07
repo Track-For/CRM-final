@@ -23,6 +23,7 @@ import { useCrm, useUsers } from "@/lib/data"
 import { maskPhone } from "@/lib/format"
 import { NAV_ITEMS } from "@/lib/permissions"
 import { v } from "@/lib/validation"
+import { DeleteUserButton } from "@/components/settings/delete-user-button"
 import type { Role } from "@/types"
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[]
@@ -128,6 +129,7 @@ export function UsersSettings() {
                   }}
                   aria-label="Ativo"
                 />
+                <DeleteUserButton user={u} disabled={u.id === currentUserId} />
               </div>
             </div>
           ))}

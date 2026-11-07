@@ -17,7 +17,10 @@ const sql = postgres(url.toString(), { max: 1 })
 let api
 try {
   await base.unsafe(`create schema "${schema}"`)
-  for (const table of ["users", "sessions", "auth_challenges", "crm_records", "whatsapp_messages", "whatsapp_contacts", "invoices"]) await base.unsafe(`create table "${schema}"."${table}" (like public."${table}" including all)`)
+  for (const table of ["users", "sessions", "auth_challenges", "crm_records", "whatsapp_messages", "whatsapp_contacts", "invoices", "google_calendar_connections"]) await base.unsafe(`create table "${schema}"."${table}" (like public."${table}" including all)`)
+  // LIKE não copia FKs. Recrie as relações exercitadas pela exclusão.
+  await sql`alter table crm_records add foreign key(updated_by) references users(id) on delete set null`
+  await sql`alter table google_calendar_connections add foreign key(user_id) references users(id) on delete cascade`
   await sql`insert into users(id,name,email,password_hash,role) values('actor','Admin','actor@example.invalid','disabled','admin')`
   const dir = path.resolve(".next/local-foundation"); await mkdir(dir, { recursive: true })
   const outfile = path.join(dir, "actions.mjs")
@@ -121,6 +124,33 @@ try {
   await api.updateUserAction(invite.user.id, { active: false })
   assert.equal((await sql`select * from sessions`).length, 0)
   await assert.rejects(api.updateUserAction("actor", { active: false }))
+  await assert.rejects(api.deleteUserAction("actor"), /próprio acesso/)
+  for (const role of ["anonymous", "comercial", "operacao", "financeiro"]) {
+    process.env.FOUNDATION_ROLE = role
+    await assert.rejects(api.deleteUserAction(invite.user.id), /administradores/)
+  }
+  process.env.FOUNDATION_ROLE = "admin"
+  await api.updateUserAction(invite.user.id, { active: true })
+  await sql`insert into sessions(id,user_id,expires_at) values('delete-session',${invite.user.id},now()+interval '1 day')`
+  await sql`insert into auth_challenges(id,user_id,expires_at) values('delete-challenge',${invite.user.id},now()+interval '1 day')`
+  await sql`insert into google_calendar_connections(user_id,google_subject,email,client_id,access_token_encrypted,refresh_token_encrypted,token_expires_at) values(${invite.user.id},'fixture-subject','invite@example.invalid','fixture-client','fixture-access','fixture-refresh',now()+interval '1 day')`
+  await sql`insert into crm_records(resource,id,data,created,updated_by) values('tasks','deleted-user-task',${sql.json({ title: "Preservar histórico", assigneeId: invite.user.id })},true,${invite.user.id})`
+  await api.deleteUserAction(invite.user.id)
+  assert.equal((await sql`select id from users where id=${invite.user.id}`).length, 0)
+  assert.equal((await sql`select id from sessions where user_id=${invite.user.id}`).length, 0)
+  assert.equal((await sql`select id from auth_challenges where user_id=${invite.user.id}`).length, 0)
+  assert.equal((await sql`select user_id from google_calendar_connections where user_id=${invite.user.id}`).length, 0)
+  const [preserved] = await sql`select data,updated_by from crm_records where resource='tasks' and id='deleted-user-task'`
+  assert.equal(preserved.data.title, "Preservar histórico")
+  assert.equal(preserved.updated_by, null)
+  assert.equal((await api.getCrmIdentity()).users.some(user => user.id === invite.user.id), false)
+  await assert.rejects(api.deleteUserAction(invite.user.id), /não encontrado/)
+  const pending = await api.inviteUserAction({ name: "Convite removido", email: "invite@example.invalid", whatsapp: "", role: "comercial" })
+  await api.deleteUserAction(pending.user.id)
+  assert.equal((await sql`select id from crm_records where resource='userInvitations' and data->>'userId'=${pending.user.id} and deleted=false`).length, 0)
+  await assert.rejects(api.acceptInvitationAction(pending.path.split("/").pop(), "senha-forte-de-teste-123"), /inválido/)
+  assert.ok((await sql`select id from users where id='actor'`).length)
+  console.log("OK: exclusão de usuários só por admin, proteção do próprio acesso, convites invalidados, sessões e conexão pessoal removidas, histórico preservado e e-mail liberado.")
   const form = { id: "form-fixture", slug: "public-fixture", active: true, name: "Fixture", title: "Contato", defaultSource: "manual", submissions: 0, fields: [{ key: "name", label: "Nome", type: "text", required: true }, { key: "email", label: "E-mail", type: "email", required: true }] }
   await api.saveRecord("forms", form.id, form, true)
   process.env.FOUNDATION_ROLE = "anonymous"
