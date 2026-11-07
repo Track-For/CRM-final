@@ -1,5 +1,7 @@
 # Implantação e verificação
 
+Veja também `docs/preparacao-hospedagem.md` para o estado da preparação local, comandos de backup e pendências que dependem das contas do proprietário.
+
 O CRM Next.js pode rodar na Vercel ou em servidor Node. Postgres é obrigatório. Evolution, Redis e motor Python/Google Maps precisam de servidor persistente; não rodam nas funções da Vercel.
 
 1. Configure `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `APP_ENCRYPTION_KEY` (32 bytes em base64), `CRM_PUBLIC_URL` (HTTPS) e SMTP conforme `.env.example`. Preserve a chave de criptografia entre implantações para manter acesso aos tokens existentes.

@@ -40,5 +40,6 @@ jobs:
       - run: npm run auth:check
       - run: npm run asaas:check-webhook
       - run: npm run google-calendar:check-actions
+      - run: npm run whatsapp:check-ai
       - run: npm run sales:check
       - run: npm run build

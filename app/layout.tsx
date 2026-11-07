@@ -10,7 +10,6 @@ const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subset
 export const metadata: Metadata = {
   title: { default: "Track For CRM", template: "%s · Track For CRM" },
   description: "CRM da Track For: leads, vendas, orçamentos, financeiro e operação.",
-  icons: { icon: "/brand/solid-tech.svg" },
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
