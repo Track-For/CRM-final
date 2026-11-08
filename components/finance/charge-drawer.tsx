@@ -18,6 +18,7 @@ import { EntityDrawer } from "@/components/shared/entity-drawer"
 import { InfoRow } from "@/components/shared/panel"
 import { EnumBadge } from "@/components/shared/status-badge"
 import { applyBoletoUpdate, chargeWhatsappUrl, isRegisteredBoleto, isUnregisteredBoleto, useChargeActions } from "@/components/finance/finance-actions"
+import { ChangeChargeDateButton } from "@/components/finance/change-charge-date-button"
 import { DeleteChargeButton } from "@/components/finance/delete-charge-button"
 import { PixQr } from "@/components/finance/payment-visuals"
 import { ReasonDialog } from "@/components/finance/reason-dialog"
@@ -212,6 +213,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
             <div className="min-w-0 rounded-lg border bg-surface p-3">
               <p className="text-xs text-muted-foreground">Vencimento</p>
               <p className={charge.status === "vencido" ? "num mt-1 text-base font-semibold text-danger sm:text-xl" : "num mt-1 text-base font-semibold sm:text-xl"}>{charge.dueDate ? formatDate(charge.dueDate) : "A definir"}</p>
+              <div className="mt-2"><ChangeChargeDateButton key={charge.id} charge={charge} /></div>
             </div>
           </div>
 

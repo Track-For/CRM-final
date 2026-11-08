@@ -53,7 +53,7 @@ export function SettingsPage({ totpEnabled = false }: { totpEnabled?: boolean })
   }
   return (
     <>
-      <PageHeader title="Configurações" description="Empresa, equipe, pipelines, precificação, mensagens, segurança e preferências." actions={<><Button variant="outline" asChild><Link href="/configuracoes/instagram">Conexão do Instagram</Link></Button><Button variant="outline" asChild><Link href="/configuracoes/google-agenda">Google Agenda</Link></Button></>} />
+      <PageHeader title="Configurações" description="Empresa, equipe, pipelines, precificação, mensagens, segurança e preferências." actions={<><Button variant="outline" asChild><Link href="/configuracoes/google-agenda">Google Agenda</Link></Button></>} />
       <Tabs value={tab} onValueChange={change} className="gap-6">
         <div className="-mx-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
           <TabsList className="w-max">

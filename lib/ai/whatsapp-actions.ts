@@ -51,16 +51,20 @@ export async function analyzeWhatsappConversation(input: string) {
   const identity = phoneIdentity(c.phone)
   const aliases = /^55\d{10}$/.test(identity) ? [identity, identity.slice(0, 4) + "9" + identity.slice(4)] : [c.phone]
   const rows = await db.select().from(whatsappMessages).where(and(eq(whatsappMessages.instance, process.env.EVOLUTION_INSTANCE || "crm-principal"), inArray(whatsappMessages.phone, aliases))).orderBy(desc(whatsappMessages.sentAt)).limit(100)
+  const media = rows.length ? await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "whatsappMediaAnalyses"), inArray(crmRecords.id, rows.map(row => row.id)))) : []
+  const readings = new Map(media.filter(row => row.data.state === "completed").map(row => [row.id, String(row.data.text || "")]))
   let budget = 16000
   const messages: SourceMessage[] = []
   for (const row of rows) {
     if (messages.length >= 50 || budget <= 0) break
-    if (row.messageType !== "text" || !row.text.trim()) continue
-    const text = row.text.slice(0, Math.min(2000, budget)); budget -= text.length
+    const reading = readings.get(row.id)
+    const source = row.messageType === "text" ? row.text : reading ? `${row.text}\n[Conteúdo extraído por IA; confira o original]\n${reading}` : ""
+    if (!source.trim()) continue
+    const text = source.slice(0, Math.min(4000, budget)); budget -= text.length
     messages.push({ id: row.id, text, direction: row.direction as "in" | "out", sentAt: row.sentAt.toISOString() })
   }
   messages.reverse()
-  if (!messages.length) throw new Error("Não há mensagens de texto disponíveis para analisar. Áudios e anexos não são transcritos.")
+  if (!messages.length) throw new Error("Não há conteúdo disponível para analisar. Transcreva os áudios ou leia os anexos na conversa antes de analisar.")
   const result = validateEvidence(await requestConversationAnalysis({ today: new Date().toISOString().slice(0, 10), messages, lead: c.lead && { name: c.lead.name, status: c.lead.status, temperature: c.lead.temperature, projectType: c.lead.projectType }, deal: c.deal && { title: c.deal.title, stage: c.deal.stage }, allowedStages: c.allowedStages.map(s => ({ key: s.key, name: s.name })), pendingTasks: c.tasks.map(task => ({ title: task.title, dueDate: task.dueDate })) }), messages, c.allowedStages.map(s => s.key))
   if (!c.lead || ["convertido", "perdido"].includes(c.lead.status)) result.qualification = { status: null, temperature: null, projectType: null, reason: "Qualificação indisponível para este contato.", evidence: [] }
   const draft: Draft = { id: randomUUID(), owner: user.id, phone: c.phone, createdAt: new Date().toISOString(), result, messages, lead: c.lead, client: c.client, deal: c.deal, applied: [] }

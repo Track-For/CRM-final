@@ -15,12 +15,12 @@ interface FormFieldProps {
 export function FormField({ label, htmlFor, error, hint, required, className, children }: FormFieldProps) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">
+      <Label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
         {label}
         {required && <span className="text-primary">*</span>}
       </Label>
       {children}
-      {error ? <p className="text-xs text-danger">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {error ? <p role="alert" className="text-xs leading-relaxed text-danger">{error}</p> : hint ? <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

@@ -12,14 +12,14 @@ interface PanelProps {
 /** Card padrão de seção: preto sólido, borda fina, cabeçalho opcional. */
 export function Panel({ title, description, actions, children, className, contentClassName }: PanelProps) {
   return (
-    <section className={cn("flex min-w-0 flex-col rounded-xl border bg-card shadow-[0_2px_12px_#005be708]", className)}>
+    <section className={cn("flex min-w-0 flex-col rounded-xl border bg-card shadow-[0_2px_8px_#17243b04]", className)}>
       {(title || actions) && (
-        <header className="flex items-start justify-between gap-3 border-b px-5 py-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 px-5 py-4">
           <div className="min-w-0">
-            {title && <h2 className="truncate text-sm font-semibold">{title}</h2>}
+            {title && <h2 className="text-sm font-semibold leading-relaxed">{title}</h2>}
             {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
       <div className={cn("flex-1 p-5", contentClassName)}>{children}</div>

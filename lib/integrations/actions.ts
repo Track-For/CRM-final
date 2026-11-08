@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { getCurrentUser, sha256Hex } from "@/lib/auth/session"
 import { db, crmRecords } from "@/lib/db"
+import { retryQueuedWebhook } from "@/lib/integrations/webhook-queue"
 import { sendAndLog } from "@/lib/integrations/webhooks"
 import type { ApiKey, Webhook } from "@/types"
 async function admin() { if ((await getCurrentUser())?.role !== "admin") throw new Error("Sem permissão.") }
@@ -20,7 +21,7 @@ export async function retryWebhookAction(id: string) {
   if (!log || log.data.integration !== "n8n" || log.data.direction !== "saida") throw new Error("Este evento não permite reenvio.")
   const [row] = await db.select().from(crmRecords).where(sql`${crmRecords.resource}='webhooks' and ${crmRecords.id}=${String(log.data.webhookId)} and ${crmRecords.deleted}=false`).limit(1)
   if (!row || !row.data.active) throw new Error("Webhook removido ou pausado.")
-  return sendAndLog(row.data as unknown as Webhook, String(log.data.event), JSON.parse(String(log.data.payload)), id, Number(log.data.attempts) || 0)
+  return retryQueuedWebhook(id)
 }
 export async function createApiKeyAction(name: string, scopes: string[]) {
   await admin()

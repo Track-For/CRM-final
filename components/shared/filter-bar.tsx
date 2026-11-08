@@ -31,11 +31,11 @@ interface FilterBarProps {
 export function FilterBar({ search, onSearch, searchPlaceholder = "Buscar...", filters = [], onClear, children, className }: FilterBarProps) {
   const active = filters.some((f) => f.value !== ALL) || Boolean(search)
   return (
-    <div className={cn("mb-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center", className)}>
+    <div className={cn("mb-4 flex flex-col gap-3 rounded-xl border bg-card p-3 lg:flex-row lg:flex-wrap lg:items-center", className)}>
       {onSearch && (
         <div className="relative lg:w-72">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={search ?? ""} onChange={(e) => onSearch(e.target.value)} placeholder={searchPlaceholder} className="pl-8" />
+          <Input aria-label={searchPlaceholder} type="search" value={search ?? ""} onChange={(e) => onSearch(e.target.value)} placeholder={searchPlaceholder} className="pl-8" />
         </div>
       )}
       {filters.length > 0 && (

@@ -1,3 +1,4 @@
+// Historical database payloads only. The Instagram integration has been removed.
 export interface InstagramProfile {
   id: string
   username: string
@@ -21,14 +22,4 @@ export interface InstagramMedia {
   like_count?: number
   comments_count?: number
   children?: { data: InstagramMedia[] }
-}
-export interface InstagramPageAccount {
-  id: string
-  name: string
-  access_token?: string
-  instagram_business_account?: InstagramProfile
-}
-export interface GraphPage<T> {
-  data: T[]
-  paging?: { cursors?: { after?: string }; next?: string }
 }

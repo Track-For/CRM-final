@@ -14,7 +14,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions, backHref, backLabel = "Voltar", className, children }: PageHeaderProps) {
   return (
-    <div className={cn("mb-6 flex flex-col gap-4", className)}>
+    <div className={cn("mb-7 flex flex-col gap-4", className)}>
       {backHref && (
         <Link href={backHref} className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
           <ChevronLeft className="size-3.5" />
@@ -22,8 +22,8 @@ export function PageHeader({ title, description, actions, backHref, backLabel = 
         </Link>
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        <div className="min-w-0 space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{title}</h1>
           {description && <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

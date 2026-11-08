@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useState } from "react"
+import Link from "next/link"
 import { loginAction, type ActionState } from "@/lib/auth/actions"
 import { Input } from "@/components/ui/input"
 import { AuthField, AuthHeading, FormMessage, PasswordInput, SubmitButton, authInputClass } from "@/components/auth/auth-ui"
@@ -54,6 +55,7 @@ export function LoginForm({ notice }: { notice?: string }) {
         <SubmitButton pending={pending} pendingLabel="Entrando..." className="mt-1">
           Entrar
         </SubmitButton>
+        <Link href="/recuperar-acesso" className="text-center text-sm text-primary underline">Esqueci minha senha</Link>
       </form>
     </>
   )

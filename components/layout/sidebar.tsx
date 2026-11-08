@@ -24,7 +24,7 @@ function NavLinks({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?:
   const pathname = usePathname()
   const groups = useVisibleGroups()
   return (
-    <nav className="flex flex-col gap-4">
+    <nav aria-label="Navegação principal" className="flex flex-col gap-5">
       {groups.map(({ group, items }) => (
         <div key={group} className="flex flex-col gap-0.5">
           {!collapsed && <p className="px-2.5 pb-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">{NAV_GROUP_LABEL[group]}</p>}
@@ -38,7 +38,7 @@ function NavLinks({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?:
                 onClick={onNavigate}
                 className={cn(
                   "group relative flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
-                  active && "bg-sidebar-accent font-medium text-foreground",
+                  active && "bg-sidebar-accent font-semibold text-foreground shadow-sm",
                   collapsed && "justify-center px-0",
                 )}
               >
@@ -66,7 +66,7 @@ export function Sidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed)
   const toggle = useUiStore((s) => s.toggleSidebar)
   return (
-    <aside className={cn("crm-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-sidebar transition-[width] duration-200 lg:flex", collapsed ? "w-16" : "w-60")}>
+    <aside className={cn("crm-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-sidebar transition-[width] duration-200 lg:flex", collapsed ? "w-16" : "w-64")}>
       <div className={cn("flex h-14 items-center border-b px-3", collapsed ? "justify-center" : "justify-between")}>
         <Link href="/dashboard" aria-label="Track For — início">
           <Logo collapsed={collapsed} />

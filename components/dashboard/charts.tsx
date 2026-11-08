@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps, type TooltipValueType } from "recharts"
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps, type TooltipValueType } from "recharts"
 import { ChartTooltip, chartAxis, chartGrid } from "@/components/shared/chart-card"
 import { STAGE_LABEL, STAGE_TONE } from "@/lib/constants"
 import { formatMoneyCompact, formatNumber, formatPercent } from "@/lib/format"
@@ -39,15 +39,14 @@ export function SourceBarChart({ data, money = false }: { data: { label: string;
 export function RevenueChart({ data }: { data: { month: string; realizado: number; previsto: number }[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <ComposedChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+      <BarChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
         <CartesianGrid {...chartGrid} />
         <XAxis dataKey="month" {...chartAxis} />
         <YAxis {...chartAxis} width={64} tickFormatter={moneyTick} />
         <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(true)} />
         <Bar dataKey="previsto" name="Previsto" fill="#c9ddfa" radius={[4, 4, 0, 0]} barSize={22} />
         <Bar dataKey="realizado" name="Realizado" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={22} />
-        <Line dataKey="previsto" name="Previsto" stroke="var(--info)" strokeWidth={2} dot={false} legendType="none" tooltipType="none" />
-      </ComposedChart>
+      </BarChart>
     </ResponsiveContainer>
   )
 }

@@ -27,7 +27,7 @@ import {
 import { useById, useCharges, useCurrentUser, useDeals, useEntries, useEvents, useLeads, useSubscriptions, useTasks } from "@/lib/data"
 import { dealIdleDays, isStaleDeal, monthBuckets, revenueByMonth } from "@/lib/data/selectors"
 import { daysSince, formatDate, formatDateLong, formatMoney, formatNumber, formatPercent, formatTime } from "@/lib/format"
-import { delta, getPeriodRange } from "@/lib/period"
+import { delta, getPeriodRange, inRange } from "@/lib/period"
 import { useUiStore } from "@/lib/store/ui-store"
 import type { LeadSource } from "@/types"
 
@@ -65,6 +65,13 @@ export function DashboardView() {
     }
   }, [range, leads, deals, subscriptions, charges])
 
+  const received = useMemo(() => {
+    const total = (from: Date, to: Date) => charges
+      .filter(charge => charge.status === "pago" && inRange(charge.paidAt, from, to))
+      .reduce((amount, charge) => amount + charge.amount, 0)
+    return { current: total(range.from, range.to), previous: total(range.previousFrom, range.previousTo) }
+  }, [charges, range])
+
   const bySource = useMemo(() => {
     const list = leadsIn(leads, range)
     return (Object.keys(SOURCE_LABEL) as LeadSource[])
@@ -74,6 +81,10 @@ export function DashboardView() {
   }, [leads, range])
 
   const revenue = useMemo(() => revenueByMonth(entries, monthBuckets(-5, 1)), [entries])
+  const undatedForecast = useMemo(() => {
+    const pending = entries.filter(entry => entry.type === "receita" && !entry.dueDate && (entry.status === "pendente" || entry.status === "vencido"))
+    return { amount: pending.reduce((total, entry) => total + Math.round(entry.amount * 100), 0) / 100, count: pending.length }
+  }, [entries])
   const funnelData = useMemo(() => funnel(deals), [deals])
 
   const [now] = useState(() => Date.now())
@@ -95,29 +106,45 @@ export function DashboardView() {
     <div className="space-y-6">
       <PageHeader
         title={`Olá, ${user?.name.split(" ")[0] ?? "time"}`}
-        description="Organize o dia, acompanhe seus projetos e mantenha os clientes por perto."
+        description="Veja os resultados do negócio e o que precisa da sua atenção."
         actions={
           <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/agenda"><CalendarDays />Agenda</Link></Button><Button onClick={() => useUiStore.getState().openQuickCreate("task")}><CheckCircle2 />Nova tarefa</Button></div>
         }
       />
 
+      <section aria-labelledby="dashboard-results-title" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="dashboard-results-title" className="text-lg font-semibold">Resultados do período</h2>
+          <span className="text-sm text-muted-foreground">{range.label}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <StatCard label="Vendas fechadas" icon={CircleDollarSign} value={formatMoney(kpis.sales)} delta={delta(kpis.sales, prev.sales)} hint="vs período anterior" highlight />
+          <StatCard label="Recebido no período" icon={CheckCircle2} value={formatMoney(received.current)} delta={delta(received.current, received.previous)} hint="pagamentos confirmados" valueClassName="text-success" />
+          <StatCard label="A receber no mês" icon={CalendarDays} value={formatMoney(kpis.receivable)} hint="pendente + vencido no mês de referência" />
+          <StatCard label="Novos leads" icon={UserRound} value={formatNumber(kpis.leads)} delta={delta(kpis.leads, prev.leads)} hint="vs período anterior" />
+        </div>
+      </section>
+
       <DailyActions />
 
       <details className="group rounded-2xl border bg-card p-5">
-        <summary className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Resultados e indicadores</h2><p className="mt-1 text-sm text-muted-foreground">{range.label} · Conversão, receita e histórico</p></div><span className="text-sm font-medium text-primary">Ver análise +</span></summary>
+        <summary className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Análise detalhada</h2><p className="mt-1 text-sm text-muted-foreground">{range.label} · Conversão, receita e histórico</p></div><span className="text-sm font-medium text-primary">Ver análise +</span></summary>
         <div className="mt-6 space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-7">
-        <StatCard label="Leads no período" icon={UserRound} value={formatNumber(kpis.leads)} delta={delta(kpis.leads, prev.leads)} hint="vs anterior" />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Taxa de conversão" icon={Percent} value={formatPercent(kpis.conversion)} delta={delta(kpis.conversion, prev.conversion)} hint="ganhos / leads" />
-        <StatCard label="Vendas fechadas" icon={CircleDollarSign} value={formatMoney(kpis.sales)} delta={delta(kpis.sales, prev.sales)} highlight className="col-span-2 2xl:col-span-1" />
         <StatCard label="Ticket médio" icon={Receipt} value={formatMoney(kpis.ticket)} delta={delta(kpis.ticket, prev.ticket)} />
         <StatCard label="MRR mensalidades" icon={Repeat} value={formatMoney(kpis.mrr)} delta={delta(kpis.mrr, prev.mrr)} />
-        <StatCard label="A receber no mês" icon={CalendarDays} value={formatMoney(kpis.receivable)} hint="pendente + vencido" />
         <StatCard label="Inadimplência" icon={TriangleAlert} value={formatMoney(kpis.overdue)} delta={delta(kpis.overdue, prev.overdue)} invertDelta hint={formatPercent(kpis.overdueRate)} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <ChartCard title="Receita por mês" description="Realizado x previsto (últimos 6 meses e próximo)" className="xl:col-span-2" height={280}>
+        <ChartCard title="Receita por mês" description="Realizado x previsto (últimos 6 meses e próximo)" className="xl:col-span-2" height={280} actions={
+          <Link href="/financeiro/cobrancas?visao=sem-data" className="block rounded-lg border bg-surface px-3 py-2 hover:border-primary" aria-label={`Previsto sem data: ${formatMoney(undatedForecast.amount)}. Ver cobranças`}>
+            <span className="block text-xs text-muted-foreground">Previsto sem data</span>
+            <span className="num block text-lg font-semibold text-primary">{formatMoney(undatedForecast.amount)}</span>
+            <span className="block text-xs text-muted-foreground">{undatedForecast.count} {undatedForecast.count === 1 ? "cobrança pendente" : "cobranças pendentes"} · Fora das barras mensais</span>
+          </Link>
+        }>
           <RevenueChart data={revenue} />
         </ChartCard>
         <ChartCard title="Leads por origem" description={range.label} height={280}>

@@ -15,6 +15,8 @@ if (process.env.DATABASE_URL) {
   try {
     const users = await sql`select column_name from information_schema.columns where table_schema=current_schema() and table_name='users' and column_name in ('active','whatsapp')`
     check("Migração de usuários", users.length === 2, "Colunas active e whatsapp")
+    const [worker] = await sql`select updated_at > now()-interval '10 minutes' as alive from crm_records where resource='workerHeartbeats' and id='webhooks'`
+    check("Fila automática de webhooks", worker?.alive, "npm start e npm run dev iniciam a fila; em hospedagem com processos separados, execute webhooks:worker ou agende webhooks:process")
     const [admin] = await sql`select count(*)::int as total from users where active=true and role='admin' and id <> 'crm_local_development' and password_hash like 'scrypt$%'`
     check("Administrador definitivo", admin.total > 0, "Crie o administrador em /primeiro-acesso; a identidade de desenvolvimento não habilita login em produção")
     const [forms] = await sql`select count(*)::int as total from crm_records where resource='forms' and deleted=false and data->>'active'='true'`
@@ -29,7 +31,7 @@ if (process.env.DATABASE_URL) {
     check("Token webhook Asaas", billing[0]?.webhook, "O cadastro da URL no painel Asaas ainda deve ser conferido")
     const fiscal = await sql`select token_encrypted is not null as configured from fiscal_settings limit 1`
     check("Brasil NFe cadastrado", fiscal[0]?.configured, "Sem emissão fiscal durante a verificação")
-    for (const [table, label] of [["google_calendar_settings", "Aplicativo Google Agenda"], ["instagram_settings", "Aplicativo Instagram"]]) {
+    for (const [table, label] of [["google_calendar_settings", "Aplicativo Google Agenda"]]) {
       const rows = await sql.unsafe(`select id from ${table} limit 1`)
       check(label, rows.length > 0, "Credenciais salvas; autorização do usuário é verificada na própria tela")
     }

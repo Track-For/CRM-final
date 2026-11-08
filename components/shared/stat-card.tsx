@@ -36,10 +36,10 @@ export function StatCard({ label, value, hint, icon: Icon, delta, invertDelta, h
   const good = delta != null && (invertDelta ? delta <= 0 : delta >= 0)
   const text = typeof value === "string" || typeof value === "number" ? String(value) : null
   return (
-    <div className={cn("flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4", highlight && "border-primary/35", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 shadow-[0_2px_8px_#17243b04] sm:p-5", highlight && "border-primary/20 bg-gradient-to-br from-card to-brand-soft/60", className)}>
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0 text-xs font-medium text-muted-foreground">{label}</span>
-        {Icon && <Icon className={cn("size-4 shrink-0", highlight ? "text-primary" : "text-muted-foreground")} />}
+        {Icon && <Icon className={cn("size-8 shrink-0 rounded-lg p-1.5", highlight ? "bg-primary/10 text-primary" : "bg-surface text-muted-foreground")} />}
       </div>
       {loading ? (
         <Skeleton className="h-7 w-28" />

@@ -129,7 +129,7 @@ export function DataTable<T>({
                       const canSort = header.column.getCanSort()
                       const dir = header.column.getIsSorted()
                       return (
-                        <TableHead key={header.id} style={header.column.columnDef.size ? { width: header.column.columnDef.size } : undefined} className="h-9 text-xs text-muted-foreground">
+                        <TableHead key={header.id} style={header.column.columnDef.size ? { width: header.column.columnDef.size } : undefined} aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined} className="h-11 text-xs text-muted-foreground">
                           {header.isPlaceholder ? null : canSort ? (
                             <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={header.column.getToggleSortingHandler()}>
                               {flexRender(header.column.columnDef.header, header.getContext())}
@@ -149,11 +149,13 @@ export function DataTable<T>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() ? "selected" : undefined}
-                    className={cn(onRowClick && "cursor-pointer", "data-[state=selected]:bg-accent")}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onRowClick?.(row.original) } }}
+                    className={cn(onRowClick && "cursor-pointer focus-visible:bg-accent", "data-[state=selected]:bg-accent")}
                     onClick={() => onRowClick?.(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-2.5">
+                      <TableCell key={cell.id} className="py-3.5">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
@@ -168,9 +170,10 @@ export function DataTable<T>({
               {rows.map((row: Row<T>) => (
                 <div
                   key={row.id}
-                  className={cn("flex gap-3 rounded-xl border bg-card p-3", row.getIsSelected() && "border-primary/35")}
+                  className={cn("flex gap-3 rounded-xl border bg-card p-4 shadow-xs transition-colors hover:border-input", row.getIsSelected() && "border-primary/35")}
                   onClick={() => onRowClick?.(row.original)}
-                  role={onRowClick ? "button" : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onRowClick?.(row.original) } }}
                 >
                   {selectable && (
                     <Checkbox

@@ -14,16 +14,17 @@ const TABS = [
 export function FinanceTabs() {
   const pathname = usePathname()
   return (
-    <nav className="-mx-4 flex gap-1 overflow-x-auto border-b px-4 md:mx-0 md:px-0" aria-label="Seções do financeiro">
+    <nav className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1 shadow-xs" aria-label="Seções do financeiro">
       {TABS.map((t) => {
         const active = pathname === t.href
         return (
           <Link
             key={t.href}
             href={t.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "relative shrink-0 px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground",
-              active && "font-medium text-foreground after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:bg-primary",
+              "relative shrink-0 rounded-lg px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground",
+              active && "bg-brand-soft font-semibold text-primary",
             )}
           >
             {t.label}

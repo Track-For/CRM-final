@@ -71,6 +71,20 @@ try {
  const tasks=await sql`select data from crm_records where resource='tasks'`
  assert.equal(tasks.length,1);assert.equal(tasks[0].data.dueDate,'');assert.equal(tasks[0].data.assigneeId,'actor')
  assert.equal(tasks[0].data.leadId,'lead')
+ // Leituras pertencem à mensagem e ao contato; arquivos ainda não lidos não entram como conteúdo presumido.
+ await sql`insert into whatsapp_messages(id,instance,provider_id,remote_jid,phone,direction,text,message_type,sent_at) values('audio-read',${process.env.EVOLUTION_INSTANCE||'crm-principal'},'audio-read','5511987654321@s.whatsapp.net','5511987654321','in','[Áudio]','audioMessage',now())`
+ await sql`insert into whatsapp_messages(id,instance,provider_id,remote_jid,phone,direction,text,message_type,sent_at) values('unread',${process.env.EVOLUTION_INSTANCE||'crm-principal'},'unread','5511987654321@s.whatsapp.net','5511987654321','in','[Documento] NAO_PRESUMIR_CONTEUDO','documentMessage',now())`
+ await sql`insert into crm_records(resource,id,data) values('whatsappMediaAnalyses','audio-read','{"state":"completed","text":"Transcrição sintética: enviar proposta na sexta."}')`
+ await sql`insert into crm_records(resource,id,data) values('whatsappMediaAnalyses','other','{"state":"completed","text":"LEITURA_OUTRO_CONTATO"}')`
+ await sql`delete from crm_records where resource='whatsappAiRate'`
+ globalThis.fetch=async(_endpoint,options)=>{
+   const input=JSON.parse(JSON.parse(options.body).input[0].content)
+   assert.ok(input.messages.some(m=>m.id==='audio-read'&&m.text.includes('Transcrição sintética')))
+   assert.ok(!options.body.includes('LEITURA_OUTRO_CONTATO'));assert.ok(!options.body.includes('NAO_PRESUMIR_CONTEUDO'))
+   return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...result,qualification:{status:null,temperature:null,projectType:null,reason:'',evidence:[]},tasks:[],stage:{key:null,reason:'',evidence:[]}})}]}]})
+ }
+ const withMedia=await api.analyzeWhatsappConversation(lead.whatsapp)
+ assert.equal(withMedia.messages.length,2)
  // Mudanças posteriores de qualificação e contatos removidos nunca são sobrescritos.
  const stale={...draft,id:crypto.randomUUID(),applied:[]}
  await sql`insert into crm_records(resource,id,data) values('whatsappAiAnalyses',${stale.id},${sql.json(stale)})`

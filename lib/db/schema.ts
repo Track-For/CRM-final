@@ -325,7 +325,7 @@ export const whatsappMessages = pgTable("whatsapp_messages", {
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("whatsapp_phone_sent_idx").on(t.phone, t.sentAt)]);
 
-// Instagram: credenciais do aplicativo e tokens permanecem exclusivamente no servidor.
+// Tabelas legadas preservadas para não apagar dados de instalações existentes. Sem rotas ou integração ativa.
 export const instagramSettings = pgTable("instagram_settings", {
   id: text("id").primaryKey().default("default"),
   appId: text("app_id").notNull(),
@@ -342,9 +342,9 @@ export const instagramAccounts = pgTable("instagram_accounts", {
   pageName: text("page_name").notNull(),
   tokenEncrypted: text("token_encrypted"),
   tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
-  profile: jsonb("profile").$type<import("../instagram/types").InstagramProfile>().notNull(),
-  media: jsonb("media").$type<import("../instagram/types").InstagramMedia[]>().notNull().default([]),
-  stories: jsonb("stories").$type<import("../instagram/types").InstagramMedia[]>().notNull().default([]),
+  profile: jsonb("profile").$type<import("./legacy-instagram-types").InstagramProfile>().notNull(),
+  media: jsonb("media").$type<import("./legacy-instagram-types").InstagramMedia[]>().notNull().default([]),
+  stories: jsonb("stories").$type<import("./legacy-instagram-types").InstagramMedia[]>().notNull().default([]),
   mediaCursor: text("media_cursor"),
   warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),

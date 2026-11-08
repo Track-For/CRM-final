@@ -59,7 +59,7 @@ function NewMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" className="gap-1.5 font-semibold">
+        <Button size="sm" className="gap-1.5 font-semibold" aria-label="Criar novo registro">
           <Plus />
           <span className="hidden sm:inline">Novo</span>
         </Button>
@@ -125,7 +125,7 @@ function PeriodSelect() {
   const setPeriod = useUiStore((s) => s.setPeriod)
   return (
     <Select value={period} onValueChange={(v) => setPeriod(v as PeriodPreset)}>
-      <SelectTrigger size="sm" className="hidden w-40 md:flex" aria-label="Período">
+      <SelectTrigger size="sm" className="w-32 sm:w-40" aria-label="Período">
         <CalendarDays className="size-3.5 text-muted-foreground" />
         <SelectValue />
       </SelectTrigger>
@@ -224,20 +224,20 @@ export function Topbar() {
   const setCommandOpen = useUiStore((s) => s.setCommandOpen)
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen)
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-2 border-b bg-card/95 backdrop-blur-md px-4 py-2 lg:px-6">
       <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Abrir menu">
         <Menu />
       </Button>
       <button
         type="button"
         onClick={() => setCommandOpen(true)}
-        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-card px-2.5 text-sm text-muted-foreground transition-colors hover:border-[#80ace9] sm:max-w-md"
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-surface/70 px-3 text-sm text-muted-foreground transition-colors hover:border-input hover:bg-card sm:max-w-md"
       >
         <Search className="size-4 shrink-0" />
         <span className="truncate">Buscar leads, clientes, negócios...</span>
         <kbd className="num ml-auto hidden rounded border bg-surface px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
       </button>
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex flex-wrap items-center gap-1.5">
         <PeriodSelect />
         <NewMenu />
         <Notifications />

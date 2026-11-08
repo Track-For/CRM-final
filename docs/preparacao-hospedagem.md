@@ -30,7 +30,6 @@ Para restaurar em outro Postgres, crie um banco vazio e use `pg_restore --no-own
 | Asaas | Painel Asaas | Webhook `https://SEU-DOMINIO/api/webhooks/asaas` e token da integração; homologar recebimento de evento |
 | WhatsApp | Variáveis Evolution e painel da instância | `EVOLUTION_WEBHOOK_URL=https://SEU-DOMINIO/api/webhooks/evolution`, token correspondente; testar entrada e saída |
 | Google Agenda | Configurações → Google Agenda e conta de cada usuário | Callback HTTPS `/api/google-calendar/callback` e autorização individual |
-| Instagram, se usar | Configurações → Conexão do Instagram | Aplicativo e autorização da Meta; callback `/api/instagram/callback` |
 | IA, se usar | Integrações → Evolution API | Créditos na conta da API e teste pela tela |
 | Notas fiscais, se usar | Integrações → Brasil NFe | Token, cadastro fiscal e certificado no provedor; teste em homologação |
 | Automações, se usar | Integrações → n8n | URL real do fluxo, eventos e teste de recebimento |
@@ -66,7 +65,7 @@ O navegador automatizado não estava disponível nesta sessão. A rota `/f/conta
 - Criação do formulário repetida sem duplicação ou alteração de registros existentes.
 - Backup final criado após o cadastro do formulário e restaurado com sucesso em banco temporário, removido ao terminar.
 - Prospecção reiniciada com o novo iniciador; checagem confirmou o motor funcionando e WhatsApp conectado.
-- Prontidão ainda retorna pendências esperadas: SMTP, domínio HTTPS, administrador definitivo, webhook público WhatsApp, Brasil NFe e Instagram. A publicação e a homologação externa ficam para a hospedagem.
+- Prontidão ainda retorna pendências esperadas: SMTP, domínio HTTPS, administrador definitivo, webhook público WhatsApp, Brasil NFe. A publicação e a homologação externa ficam para a hospedagem.
 
 ## NFS-e automática após pagamento
 

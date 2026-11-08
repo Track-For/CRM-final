@@ -30,7 +30,7 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ tone = "neutral", children, dot = true, className }: StatusBadgeProps) {
   return (
-    <span className={cn("inline-flex h-5 shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-[11px] font-medium whitespace-nowrap", toneClass[tone], className)}>
+    <span className={cn("inline-flex min-h-6 shrink-0 items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap", toneClass[tone], className)}>
       {dot && <span className={cn("size-1.5 rounded-full", dotClass[tone])} />}
       {children}
     </span>

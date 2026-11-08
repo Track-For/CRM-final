@@ -19,9 +19,9 @@ export function projectReceivables(deal: Deal, charges: Charge[]) {
     const previous = existing.find(charge => charge.milestoneId === stage.id)
     if (previous && !editableForecast(previous)) continue
     const id = previous?.id || `chg_project_${deal.id}_${stage.id}`
-    const dueDate = stage.dueDate ? `${stage.dueDate.slice(0, 10)}T15:00:00.000Z` : ""
+    const dueDate = previous?.dueDateOverridden ? previous.dueDate : stage.dueDate ? `${stage.dueDate.slice(0, 10)}T15:00:00.000Z` : ""
     const charge: Charge = {
-      id, automatic: true, number: previous?.number || `PROJ-${deal.id}-${index + 1}`, clientId: deal.clientId,
+      id, dueDateOverridden: previous?.dueDateOverridden, automatic: true, number: previous?.number || `PROJ-${deal.id}-${index + 1}`, clientId: deal.clientId,
       dealId: deal.id, milestoneId: stage.id, description: `${deal.title} — ${stage.label}`,
       amount: stage.amount, method: deal.paymentPlan?.method || "pix", pixKey: deal.paymentPlan?.pixKey || "",
       installment: index + 1, installments: stages.length, dueDate, status: "pendente",
@@ -29,7 +29,7 @@ export function projectReceivables(deal: Deal, charges: Charge[]) {
     }
     result.push({ charge, entry: {
       id: `ent_${id}`, type: "receita", description: charge.description, categoryId: "fc_projetos", amount: charge.amount,
-      competenceDate: deal.wonAt || deal.stageChangedAt, dueDate, status: "pendente", clientId: deal.clientId, chargeId: id,
+      competenceDate: previous?.dueDateOverridden ? dueDate : deal.wonAt || deal.stageChangedAt, dueDate, status: "pendente", clientId: deal.clientId, chargeId: id,
     } })
   }
   return { records: result, remove }

@@ -38,6 +38,7 @@ jobs:
       - run: npm run db:migrate
       - run: npm run crm:check
       - run: npm run auth:check
+      - run: npm run access-media-webhooks:check
       - run: npm run asaas:check-webhook
       - run: npm run google-calendar:check-actions
       - run: npm run whatsapp:check-ai

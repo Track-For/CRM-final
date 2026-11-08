@@ -13,13 +13,13 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon: Icon = Inbox, title, description, action, className, compact }: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-center", compact ? "p-6" : "p-10", className)}>
-      <div className="flex size-10 items-center justify-center rounded-lg border bg-surface">
-        <Icon className="size-5 text-muted-foreground" />
+    <div className={cn("flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-card text-center", compact ? "p-6" : "p-10", className)}>
+      <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-soft">
+        <Icon className="size-5 text-primary" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">{title}</p>
-        {description && <p className="max-w-sm text-xs text-muted-foreground">{description}</p>}
+        <p className="text-base font-semibold">{title}</p>
+        {description && <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{description}</p>}
       </div>
       {action}
     </div>

@@ -55,6 +55,7 @@ function WebhookCard({ webhook }: { webhook: Webhook }) {
       const res = await api.actions.testWebhook(webhook.id)
       update("webhooks", webhook.id, { lastStatus: res.status, lastSentAt: new Date().toISOString() })
       if (res.status >= 200 && res.status < 300) toast.success(`Teste enviado: HTTP ${res.status}`, { description: `${res.ms} ms` })
+      else if (res.queued) toast.info("Teste na fila de novas tentativas", { description: "Acompanhe a próxima tentativa em Logs." })
       else toast.error(`Falha no teste: ${res.status ? `HTTP ${res.status}` : "sem resposta"}`)
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível testar") }
     finally { setTesting(false) }

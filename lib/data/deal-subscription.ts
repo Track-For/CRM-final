@@ -34,7 +34,7 @@ export function subscriptionForDeal(deal: Deal, subscriptions: Subscription[], c
 /** Ajusta somente a primeira previsão automática; pagamentos e boletos emitidos ficam intactos. */
 export function monthlyForecastChanges(subscription: Subscription, charges: Charge[]) {
   const charge = charges.find(item => item.id === `chg_first_${subscription.id}`)
-  if (!charge || charge.status === "pago" || charge.status === "cancelado" || charge.gatewayId) return null
+  if (!charge || charge.dueDateOverridden || charge.status === "pago" || charge.status === "cancelado" || charge.gatewayId) return null
   const waiting = !subscription.startDate
   return { charge, patch: { awaitingProjectPayment: waiting, ...(waiting ? {} : { dueDate: subscription.startDate }) } }
 }

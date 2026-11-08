@@ -19,15 +19,18 @@ import { getPeriodRange, inRange } from "@/lib/period"
 import { useUiStore } from "@/lib/store/ui-store"
 
 export function ChargesView() {
-  const initialCharge = useSearchParams().get("cobranca")
-  return <ChargesViewContent key={initialCharge || "list"} initialCharge={initialCharge} />
+  const params = useSearchParams()
+  const initialCharge = params.get("cobranca")
+  const initialView = params.get("visao") === "sem-data" ? "undated" : "all"
+  return <ChargesViewContent key={`${initialCharge || "list"}-${initialView}`} initialCharge={initialCharge} initialView={initialView} />
 }
 
-function ChargesViewContent({ initialCharge }: { initialCharge: string | null }) {
+function ChargesViewContent({ initialCharge, initialView }: { initialCharge: string | null; initialView: string }) {
   const charges = useCharges()
   const clients = useById("clients")
   const period = useUiStore((s) => s.period)
   const openQuickCreate = useUiStore((s) => s.openQuickCreate)
+  const [view, setView] = useState(initialView)
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState(ALL)
   const [method, setMethod] = useState(ALL)
@@ -45,11 +48,12 @@ function ChargesViewContent({ initialCharge }: { initialCharge: string | null })
     const q = search.trim().toLowerCase()
     return charges.filter(
       (c) =>
+        (view === "all" || (view === "open" && (c.status === "pendente" || c.status === "vencido")) || (view === "overdue" && c.status === "vencido") || (view === "undated" && !c.dueDate && (c.status === "pendente" || c.status === "vencido"))) &&
         matches(status, c.status) &&
         matches(method, c.method) &&
         (!q || [c.number, c.description, clients.get(c.clientId)?.name ?? ""].some((s) => s.toLowerCase().includes(q))),
     )
-  }, [charges, clients, search, status, method])
+  }, [charges, clients, search, status, method, view])
 
   return (
     <div className="space-y-4">
@@ -90,6 +94,14 @@ function ChargesViewContent({ initialCharge }: { initialCharge: string | null })
             Nova cobrança
           </Button>
         </FinanceToolbar>
+        <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Visualizações de cobranças">
+          {[
+            { key: "all", label: "Todas", count: charges.length },
+            { key: "open", label: "Em aberto", count: stats.pending.length + stats.overdue.length },
+            { key: "overdue", label: "Vencidas", count: stats.overdue.length },
+            { key: "undated", label: "Sem data", count: charges.filter(c => !c.dueDate && (c.status === "pendente" || c.status === "vencido")).length },
+          ].map(item => <Button key={item.key} size="sm" variant={view === item.key ? "default" : "outline"} aria-pressed={view === item.key} onClick={() => { setView(item.key); setStatus(ALL) }}>{item.label}<span className="num rounded bg-background/20 px-1.5 text-xs">{item.count}</span></Button>)}
+        </div>
         <FilterBar
           search={search}
           onSearch={setSearch}
@@ -99,11 +111,17 @@ function ChargesViewContent({ initialCharge }: { initialCharge: string | null })
             { key: "method", label: "Forma", options: toOptions(PAYMENT_METHOD_LABEL), value: method, onChange: setMethod },
           ]}
           onClear={() => {
+            setView("all")
             setSearch("")
             setStatus(ALL)
             setMethod(ALL)
           }}
         />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <p role="status" aria-live="polite">{filtered.length} de {charges.length} cobranças · {formatMoney(sum(filtered, c => c.amount))}</p>
+          <p>Selecione uma cobrança para ver detalhes e alterar a data.</p>
+        </div>
+        {filtered.length === 0 && charges.length > 0 && <div className="mb-3 rounded-lg border border-dashed p-4 text-sm"><p>Nenhuma cobrança corresponde aos filtros.</p><Button variant="link" size="sm" onClick={() => { setView("all"); setSearch(""); setStatus(ALL); setMethod(ALL) }}>Mostrar todas as cobranças</Button></div>}
         <ChargeTable charges={filtered} onOpen={(c) => setChargeId(c.id)} />
       </div>
       <ChargeDrawer chargeId={chargeId} onOpenChange={(o) => !o && setChargeId(null)} />

@@ -23,8 +23,10 @@ export function DealCard({ deal, lead, clientName, overlay, onOpen }: DealCardPr
   return (
     <div
       onClick={onOpen}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onOpen?.() } }}
       className={cn(
-        "cursor-grab space-y-2.5 rounded-lg border bg-surface p-3 text-left transition-colors hover:border-[#80ace9]",
+        "cursor-grab space-y-3 rounded-xl border bg-card p-4 text-left shadow-xs transition-[border-color,box-shadow] hover:border-primary/30 hover:shadow-md",
         overlay && "border-primary/35 shadow-lg",
         stale && "border-l-2 border-l-danger",
       )}

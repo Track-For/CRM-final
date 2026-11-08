@@ -24,6 +24,7 @@ function useResend() {
       const result = await retryWebhookAction(log.id)
       useCrm.setState({ status: "idle" }); await useCrm.getState().bootstrap()
       if (result.status >= 200 && result.status < 300) toast.success("Evento reenviado", { id })
+      else if (result.queued) toast.info("Entrega na fila de novas tentativas automáticas", { id })
       else toast.error("O destino não confirmou o recebimento", { id })
     } catch (error) { toast.error(error instanceof Error ? error.message : "Falha no reenvio", { id }) }
   }
@@ -110,7 +111,7 @@ export function LogsTable({ integration, pageSize = 15, showFilters = true }: Lo
       ),
     },
     { accessorKey: "attempts", header: "Tentativas", cell: ({ row }) => <span className="num text-xs">{row.original.attempts}</span> },
-    { id: "actions", header: "", enableSorting: false, cell: ({ row }) => (row.original.status !== "sucesso" ? resendButton(row.original) : null) },
+    { id: "actions", header: "", enableSorting: false, cell: ({ row }) => (row.original.status === "erro" && row.original.integration === "n8n" && row.original.direction === "saida" ? resendButton(row.original) : null) },
   ]
 
   return (
@@ -135,7 +136,7 @@ export function LogsTable({ integration, pageSize = 15, showFilters = true }: Lo
             </div>
             <div className="flex items-center justify-between">
               <DirectionLabel direction={l.direction} />
-              {l.status !== "sucesso" && resendButton(l)}
+              {l.status === "erro" && l.integration === "n8n" && l.direction === "saida" && resendButton(l)}
             </div>
           </div>
         )}
@@ -152,7 +153,7 @@ export function LogsTable({ integration, pageSize = 15, showFilters = true }: Lo
               <Button variant="outline" onClick={() => copyToClipboard(open.payload, "Payload copiado")}>
                 Copiar payload
               </Button>
-              <Button onClick={() => resend(open)}>
+              <Button disabled={open.integration !== "n8n" || open.direction !== "saida" || open.status !== "erro"} onClick={() => resend(open)}>
                 <RotateCw /> Reenviar
               </Button>
             </>
@@ -171,6 +172,7 @@ export function LogsTable({ integration, pageSize = 15, showFilters = true }: Lo
               <InfoRow label="Tentativas" mono>
                 {open.attempts}
               </InfoRow>
+              <InfoRow label="Próxima tentativa">{open.queueState === "processing" ? "Em processamento" : open.nextAttemptAt ? formatDateTime(open.nextAttemptAt) : open.queueState === "failed" ? "Revisão e reenvio manual necessários" : "—"}</InfoRow>
               <InfoRow label="ID" mono>
                 {open.id}
               </InfoRow>

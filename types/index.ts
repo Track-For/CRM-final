@@ -382,6 +382,7 @@ export type PaymentMethod = "boleto" | "pix" | "cartao" | "asaas"
 export type ChargeStatus = "pendente" | "pago" | "vencido" | "cancelado"
 
 export interface Charge {
+  dueDateOverridden?: boolean
   deletedAt?: string
   importedFromAsaas?: boolean
   asaasSubscriptionId?: string
@@ -657,6 +658,8 @@ export interface WhatsappInstance {
 }
 
 export interface IntegrationLog {
+  nextAttemptAt?: ISODate | null
+  queueState?: "pending" | "processing" | "completed" | "failed"
   id: ID
   integration: IntegrationKey
   event: string

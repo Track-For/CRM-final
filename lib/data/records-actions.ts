@@ -240,3 +240,27 @@ export async function archiveChargeAction(id: string) {
     return { ok: true as const, deletedAt }
   } catch { return { ok: false as const, error: "Não foi possível excluir a cobrança. Tente novamente." } }
 }
+
+/** Corrige o vencimento local e a competência sem alterar a baixa do pagamento. */
+export async function changeChargeDueDateAction(id: string, date: string) {
+  const user = await getCurrentUser()
+  if (!user || !canUseResource(user.role, "charges", "write") || !canUseResource(user.role, "entries", "write")) return { ok: false as const, error: "Sem permissão para editar cobranças." }
+  if (!keySchema.safeParse({ resource: "charges", id }).success || !z.iso.date().safeParse(date).success) return { ok: false as const, error: "Informe uma data válida." }
+  try {
+    return await db.transaction(async tx => {
+      const [record] = await tx.select().from(crmRecords).where(sql`${crmRecords.resource}='charges' and ${crmRecords.id}=${id} and ${crmRecords.deleted}=false`).for("update")
+      const charge = record?.data as unknown as Charge | undefined
+      if (!charge || charge.deletedAt) return { ok: false as const, error: "Cobrança não encontrada." }
+      if (charge.gatewayId || charge.importedFromAsaas) return { ok: false as const, error: "Altere o vencimento no Asaas e atualize o status no CRM." }
+      if (charge.status === "cancelado") return { ok: false as const, error: "Cobranças canceladas não podem ser editadas." }
+      const dueDate = `${date}T15:00:00.000Z`
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())
+      const status = charge.status === "pago" ? "pago" : date < today ? "vencido" : "pendente"
+      const patch = { dueDate, status, dueDateOverridden: true }
+      await tx.update(crmRecords).set({ data: sql`${crmRecords.data} || ${JSON.stringify(patch)}::jsonb`, updatedBy: user.id, updatedAt: new Date() }).where(sql`${crmRecords.resource}='charges' and ${crmRecords.id}=${id}`)
+      const entryPatch = { dueDate, competenceDate: dueDate, status }
+      const entries = await tx.update(crmRecords).set({ data: sql`${crmRecords.data} || ${JSON.stringify(entryPatch)}::jsonb`, updatedBy: user.id, updatedAt: new Date() }).where(sql`${crmRecords.resource}='entries' and ${crmRecords.data}->>'chargeId'=${id} and ${crmRecords.deleted}=false`).returning({ data: crmRecords.data })
+      return { ok: true as const, charge: { ...charge, ...patch } as Charge, entries: entries.map(row => row.data as unknown as FinancialEntry) }
+    })
+  } catch { return { ok: false as const, error: "Não foi possível alterar a data. Tente novamente." } }
+}

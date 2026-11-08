@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { dealValuesSchema } from "../lib/data/deal-values.ts"
-import { subscriptionForDeal } from "../lib/data/deal-subscription.ts"
+import { monthlyForecastChanges, subscriptionForDeal } from "../lib/data/deal-subscription.ts"
 import { projectReceivables } from "../lib/data/project-receivables.ts"
 
 test("projeto e manutenção aceitam zero e rejeitam valores negativos ou inválidos", () => {
@@ -28,4 +28,16 @@ test("manutenção paga sem valor de projeto usa o ganho como referência", () =
   assert.equal(subscription.startDate, "2026-11-09T15:00:00.000Z")
   assert.equal(subscription.amount, 100)
   assert.equal(subscriptionForDeal({ ...deal, monthlyFee: 100, wonAt: "", stageChangedAt: "" }, []).status, "aguardando")
+})
+
+test("previsões preservam o vencimento corrigido manualmente", () => {
+  const dueDate = "2026-10-21T15:00:00.000Z"
+  const project = { ...deal, value: 750, paymentPlan: { method: "pix", milestones: [{ id: "delivery", label: "Entrega", amount: 750, dueDate: "2026-11-24" }] } }
+  const charge = { id: "edited", dealId: deal.id, milestoneId: "delivery", status: "pendente", automatic: true, dueDate, dueDateOverridden: true }
+  const forecast = projectReceivables(project, [charge]).records[0]
+  assert.equal(forecast.charge.dueDate, dueDate)
+  assert.equal(forecast.entry.dueDate, dueDate)
+  assert.equal(forecast.entry.competenceDate, dueDate)
+  assert.equal(forecast.charge.dueDateOverridden, true)
+  assert.equal(monthlyForecastChanges({ id: "monthly", startDate: "2026-11-09T15:00:00.000Z" }, [{ ...charge, id: "chg_first_monthly" }]), null)
 })

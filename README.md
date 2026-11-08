@@ -1,6 +1,6 @@
 # Track For CRM
 
-CRM com Next.js 16, React 19, TypeScript, Postgres/Drizzle, Zustand e Tailwind 4. Leads, negócios, clientes, orçamentos, tarefas, formulários, financeiro e configurações são persistidos. O projeto usa integrações reais para Asaas, Brasil NFe, Evolution/WhatsApp, Instagram e Google Agenda, mediante configuração dos provedores.
+CRM com Next.js 16, React 19, TypeScript, Postgres/Drizzle, Zustand e Tailwind 4. Leads, negócios, clientes, orçamentos, tarefas, formulários, financeiro e configurações são persistidos. O projeto usa integrações reais para Asaas, Brasil NFe, Evolution/WhatsApp e Google Agenda, mediante configuração dos provedores.
 
 ## Desenvolvimento
 
@@ -22,7 +22,7 @@ O projeto utiliza `legacy-peer-deps` em `.npmrc`. Com Postgres local configurado
 - Configurações de catálogo, adicionais, planos, funis, motivos de perda, mensagens rápidas e categorias são persistidas. Usuários administradores criam convites de uso único, válidos por 48 horas, e copiam o link para compartilhar. Alterar papel ou desativar revoga sessões existentes. O sistema não informa envio automático de um convite que não enviou.
 - Formulários `/f/slug` funcionam sem login e gravam o lead no servidor. Campos são validados, envios repetidos usam idempotência e o limite é de 10 requisições por IP a cada 10 minutos. O retorno de sucesso só aparece após confirmação do banco.
 - Orçamentos geram PDF com dados da proposta atual, escopo, pagamento e valores. As fichas de cliente e cobrança usam a mesma emissão, consulta, cancelamento e arquivos fiscais reais da tela de Notas fiscais.
-- Webhooks n8n têm teste HTTP real, assinatura HMAC, registro de entregas e reenvio manual. Chaves de API têm escopos, revogação e armazenamento somente do hash. Veja os endpoints em [Implantação](docs/implantacao.md).
+- Webhooks n8n têm teste HTTP real, assinatura HMAC, registro de entregas e fila persistida com reenvio automático. Falhas transitórias recebem até seis tentativas, com intervalo crescente e ID estável. Falhas definitivas ficam para revisão e reenvio manual. `npm start` e `npm run dev` iniciam o servidor e a fila juntos; hospedagens com processos separados podem executar `npm run webhooks:worker`. Chaves de API têm escopos, revogação e armazenamento somente do hash. Veja os endpoints em [Implantação](docs/implantacao.md).
 
 ## Etapas dos projetos
 
@@ -42,9 +42,9 @@ Etapas de execução podem ser vinculadas a etapas de pagamento por Admin ou Com
 
 **Brasil NFe:** configure token, ambiente, município e padrões de serviço em `/integracoes/brasil_nfe`; cadastre certificado e empresa no provedor. Notas em processamento são consultadas a cada 10 segundos na listagem. PDF/XML são servidos pela rota autenticada `/api/notas-fiscais/[id]/arquivo`.
 
-**WhatsApp:** execute `npm run whatsapp:local` e conecte em `/whatsapp` pelo QR Code. Configure as variáveis `EVOLUTION_*` do exemplo. O envio pelo CRM é de texto; anexos recebidos são indicados pelo tipo, sem reprodução/download. A sincronização consulta até 500 mensagens disponíveis no provedor, com até 200 por contato e 2.000 na caixa de entrada. Histórico anterior depende do WhatsApp.
+**WhatsApp:** execute `npm run whatsapp:local` e conecte em `/whatsapp` pelo QR Code. Configure as variáveis `EVOLUTION_*` do exemplo. O envio pelo CRM é de texto. Imagens recebidas podem ser abertas, áudios reproduzidos e documentos baixados. Use **Ler com IA** ou **Transcrever áudio** na mensagem para extrair o conteúdo; a leitura usa os créditos da API e fica disponível à análise comercial da conversa. Suporta imagens JPEG/PNG/WebP/GIF, PDF, DOCX, XLSX, TXT/CSV e os formatos de áudio indicados em `docs/ia-whatsapp.md`, até 12 MB por arquivo. A sincronização consulta até 500 mensagens disponíveis no provedor, com até 200 por contato e 2.000 na caixa de entrada. Histórico anterior depende do WhatsApp.
 
-**Instagram e Google Agenda:** cadastre os aplicativos nas configurações administrativas e faça a autorização nas telas correspondentes. O Instagram exibe perfil próprio profissional e mídias; não inclui mensagens diretas, publicação de conteúdo ou captura de leads por anúncios. A agenda usa tokens e eventos isolados por usuário.
+**Google Agenda:** cadastre o aplicativo nas configurações administrativas e faça a autorização na tela correspondente. A agenda usa tokens e eventos isolados por usuário.
 
 **Buscar clientes:** execute `npm run prospecting:engine` e `npm run prospecting:start`. O CRM usa serviço Python/SQLite em `127.0.0.1:8091` e scraper em `127.0.0.1:8082`. As buscas usam Google Maps sem chave, podem demorar e dependem da disponibilidade externa. Preserve `services/prospecting/painel/dados/`. Em produção, esses serviços precisam de máquina persistente e rede privada.
 
@@ -66,6 +66,7 @@ npm run prospecting:test
 npm run crm:check
 npm run sales:check
 npm run auth:check
+npm run access-media-webhooks:check
 npm run google-calendar:check-actions
 npm run asaas:check-webhook
 npm run build
@@ -89,3 +90,7 @@ Em **Mensagens**, administradores e equipe comercial criam modelos de primeiro c
 Na ficha do lead, a aba **Enviar mensagem** permite escolher um modelo, preencher os dados do contato, ajustar o texto e revisar o destinatário antes de enviar por WhatsApp ou e-mail. Variáveis sem valor bloqueiam o envio. O destinatário é consultado no servidor e os envios confirmados entram na timeline.
 
 WhatsApp usa a conexão Evolution existente. E-mail requer `SMTP_HOST`, `EMAIL_FROM` e, conforme o servidor, `SMTP_PORT`, `SMTP_USER` e `SMTP_PASS`. Sem configuração, o envio fica indisponível. A confirmação SMTP indica aceitação pelo servidor, sem afirmar entrega ou leitura pelo destinatário.
+
+## Recuperação de acesso
+
+A tela de login oferece **Esqueci minha senha**, em `/recuperar-acesso`. Com SMTP e URL pública configurados, a conta ativa recebe um link de uso único, válido por 30 minutos. Um novo pedido substitui o link anterior. Só o hash do token fica no banco; a resposta não informa se o e-mail existe. Há limites persistidos por IP e e-mail. A troca de senha revoga sessões e desafios pendentes, preservando o autenticador. A próxima entrada continua exigindo segundo fator.

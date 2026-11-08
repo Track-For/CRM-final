@@ -78,11 +78,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       <div role="status" aria-live="polite" className={pendingWrites || status === "error" ? "fixed right-4 bottom-4 z-50 rounded-xl border border-primary/25 bg-background px-4 py-3 text-sm shadow-lg" : "sr-only"}>{pendingWrites ? "Salvando alterações…" : status === "error" ? "Há alterações sem confirmação" : "Dados sincronizados"}</div>
+      <a href="#main-content" className="sr-only fixed top-2 left-2 z-50 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only">Ir para o conteúdo</a>
       <Sidebar />
       <MobileNav />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main data-density={density} className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 data-[density=compacta]:py-4 lg:px-6">
+        <main id="main-content" tabIndex={-1} data-density={density} className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 data-[density=compacta]:py-4 lg:px-6">
           {status === "error" ? <EmptyState title="Não foi possível confirmar os dados" description="Uma leitura ou gravação falhou. Recarregue os registros salvos antes de continuar." action={<Button onClick={() => window.location.reload()}>Recarregar dados</Button>} /> : hydrated && ready ? <RoleGuard>{children}</RoleGuard> : <PageSkeleton />}
         </main>
       </div>

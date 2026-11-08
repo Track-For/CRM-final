@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo } from "react"
+import { Eye } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { DataTable, type ColumnDef } from "@/components/shared/data-table"
 import { DeleteChargeButton } from "@/components/finance/delete-charge-button"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -46,7 +48,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
       },
       { id: "amount", header: "Valor", accessorFn: (c) => c.amount, cell: ({ row }) => <span className="num font-medium whitespace-nowrap">{formatMoney(row.original.amount)}</span> },
       { id: "status", header: "Status", accessorFn: (c) => c.status, cell: ({ row }) => <EnumBadge value={row.original.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /> },
-      { id: "actions", header: "", enableSorting: false, cell: ({ row }) => <DeleteChargeButton charge={row.original} compact /> },
+      { id: "actions", header: "", enableSorting: false, cell: ({ row }) => <div className="flex items-center justify-end gap-1"><Button variant="ghost" size="icon-sm" aria-label={`Ver detalhes da cobrança ${row.original.number}`} onClick={event => { event.stopPropagation(); onOpen(row.original) }}><Eye /></Button><DeleteChargeButton charge={row.original} compact /></div> },
     ]
     return hideClient
       ? cols.map((c) =>
@@ -55,7 +57,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
             : c,
         )
       : cols
-  }, [clients, hideClient])
+  }, [clients, hideClient, onOpen])
 
   return (
     <DataTable
@@ -75,7 +77,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
                 {c.gatewayId ? "Asaas" : "CRM"} · {c.number} · {PAYMENT_METHOD_LABEL[c.method]} · {c.installment}/{c.installments}
               </p>
             </div>
-            <div className="flex items-center gap-1"><EnumBadge value={c.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /><DeleteChargeButton charge={c} compact /></div>
+            <div className="flex items-center gap-1"><EnumBadge value={c.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /><Button variant="ghost" size="icon-sm" aria-label={`Ver detalhes da cobrança ${c.number}`} onClick={event => { event.stopPropagation(); onOpen(c) }}><Eye /></Button><DeleteChargeButton charge={c} compact /></div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
             <span className={cn("num text-xs", c.status === "vencido" ? "text-danger" : "text-muted-foreground")}>{c.dueDate ? `Vence ${formatDate(c.dueDate)}` : "Vencimento a definir"}</span>

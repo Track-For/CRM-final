@@ -45,7 +45,7 @@ export function WhatsappAiAssistant({ phone, open, onOpenChange }: { phone: stri
   const button = (action: string, label: string) => <Button size="sm" variant="outline" disabled={Boolean(busy) || draft?.applied.includes(action)} onClick={() => void apply(action)}>{busy === action && <Loader2 className="animate-spin" />}{draft?.applied.includes(action) ? "Aplicado" : label}</Button>
   return <EntityDrawer open={open} onOpenChange={onOpenChange} title="Assistente da conversa" description="Revise as sugestões antes de alterar o CRM.">
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">Ao analisar, até 50 mensagens recentes de texto e o contexto comercial deste contato serão enviados à OpenAI. Áudios e anexos não são analisados. A IA pode cometer erros.</p>
+      <p className="text-sm text-muted-foreground">Ao analisar, até 50 mensagens recentes, incluindo transcrições e leituras de arquivos já solicitadas na conversa, e o contexto comercial deste contato serão enviados à OpenAI. Para incluir uma mídia, use Transcrever áudio ou Ler com IA na mensagem. A IA pode cometer erros.</p>
       {configured === false && <p className="rounded-lg border p-3 text-sm">IA ainda não conectada. O administrador pode conectar a chave e o modelo em Integrações → WhatsApp e IA.</p>}
       <Button disabled={!configured || Boolean(busy)} onClick={() => void analyze()}>{busy === "analyze" ? <Loader2 className="animate-spin" /> : <Sparkles />}{draft ? "Analisar novamente" : "Analisar com IA"}</Button>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
