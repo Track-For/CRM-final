@@ -4,7 +4,7 @@ import QRCode from "qrcode"
 import { and, desc, eq, inArray, or } from "drizzle-orm"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/session"
-import { db, whatsappMessages, whatsappContacts } from "@/lib/db"
+import { db, whatsappMessages, whatsappContacts, crmRecords } from "@/lib/db"
 import { evolutionConfig, EvolutionError, evolutionRequest } from "./client"
 import { normalizePhone, object, phoneIdentity, isLid } from "./normalize"
 import { reconcileRecentWhatsapp, reconcileWhatsappHistory } from "./sync"
@@ -84,7 +84,9 @@ export async function getWhatsappThread(input: string) {
   const resolved = phone || mapping?.phone
   const contact = resolved ? (lid ? or(inArray(whatsappMessages.phone, aliases(resolved)), eq(whatsappMessages.remoteJid, lid)) : inArray(whatsappMessages.phone, aliases(resolved))) : eq(whatsappMessages.remoteJid, lid!)
   const rows = await db.select().from(whatsappMessages).where(and(eq(whatsappMessages.instance, instance), contact)).orderBy(desc(whatsappMessages.sentAt)).limit(200)
-  return rows.reverse().map(row => ({ ...row, sentAt: row.sentAt.toISOString(), receivedAt: row.receivedAt.toISOString() }))
+  const analyses = rows.length ? await db.select({ id: crmRecords.id, data: crmRecords.data }).from(crmRecords).where(and(eq(crmRecords.resource, "whatsappMediaAnalyses"), inArray(crmRecords.id, rows.map(row => row.id)))) : []
+  const readings = new Map(analyses.filter(row => row.data.state === "completed").map(row => [row.id, String(row.data.text || "")]))
+  return rows.reverse().map(row => ({ ...row, mediaReading: readings.get(row.id), sentAt: row.sentAt.toISOString(), receivedAt: row.receivedAt.toISOString() }))
 }
 export async function sendWhatsappText(input: string, text: string) {
   await authorize()
