@@ -13,6 +13,7 @@ import {
   Receipt,
   Settings,
   Search,
+  Sparkles,
   MessageCircle,
   Users,
   UserRound,
@@ -32,6 +33,7 @@ const ALL: Role[] = ["admin", "comercial", "operacao", "financeiro"]
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Início", icon: LayoutDashboard, roles: ALL, group: "comercial" },
+  { href: "/central-ia", label: "Central de IA", icon: Sparkles, roles: ALL, group: "comercial" },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin", "comercial", "operacao"], group: "comercial" },
   { href: "/buscas", label: "Buscar clientes", icon: Search, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/mensagens", label: "Mensagens", icon: MessageCircle, roles: ["admin", "comercial"], group: "comercial" },
