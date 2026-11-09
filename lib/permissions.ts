@@ -36,7 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/central-ia", label: "Central de IA", icon: Sparkles, roles: ALL, group: "comercial" },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin", "comercial", "operacao"], group: "comercial" },
   { href: "/buscas", label: "Buscar clientes", icon: Search, roles: ["admin", "comercial"], group: "comercial" },
-  { href: "/mensagens", label: "Mensagens", icon: MessageCircle, roles: ["admin", "comercial"], group: "comercial" },
+  { href: "/mensagens", label: "Modelos de mensagem", icon: MessageCircle, roles: ["admin", "comercial"], group: "sistema" },
   { href: "/leads", label: "Leads", icon: UserRound, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/vendas", label: "Vendas", icon: Handshake, roles: ["admin", "comercial", "financeiro"], group: "comercial" },
   { href: "/gestao-comercial", label: "Gestão comercial", icon: BarChart3, roles: ["admin", "comercial", "financeiro"], group: "comercial" },

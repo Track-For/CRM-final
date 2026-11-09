@@ -14,7 +14,7 @@ const TABS = [
 export function FinanceTabs() {
   const pathname = usePathname()
   return (
-    <nav className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1 shadow-xs" aria-label="Seções do financeiro">
+    <nav className="flex max-w-full gap-1 overflow-x-auto rounded-xl border bg-card p-1" aria-label="Seções do financeiro">
       {TABS.map((t) => {
         const active = pathname === t.href
         return (
@@ -23,7 +23,7 @@ export function FinanceTabs() {
             href={t.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative shrink-0 rounded-lg px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground",
+              "relative shrink-0 rounded-lg px-4 py-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground",
               active && "bg-brand-soft font-semibold text-primary",
             )}
           >

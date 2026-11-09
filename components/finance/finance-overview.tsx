@@ -48,6 +48,7 @@ export function FinanceOverview() {
     const inPeriod = entriesForView(entries, "todos", range, now)
     const buckets = periodMonthBuckets(range)
     return {
+      undated: entryTotals(entries.filter(e => ["pendente", "vencido"].includes(e.status) && (!e.dueDate || !Number.isFinite(new Date(e.dueDate).getTime())))),
       summary: financeSummary(entries, range, now),
       flow: cashFlowMonthly(entries, buckets, now),
       firstMonth: buckets[0].label,
@@ -100,7 +101,7 @@ export function FinanceOverview() {
 
       <ChartCard
         title="Fluxo de caixa"
-        description={`Mês a mês, de ${data.firstMonth} a ${data.lastMonth}. O saldo acumulado considera tudo o que já foi pago.`}
+        description={`De ${data.firstMonth} a ${data.lastMonth}. Barras: pagamentos e vencimentos. Linha: entradas menos saídas pagas de todo o histórico, sem valores em aberto.`}
         height={300}
         actions={
           <ChartLegend
@@ -109,7 +110,7 @@ export function FinanceOverview() {
               { label: "Entradas em aberto", color: OPEN_IN },
               { label: "Saídas pagas", color: "var(--danger)" },
               { label: "Saídas em aberto", color: OPEN_OUT },
-              { label: "Saldo acumulado", color: "var(--primary)" },
+              { label: "Saldo realizado acumulado", color: "var(--primary)" },
             ]}
           />
         }
@@ -125,13 +126,15 @@ export function FinanceOverview() {
               <Bar dataKey="entradasAbertas" name="Entradas em aberto" stackId="entradas" fill={OPEN_IN} radius={[3, 3, 0, 0]} maxBarSize={18} />
               <Bar dataKey="saidasPagas" name="Saídas pagas" stackId="saidas" fill="var(--danger)" maxBarSize={18} />
               <Bar dataKey="saidasAbertas" name="Saídas em aberto" stackId="saidas" fill={OPEN_OUT} radius={[3, 3, 0, 0]} maxBarSize={18} />
-              <Line dataKey="saldo" name="Saldo acumulado" stroke="var(--primary)" strokeWidth={2} dot={{ r: 4, fill: "var(--primary)", stroke: "var(--card)", strokeWidth: 2 }} />
+              <Line dataKey="saldo" name="Saldo realizado acumulado" stroke="var(--primary)" strokeWidth={2} dot={{ r: 4, fill: "var(--primary)", stroke: "var(--card)", strokeWidth: 2 }} />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
           <EmptyState compact title="Sem entradas e saídas nesses meses" className="h-full border-0" />
         )}
       </ChartCard>
+
+      {(data.undated.entradas > 0 || data.undated.saidas > 0) && <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/20 bg-warning-soft p-4 text-sm"><div><p className="font-medium">Em aberto, sem vencimento definido</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{data.undated.entradas > 0 && <>A receber: {formatMoney(data.undated.entradas)}. </>}{data.undated.saidas > 0 && <>A pagar: {formatMoney(data.undated.saidas)}. </>}Esses valores ficam fora das barras mensais até que o vencimento seja definido.</p></div><Button asChild size="sm" variant="outline"><Link href="/financeiro/cobrancas?visao=sem-data">Revisar vencimentos</Link></Button></div>}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <CategoryPanel title="Entradas por categoria" total={data.totals.entradas} rows={data.categoriesIn} color="var(--success)" nameOf={categoryName} emptyTitle="Nenhuma entrada no período" />

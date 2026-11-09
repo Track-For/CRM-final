@@ -5,6 +5,7 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useFieldAccessibility } from "./field-accessibility"
 import { cn } from "@/lib/utils"
 
 export interface ComboOption {
@@ -38,6 +39,7 @@ export function EntityCombobox({
   className,
   invalid,
 }: EntityComboboxProps) {
+  const field = useFieldAccessibility()
   const [open, setOpen] = React.useState(false)
   const selected = options.find((o) => o.value === value)
   const groups = React.useMemo(() => {
@@ -52,7 +54,7 @@ export function EntityCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" role="combobox" aria-expanded={open} aria-invalid={invalid || undefined} className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}>
+        <Button type="button" variant="outline" role="combobox" id={field?.id} aria-labelledby={field?.labelId} aria-describedby={field?.descriptionId} aria-required={field?.required} aria-expanded={open} aria-invalid={invalid || field?.invalid} className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}>
           <span className="truncate">{selected ? selected.label : placeholder}</span>
           <ChevronsUpDown className="opacity-50" />
         </Button>

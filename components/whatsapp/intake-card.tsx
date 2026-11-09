@@ -32,11 +32,11 @@ export function WhatsappIntakeCard({ phone, intake, canEdit, unresolved, known, 
     {intake?.nextStep && <div className="rounded-lg bg-surface p-2 text-xs leading-relaxed"><span className="font-medium">Próximo passo sugerido: </span>{intake.nextStep}</div>}
     {!intake && <p className="text-xs leading-relaxed text-muted-foreground">A conversa continua na caixa de entrada. Um lead só será criado quando houver interesse comercial.</p>}
     {unresolved && <p className="text-xs text-muted-foreground">Identifique o telefone para classificar e vincular este contato.</p>}
-    {canEdit && !unresolved && <div className="space-y-2">
+    {canEdit && !unresolved && <details className="group/review rounded-xl border bg-surface/40 p-3" open={intake?.category === "unclassified" || !intake}><summary className="text-xs font-medium text-primary">Revisar classificação <span className="float-right group-open/review:hidden">+</span></summary><div className="mt-3 space-y-2">
       <label className="grid gap-1 text-xs">Revisar classificação<select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={category} disabled={busy} onChange={e => setCategory(e.target.value as IntakeCategory)}>{intakeCategories.map(value => <option key={value} value={value}>{intakeLabels[value]}</option>)}</select></label>
       <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => void run()}>{busy ? <Loader2 className="animate-spin" /> : <UserCheck />}{category === "commercial" && !known ? "Confirmar interesse e criar lead" : "Salvar classificação"}</Button>
       <Button size="sm" variant="ghost" className="w-full" disabled={busy || intake?.state === "processing" || intake?.state === "pending"} onClick={() => void run(true)}><Sparkles />Analisar com IA</Button>
       <p className="text-[10px] leading-relaxed text-muted-foreground">A revisão da equipe prevalece nas próximas mensagens. Nenhum negócio ou mensagem é criado automaticamente.</p>
-    </div>}
+    </div></details>}
   </section>
 }

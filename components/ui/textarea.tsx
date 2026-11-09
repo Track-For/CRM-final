@@ -1,7 +1,11 @@
+"use client"
+
 import * as React from "react"
+import { useFieldAccessibility } from "@/components/shared/field-accessibility"
 import { cn } from "cn"
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  const field = useFieldAccessibility()
   return (
     <textarea
       data-slot="textarea"
@@ -10,6 +14,11 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
         className
       )}
       {...props}
+      id={props.id || field?.id}
+      aria-labelledby={props["aria-labelledby"] || field?.labelId}
+      aria-describedby={[props["aria-describedby"], field?.descriptionId].filter(Boolean).join(" ") || undefined}
+      aria-invalid={props["aria-invalid"] ?? field?.invalid}
+      aria-required={props["aria-required"] ?? field?.required}
     />
   )
 }

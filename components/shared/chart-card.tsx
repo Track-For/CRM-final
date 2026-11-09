@@ -29,13 +29,13 @@ export function ChartCard({ title, description, actions, loading, height = 260, 
 
 /** Props comuns para eixos e grade dos gráficos. */
 export const chartAxis = {
-  stroke: "#9abcec",
-  tick: { fill: "#365b87", fontSize: 11 },
+  stroke: "#cbd5e1",
+  tick: { fill: "#64748b", fontSize: 11 },
   tickLine: false,
   axisLine: false,
 } as const
 
-export const chartGrid = { stroke: "#dceaff", vertical: false } as const
+export const chartGrid = { stroke: "#edf0f5", vertical: false } as const
 
 interface TooltipPayload {
   name?: string | number

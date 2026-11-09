@@ -152,9 +152,12 @@ export function periodMonthBuckets(range: PeriodBounds, minMonths = 6): MonthBuc
 
 /** Fluxo mensal. O saldo acumulado parte de todo o histórico pago e para no mês atual. */
 export function cashFlowMonthly(entries: FinancialEntry[], buckets: MonthBucket[], now = new Date()) {
-  const paid = entries.filter((e) => e.status === "pago")
+  const visible = entries.filter(e => !e.deletedAt && !e.conversionReverted && !e.awaitingProjectPayment && ["pago", "pendente", "vencido"].includes(e.status))
+  const paid = visible.filter((e) => e.status === "pago")
+  // Competência não é previsão de caixa: sem vencimento, não se escolhe um mês.
+  const cashDate = (e: FinancialEntry) => e.status === "pago" ? e.paidAt || "" : e.dueDate || ""
   return buckets.map((b) => {
-    const month = entries.filter((e) => inRange(entryCashDate(e), b.from, b.to))
+    const month = visible.filter((e) => inRange(cashDate(e), b.from, b.to))
     const paidInMonth = entryTotals(month.filter((e) => e.status === "pago"))
     const openInMonth = entryTotals(month.filter((e) => e.status !== "pago"))
     const paidUntil = paid.filter((e) => new Date(entryCashDate(e)).getTime() <= b.to.getTime())

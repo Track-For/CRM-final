@@ -1,7 +1,11 @@
+"use client"
+
 import * as React from "react"
+import { useFieldAccessibility } from "@/components/shared/field-accessibility"
 import { cn } from "cn"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  const field = useFieldAccessibility()
   return (
     <input
       type={type}
@@ -11,6 +15,11 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         className
       )}
       {...props}
+      id={props.id || field?.id}
+      aria-labelledby={props["aria-labelledby"] || field?.labelId}
+      aria-describedby={[props["aria-describedby"], field?.descriptionId].filter(Boolean).join(" ") || undefined}
+      aria-invalid={props["aria-invalid"] ?? field?.invalid}
+      aria-required={props["aria-required"] ?? field?.required}
     />
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { DailyActions } from "@/components/dashboard/daily-actions"
+import { ChevronDown } from "lucide-react"
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { AlarmClock, ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, Clock, Percent, Receipt, Repeat, TriangleAlert, UserRound } from "lucide-react"
@@ -128,7 +129,9 @@ export function DashboardView() {
       {receipts.error && <p role="alert" className="text-sm text-destructive">{receipts.error}</p>}
       {!!receipts.data?.undated && <p className="text-xs text-muted-foreground">{receipts.data.undated} recebimento(s) sem data de pagamento válida não entram nos totais. Corrija a data no Financeiro.</p>}
 
-      {receipts.enabled && <Panel title="Recebimentos por mês" description="Histórico pela data real do pagamento. Mensalidades já estão incluídas no total recebido." actions={<Button asChild variant="outline" size="sm"><Link href="/relatorios">Ver relatórios</Link></Button>}>
+      <DailyActions />
+
+      {receipts.enabled && <details className="group/months rounded-2xl border bg-card shadow-[0_2px_6px_#17243b03]"><summary className="flex items-center justify-between gap-4 p-5 sm:px-6"><span><span className="block text-sm font-semibold">Histórico de recebimentos</span><span className="mt-1 block text-xs text-muted-foreground">{range.label} · Consulte os valores mês a mês</span></span><span className="flex size-8 shrink-0 items-center justify-center rounded-lg border text-primary transition-transform group-open/months:rotate-180"><ChevronDown className="size-4" /></span></summary><Panel className="rounded-t-none border-x-0 border-b-0 shadow-none" title="Recebimentos por mês" description="Histórico pela data real do pagamento. Mensalidades já estão incluídas no total recebido." actions={<Button asChild variant="outline" size="sm"><Link href="/relatorios">Ver relatórios</Link></Button>}>
         {!receipts.data ? <p role="status" className="text-sm text-muted-foreground">{receipts.loading ? "Carregando histórico de recebimentos…" : "Histórico indisponível. Atualize a página para tentar novamente."}</p> : <ReportTable rows={revenue} getKey={r => r.month} columns={[
           { key: "mes", label: "Mês", render: r => <span className="capitalize">{r.month}</span> },
           { key: "outras", label: "Projetos e outras receitas", align: "right", render: r => formatMoney(r.outras) },
@@ -137,12 +140,10 @@ export function DashboardView() {
           { key: "pagamentos", label: "Pagamentos registrados", align: "right", render: r => r.pagamentos || "Nenhum" },
         ]} />}
         <p className="mt-3 text-xs text-muted-foreground">Um mês sem pagamentos registrados aparece zerado. Se um pagamento antigo foi baixado com a data de hoje, corrija a data na cobrança para que ele apareça no mês em que foi recebido.</p>
-      </Panel>}
-
-      <DailyActions />
+      </Panel></details>}
 
       <details className="group rounded-2xl border bg-card p-5">
-        <summary className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Análise detalhada</h2><p className="mt-1 text-sm text-muted-foreground">{range.label} · Conversão, receita e histórico</p></div><span className="text-sm font-medium text-primary">Ver análise +</span></summary>
+        <summary className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Análise detalhada</h2><p className="mt-1 text-sm text-muted-foreground">{range.label} · Conversão, receita e histórico</p></div><span className="flex items-center gap-2 text-xs font-medium text-primary"><span className="group-open:hidden">Ver análise</span><span className="hidden group-open:inline">Recolher</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" /></span></summary>
         <div className="mt-6 space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Taxa de conversão" icon={Percent} value={formatPercent(kpis.conversion)} delta={delta(kpis.conversion, prev.conversion)} hint="ganhos / leads" />

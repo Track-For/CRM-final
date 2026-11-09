@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Bell,
   CalendarDays,
   Check,
   CheckSquare,
+  ChevronRight,
   FileText,
   Handshake,
   LogOut,
@@ -34,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InitialsAvatar } from "@/components/shared/user-avatar"
 import { getSessionUserAction } from "@/components/auth/session-user-action"
 import { logoutAction } from "@/lib/auth/actions"
+import { NAV_GROUP_LABEL, NAV_ITEMS } from "@/lib/permissions"
 import { ROLE_LABEL } from "@/lib/constants"
 import { useCrm, useCurrentUser, useNotifications } from "@/lib/data"
 import { formatRelative } from "@/lib/format"
@@ -125,7 +127,7 @@ function PeriodSelect() {
   const setPeriod = useUiStore((s) => s.setPeriod)
   return (
     <Select value={period} onValueChange={(v) => setPeriod(v as PeriodPreset)}>
-      <SelectTrigger size="sm" className="w-32 sm:w-40" aria-label="Período">
+      <SelectTrigger size="sm" className="h-9 w-36 border-border bg-card shadow-none" aria-label="Período dos indicadores">
         <CalendarDays className="size-3.5 text-muted-foreground" />
         <SelectValue />
       </SelectTrigger>
@@ -171,10 +173,10 @@ function UserMenu() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent" aria-label="Menu do usuário">
+          <button type="button" className="flex items-center gap-2 rounded-xl p-1 transition-colors hover:bg-accent" aria-label="Menu do usuário">
             <InitialsAvatar name={user?.name ?? "Usuário"} id={user?.id} size="md" />
-            <div className="hidden text-left leading-tight xl:block">
-              <p className="text-sm font-medium">{user?.name ?? "—"}</p>
+            <div className="hidden max-w-32 text-left leading-tight 2xl:block">
+              <p className="truncate text-xs font-semibold">{user?.name?.split(" ")[0] || "Minha conta"}</p>
               <p className="text-[11px] text-primary">{ROLE_LABEL[role]}</p>
             </div>
           </button>
@@ -223,25 +225,20 @@ function UserMenu() {
 export function Topbar() {
   const setCommandOpen = useUiStore((s) => s.setCommandOpen)
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen)
+  const pathname = usePathname()
+  const role = useUiStore(s => s.role)
+  const section = [...NAV_ITEMS].filter(item => item.roles.includes(role) && (pathname === item.href || pathname.startsWith(`${item.href}/`))).sort((a, b) => b.href.length - a.href.length)[0]
+  const hasPeriod = ["/dashboard", "/relatorios", "/leads", "/vendas", "/funil", "/notas-fiscais"].includes(pathname) || pathname.startsWith("/financeiro")
   return (
-    <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-2 border-b bg-card/95 backdrop-blur-md px-4 py-2 lg:px-6">
-      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Abrir menu">
-        <Menu />
-      </Button>
-      <button
-        type="button"
-        onClick={() => setCommandOpen(true)}
-        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-surface/70 px-3 text-sm text-muted-foreground transition-colors hover:border-input hover:bg-card sm:max-w-md"
-      >
-        <Search className="size-4 shrink-0" />
-        <span className="truncate">Buscar leads, clientes, negócios...</span>
-        <kbd className="num ml-auto hidden rounded border bg-surface px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
+    <header className="sticky top-0 z-30 flex h-[72px] shrink-0 items-center gap-2 border-b bg-card/95 px-3 backdrop-blur-xl sm:gap-3 sm:px-6 lg:px-8">
+      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Abrir menu"><Menu /></Button>
+      {section && <nav aria-label="Localização atual" className="mr-auto hidden min-w-0 items-center gap-2 text-xs xl:flex"><span className="text-muted-foreground">{NAV_GROUP_LABEL[section.group]}</span><ChevronRight className="size-3 text-muted-foreground/60" /><Link href={section.href} className="truncate font-medium text-foreground hover:text-primary" aria-current={pathname === section.href ? "page" : undefined}>{section.label}</Link>{pathname !== section.href && <><ChevronRight className="size-3 text-muted-foreground/60" /><span className="text-muted-foreground">Detalhes</span></>}</nav>}
+      <button type="button" onClick={() => setCommandOpen(true)} aria-label="Abrir busca global" className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-transparent bg-surface px-3 text-left text-xs text-muted-foreground transition-colors hover:border-input hover:bg-muted xl:max-w-[280px]">
+        <Search className="size-4 shrink-0" /><span className="truncate">Buscar no CRM...</span><kbd className="ml-auto hidden shrink-0 rounded border bg-card px-1.5 py-0.5 text-[10px] md:inline">⌘ / Ctrl K</kbd>
       </button>
-      <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        <PeriodSelect />
-        <NewMenu />
-        <Notifications />
-        <UserMenu />
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {hasPeriod && <div className="hidden sm:block"><PeriodSelect /></div>}
+        <NewMenu /><Notifications /><span className="mx-1 hidden h-6 border-l sm:block" /><UserMenu />
       </div>
     </header>
   )

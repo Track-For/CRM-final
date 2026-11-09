@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PageHeader } from "@/components/shared/page-header"
 import { AppearanceSettings } from "@/components/settings/appearance-settings"
@@ -41,7 +41,15 @@ function initialTab() {
   }
 }
 
+const desktopQuery = "(min-width: 1024px)"
+function subscribeDesktop(callback: () => void) {
+  const media = window.matchMedia(desktopQuery)
+  media.addEventListener("change", callback)
+  return () => media.removeEventListener("change", callback)
+}
+
 export function SettingsPage({ totpEnabled = false }: { totpEnabled?: boolean }) {
+  const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(desktopQuery).matches, () => false)
   const [tab, setTab] = useState(initialTab)
   const change = (value: string) => {
     setTab(value)
@@ -54,18 +62,18 @@ export function SettingsPage({ totpEnabled = false }: { totpEnabled?: boolean })
   return (
     <>
       <PageHeader title="Configurações" description="Empresa, equipe, pipelines, precificação, mensagens, segurança e preferências." actions={<><Button variant="outline" asChild><Link href="/configuracoes/google-agenda">Google Agenda</Link></Button></>} />
-      <Tabs value={tab} onValueChange={change} className="gap-6">
-        <div className="-mx-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
-          <TabsList className="w-max">
+      <Tabs value={tab} onValueChange={change} orientation={desktop ? "vertical" : "horizontal"} className="gap-6 lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start">
+        <div className="-mx-4 overflow-x-auto px-4 pb-1 lg:sticky lg:top-24 lg:mx-0 lg:px-0">
+          <TabsList aria-label="Seções das configurações" className="w-max lg:h-auto lg:w-full lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-xl lg:border lg:bg-card lg:p-2">
             {TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value} className="px-3">
+              <TabsTrigger key={t.value} value={t.value} className="px-3 lg:min-h-10 lg:justify-start lg:data-active:bg-brand-soft lg:data-active:shadow-none">
                 {t.label}
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
         {TABS.map((t) => (
-          <TabsContent key={t.value} value={t.value}>
+          <TabsContent key={t.value} value={t.value} className="min-w-0">
             {t.render({ totpEnabled })}
           </TabsContent>
         ))}

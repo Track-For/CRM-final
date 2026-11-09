@@ -21,15 +21,15 @@ export function EntityDrawer({ open, onOpenChange, title, description, badge, ch
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className={cn("w-full gap-0 p-0", sizeClass[size])}>
-        <SheetHeader className="border-b bg-surface/70 p-5 pr-12">
+        <SheetHeader className="border-b bg-card p-5 pr-14 sm:p-6 sm:pr-14">
           <div className="flex flex-wrap items-center gap-2">
-            <SheetTitle className="text-lg break-words">{title}</SheetTitle>
+            <SheetTitle className="text-xl font-semibold tracking-tight break-words">{title}</SheetTitle>
             {badge}
           </div>
           <SheetDescription className={description ? undefined : "sr-only"}>{description ?? "Detalhes"}</SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
-        {footer && <SheetFooter className="flex-row flex-wrap justify-end gap-2 border-t bg-card p-5">{footer}</SheetFooter>}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-surface/30 p-5 sm:p-6">{children}</div>
+        {footer && <SheetFooter className="flex-row flex-wrap justify-end gap-2 border-t bg-card p-4 sm:px-6">{footer}</SheetFooter>}
       </SheetContent>
     </Sheet>
   )

@@ -36,9 +36,9 @@ export function StatCard({ label, value, hint, icon: Icon, delta, invertDelta, h
   const good = delta != null && (invertDelta ? delta <= 0 : delta >= 0)
   const text = typeof value === "string" || typeof value === "number" ? String(value) : null
   return (
-    <div className={cn("flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 shadow-[0_2px_8px_#17243b04] sm:p-5", highlight && "border-primary/20 bg-gradient-to-br from-card to-brand-soft/60", className)}>
+    <div className={cn("relative flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-[0_2px_6px_#17243b03] sm:p-5", highlight && "border-primary/20 bg-brand-soft/40", className)}>
       <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0 text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="min-w-0 text-xs font-medium leading-relaxed text-muted-foreground">{label}</span>
         {Icon && <Icon className={cn("size-8 shrink-0 rounded-lg p-1.5", highlight ? "bg-primary/10 text-primary" : "bg-surface text-muted-foreground")} />}
       </div>
       {loading ? (
@@ -48,7 +48,7 @@ export function StatCard({ label, value, hint, icon: Icon, delta, invertDelta, h
           <div
             style={text === null ? undefined : fitToCard(text)}
             className={cn(
-              "num min-w-0 leading-tight font-semibold",
+              "num min-w-0 leading-tight font-semibold tracking-tight",
               text === null ? "text-xl wrap-anywhere sm:text-2xl" : "whitespace-nowrap [font-size:min(1.25rem,var(--stat-fit))] sm:[font-size:min(1.5rem,var(--stat-fit))]",
               highlight && "text-primary",
               valueClassName,
@@ -58,7 +58,7 @@ export function StatCard({ label, value, hint, icon: Icon, delta, invertDelta, h
           </div>
         </div>
       )}
-      <div className="flex min-h-4 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+      <div className="mt-auto flex min-h-4 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         {delta != null && !loading && (
           <span className={cn("num inline-flex items-center gap-0.5 font-medium", good ? "text-success" : "text-danger")}>
             {delta >= 0 ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}

@@ -68,3 +68,18 @@ test("envio após emissão mantém total, taxas, quantidade e identificação da
   assert.match(message,/Vencimento desta parcela/)
   assert(!message.includes("{{link_pagamento}}"))
 })
+
+test("fluxo de caixa não aloca parcelas sem vencimento pela competência do contrato", () => {
+  const buckets = [{ label: "nov/26", from: new Date("2026-11-01T03:00:00Z"), to: new Date("2026-12-01T02:59:59.999Z") }]
+  const rows = [
+    { id: "setembro", type: "receita", status: "pago", amount: 1500, paidAt: "2026-09-18T15:00:00Z" },
+    { id: "outubro", type: "receita", status: "pago", amount: 597, paidAt: "2026-10-08T15:00:00Z" },
+    { id: "novembro", type: "receita", status: "pago", amount: 597, paidAt: "2026-11-08T15:00:00Z" },
+    ...[400, 600, 1000].map(amount => ({ type: "receita", status: "pendente", amount, dueDate: "", competenceDate: "2026-11-08T15:00:00Z" })),
+    { type: "despesa", status: "pendente", amount: 300, dueDate: "", competenceDate: "2026-11-08T15:00:00Z" },
+  ]
+  assert.deepEqual(api.cashFlowMonthly(rows, buckets, new Date("2026-11-09")), [{ month: "nov/26", entradasPagas: 597, entradasAbertas: 0, saidasPagas: 0, saidasAbertas: 0, saldo: 2694 }])
+  const scheduled = { type: "receita", status: "pendente", amount: 400, dueDate: "2026-11-20T15:00:00Z", competenceDate: "2026-09-08T15:00:00Z" }
+  assert.equal(api.cashFlowMonthly([...rows, scheduled], buckets, new Date("2026-11-09"))[0].entradasAbertas, 400)
+  assert.equal(api.cashFlowMonthly([...rows, { ...scheduled, status: "cancelado" }], buckets, new Date("2026-11-09"))[0].entradasAbertas, 0)
+})

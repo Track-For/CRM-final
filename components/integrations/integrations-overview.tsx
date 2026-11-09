@@ -72,7 +72,7 @@ export function IntegrationsOverview({ fiscal, asaas, evolution, googleCalendar 
             <Link
               key={i.key}
               href={`/integracoes/${i.key}`}
-              className={cn("group flex flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-[#80ace9]", i.status === "erro" && "border-[#4a1818]")}
+              className={cn("group flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-[0_2px_6px_#17243b03] transition-[border-color,box-shadow] hover:border-primary/30 hover:shadow-sm", i.status === "erro" && "border-danger/25")}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -86,16 +86,16 @@ export function IntegrationsOverview({ fiscal, asaas, evolution, googleCalendar 
                 </div>
                 <EnumBadge value={i.status} labels={INTEGRATION_STATUS_LABEL} tones={INTEGRATION_STATUS_TONE} />
               </div>
-              <p className="flex-1 text-sm text-muted-foreground">{i.description}</p>
+              <p className="flex-1 text-sm leading-relaxed text-muted-foreground">{i.description}</p>
               {i.status === "erro" && i.errorMessage && (
-                <p className="flex items-start gap-2 rounded-lg border border-[#4a1818] bg-danger-soft p-2 text-xs text-danger">
+                <p className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft p-2 text-xs text-danger">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                   {i.errorMessage}
                 </p>
               )}
               <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
                 <span>{i.lastSyncAt ? `Sincronizado ${formatRelative(i.lastSyncAt)}` : "Nunca sincronizado"}</span>
-                <span className="inline-flex items-center gap-1 text-foreground group-hover:text-primary">
+                <span className="inline-flex items-center gap-1 font-medium text-primary">
                   Configurar <ChevronRight className="size-3.5" />
                 </span>
               </div>

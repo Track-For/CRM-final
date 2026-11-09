@@ -7,10 +7,10 @@ import { useUiStore } from "@/lib/store/ui-store"
 import { cn } from "@/lib/utils"
 
 const TOKENS = [
-  { name: "Fundo branco", value: "#FFFFFF", var: "--background" },
-  { name: "Menu preto", value: "#000000", var: "--sidebar" },
-  { name: "Azul principal", value: "#005BE7", var: "--primary" },
-  { name: "Azul de apoio", value: "#F0F6FF", var: "--surface" },
+  { name: "Fundo suave", value: "#F7F8FB", var: "--background" },
+  { name: "Menu azul profundo", value: "#111D32", var: "--sidebar" },
+  { name: "Azul principal", value: "#2563EB", var: "--primary" },
+  { name: "Azul de apoio", value: "#F3F5F9", var: "--surface" },
 ]
 
 function ToggleRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -47,6 +47,7 @@ export function AppearanceSettings() {
                 <button
                   key={d}
                   type="button"
+                  aria-pressed={density === d}
                   onClick={() => setDensity(d)}
                   className={cn("rounded-lg border bg-surface p-3 text-left text-sm transition-colors hover:border-[#80ace9]", density === d && "border-primary/35 text-primary")}
                 >
@@ -57,7 +58,7 @@ export function AppearanceSettings() {
           </div>
         </div>
       </Panel>
-      <Panel title="Identidade visual" description="Branco, preto e tons de azul em toda a interface.">
+      <Panel title="Identidade visual" description="Superfícies claras e azul para orientar as ações.">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {TOKENS.map((t) => (
             <div key={t.var} className="space-y-2 rounded-lg border bg-surface p-2">
@@ -71,7 +72,7 @@ export function AppearanceSettings() {
         </div>
         <div className="mt-4 space-y-1 text-sm">
           <p>
-            Texto e títulos em <span className="font-semibold">Space Grotesk</span>
+            Texto em fonte do sistema e títulos em <span className="font-semibold">Space Grotesk</span>
           </p>
           <p>
             Números, valores e IDs em <span className="num text-primary">JetBrains Mono · R$ 12.450,00</span>

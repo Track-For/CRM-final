@@ -21,12 +21,12 @@ export function ReportTable<T>({ columns, rows, getKey, footer, className }: Rep
   const all = footer ? [...rows, footer] : rows
   return (
     <div className={className}>
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b text-xs text-muted-foreground">
+            <tr className="border-b bg-surface/70 text-[11px] text-muted-foreground">
               {columns.map((c) => (
-                <th key={c.key} className={cn("px-2 py-2 font-medium", c.align === "right" ? "text-right" : "text-left")}>
+                <th key={c.key} className={cn("px-4 py-3 font-medium", c.align === "right" ? "text-right" : "text-left")}>
                   {c.label}
                 </th>
               ))}
@@ -36,9 +36,9 @@ export function ReportTable<T>({ columns, rows, getKey, footer, className }: Rep
             {all.map((row, i) => {
               const isFooter = footer && i === all.length - 1
               return (
-                <tr key={isFooter ? "__footer" : getKey(row)} className={cn("border-b last:border-0", isFooter && "bg-surface font-semibold")}>
+                <tr key={isFooter ? "__footer" : getKey(row)} className={cn("border-b border-border/70 transition-colors last:border-0 hover:bg-surface/60", isFooter && "bg-surface font-semibold")}>
                   {columns.map((c) => (
-                    <td key={c.key} className={cn("px-2 py-2", c.align === "right" && "text-right", c.mono && "num")}>
+                    <td key={c.key} className={cn("px-4 py-3 tabular-nums", c.align === "right" && "text-right", c.mono && "num")}>
                       {c.render(row)}
                     </td>
                   ))}

@@ -140,15 +140,15 @@ export function KanbanBoard<T>({ columns, items, getId, getColumnId, renderCard,
 function KanbanColumnView({ column, ids, children, emptyLabel, className }: { column: KanbanColumn; ids: string[]; children: React.ReactNode; emptyLabel: string; className?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   return (
-    <div className={cn("flex w-[280px] shrink-0 snap-start flex-col rounded-xl border bg-card", isOver && "border-primary/35", className)}>
+    <div className={cn("flex w-[290px] shrink-0 snap-start flex-col rounded-2xl border border-border/60 bg-surface/70", isOver && "border-primary/35", className)}>
       <div className="h-0.5 rounded-t-xl" style={{ backgroundColor: column.accent ?? "var(--border)" }} />
-      <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
+      <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
         <div className="min-w-0 text-sm font-semibold">{column.title}</div>
-        <span className="num rounded-md border bg-surface px-1.5 text-xs text-muted-foreground">{ids.length}</span>
+        <span className="rounded-md bg-card px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">{ids.length}</span>
       </div>
       {column.meta && <div className="px-3 pb-2 text-xs text-muted-foreground">{column.meta}</div>}
       <SortableContext id={column.id} items={ids} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className="flex min-h-24 flex-1 flex-col gap-2 p-2 pt-0">
+        <div ref={setNodeRef} className="flex min-h-24 flex-1 flex-col gap-3 p-3 pt-0">
           {children}
           {ids.length === 0 && <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">{emptyLabel}</div>}
         </div>
