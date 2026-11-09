@@ -18,7 +18,7 @@ export async function getLeadMessagingAvailability() {
   return { email: Boolean(process.env.SMTP_HOST && process.env.EMAIL_FROM), whatsapp: Boolean(process.env.EVOLUTION_URL && process.env.EVOLUTION_API_KEY) }
 }
 const schema = messageDeliverySchema.extend({ leadId: z.string().min(1).max(120) })
-export async function sendLeadMessage(input: z.infer<typeof schema>) {
+export async function sendLeadMessage(input: z.input<typeof schema>) {
   const user = await authorize()
   const value = schema.parse(input)
   validateMessageVariables(value)
@@ -30,10 +30,10 @@ export async function sendLeadMessage(input: z.infer<typeof schema>) {
     throw new Error("O contato do lead mudou desde a revisão. Recarregue os dados e revise o destinatário antes de enviar.")
   }
   // O destinatário é sempre consultado no servidor, nunca aceito do navegador.
-  await deliverContactMessage(value, savedRecipient as string)
-  const activity: Activity = { id: `act_${crypto.randomUUID()}`, type: value.channel === "email" ? "email" : "whatsapp", title: value.channel === "email" ? `E-mail enviado: ${value.subject}` : "Mensagem enviada por WhatsApp", description: value.text, leadId: value.leadId, authorId: user.id, createdAt: new Date().toISOString() }
+  const delivery = await deliverContactMessage(value, savedRecipient as string)
+  const activity: Activity = { id: `act_${crypto.randomUUID()}`, type: value.channel === "email" ? "email" : "whatsapp", title: value.channel === "email" ? `E-mail enviado: ${value.subject}` : "Mensagem enviada por WhatsApp", description: delivery.deliveredText, leadId: value.leadId, authorId: user.id, createdAt: new Date().toISOString() }
   try {
     await db.insert(crmRecords).values({ resource: "activities", id: activity.id, data: { ...activity }, created: true })
-    return { activity, warning: "" }
-  } catch { return { activity: null, warning: "Mensagem enviada, mas o histórico não foi salvo. Não reenvie a mensagem." } }
+    return { activity, warning: delivery.warning, remainingText: delivery.remainingText, sentCount: delivery.sentCount }
+  } catch { return { activity: null, warning: [delivery.warning, "Mensagem enviada, mas o histórico não foi salvo. Não reenvie a mensagem."].filter(Boolean).join(" "), remainingText: delivery.remainingText, sentCount: delivery.sentCount } }
 }

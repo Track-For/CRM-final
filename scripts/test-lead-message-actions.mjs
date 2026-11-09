@@ -62,3 +62,13 @@ test('SMTP confirma aceitação e falha no histórico não orienta reenvio',asyn
   if(from===undefined)delete process.env.EMAIL_FROM;else process.env.EMAIL_FROM=from
  }
 })
+
+
+test('lead envia parágrafos como mensagens distintas e registra uma atividade',async()=>{
+ setup()
+ const result=await sendLeadMessage({...input,text:'Um\n\nDois\n\nTrês',separateParagraphs:true})
+ assert.deepEqual(globalThis.__msg.sent.map(message=>message.text),['Um','Dois','Três'])
+ assert.equal(result.sentCount,3)
+ assert.equal(globalThis.__msg.activities.length,1)
+ assert.equal(result.activity.description,'Um\n\nDois\n\nTrês')
+})

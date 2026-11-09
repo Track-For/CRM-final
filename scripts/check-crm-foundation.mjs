@@ -24,7 +24,7 @@ try {
   await sql`insert into users(id,name,email,password_hash,role) values('actor','Admin','actor@example.invalid','disabled','admin')`
   const dir = path.resolve(".next/local-foundation"); await mkdir(dir, { recursive: true })
   const outfile = path.join(dir, "actions.mjs")
-  await build({ stdin: { contents: 'export * from "./lib/data/records-actions"; export * from "./lib/projects/actions"; export * from "./lib/whatsapp/ai/access-actions"; export * from "./lib/whatsapp/ai/context"; export { POST as AI_CONTEXT_POST } from "./app/api/whatsapp/ai/context/route"; export * from "./lib/auth/user-actions"; export * from "./lib/forms/public-actions"; export * from "./lib/integrations/actions"; export { GET, POST } from "./app/api/v1/[resource]/route"; import { db } from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "foundation-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolate-fiscal-scheduling", setup(plugin) {
+  await build({ stdin: { contents: 'export * from "./lib/data/records-actions"; export * from "./lib/messages/template-actions"; export * from "./lib/projects/actions"; export * from "./lib/whatsapp/ai/access-actions"; export * from "./lib/whatsapp/ai/context"; export { POST as AI_CONTEXT_POST } from "./app/api/whatsapp/ai/context/route"; export * from "./lib/auth/user-actions"; export * from "./lib/forms/public-actions"; export * from "./lib/integrations/actions"; export { GET, POST } from "./app/api/v1/[resource]/route"; import { db } from "./lib/db"; export async function closeDatabase(){await db.$client.end()}', resolveDir: process.cwd(), sourcefile: "foundation-check.ts" }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "isolate-fiscal-scheduling", setup(plugin) {
     plugin.onResolve({ filter: /^@\/lib\/fiscal\/automatic-schedule$/ }, () => ({ path: "fiscal-schedule", namespace: "fiscal-fixture" }))
     plugin.onLoad({ filter: /.*/, namespace: "fiscal-fixture" }, () => ({ contents: "export async function schedulePaidChargeInvoice(){}", loader: "js" }))
   } }, { name: "fixture", setup(plugin) {
@@ -64,6 +64,18 @@ try {
   await api.saveRecord("quickMessages", template.id, { ...template, title: "Contato revisado" })
   assert.equal((await api.loadRecordOverlay()).find(row => row.resource === "quickMessages").data.title, "Contato revisado")
   await assert.rejects(api.saveRecord("quickMessages", "invalid", { title: "Sem texto" }, true))
+  for (const role of ["admin", "comercial"]) {
+    process.env.FOUNDATION_ROLE = role
+    const revised = { ...template, title: `Revisado por ${role}`, subject: "Assunto revisado", text: `Olá, {nome}!\n\nMensagem revisada por ${role}.` }
+    const confirmed = await api.saveMessageTemplate(revised)
+    assert.deepEqual(confirmed, revised)
+    assert.deepEqual((await api.loadRecordOverlay()).find(row => row.resource === "quickMessages" && row.id === template.id).data, revised)
+    assert.equal((await sql`select id from crm_records where resource='quickMessages' and id=${template.id}`).length, 1)
+  }
+  process.env.FOUNDATION_ROLE = "operacao"
+  await assert.rejects(api.saveMessageTemplate(template), /permissão/i)
+  process.env.FOUNDATION_ROLE = "admin"
+
   await api.saveRecord("integrations", "n8n", { config: { apiKey: "secret-fixture" } })
   assert.ok(!(await sql`select data from crm_records where resource='integrations'`)[0].data.config)
   assert.equal((await api.loadRecordOverlay()).find(row => row.resource === "integrations").data.config.apiKey, "secret-fixture")
