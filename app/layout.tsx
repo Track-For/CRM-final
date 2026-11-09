@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import type { ReactNode } from "react"
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
   description: "Nexo CRM: vendas, relacionamento, financeiro e operação conectados.",
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}>
       <body className="min-h-full">
