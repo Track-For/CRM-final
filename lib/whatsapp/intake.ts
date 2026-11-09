@@ -1,3 +1,4 @@
+import { evolutionConfig } from "@/lib/whatsapp/client"
 // Triagem persistente: a entrada da mensagem nunca espera pela IA.
 import { createHash, randomUUID } from "node:crypto"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
@@ -28,7 +29,7 @@ export async function queueWhatsappIntake(instance: string, messages: { phone: s
 }
 
 export async function seedWhatsappIntake() {
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const instance = (await evolutionConfig()).instance
   const rows = await db.execute(sql`select phone, max(sent_at) as "sentAt" from whatsapp_messages where instance=${instance} and direction='in' and phone ~ '^[0-9]{7,15}$' group by phone`)
   const messages = (rows as unknown as { phone: string; sentAt: string | Date }[]).map(row => ({ phone: row.phone, direction: "in", sentAt: new Date(row.sentAt) }))
   for (let offset = 0; offset < messages.length; offset += 200) await queueWhatsappIntake(instance, messages.slice(offset, offset + 200))
@@ -92,7 +93,7 @@ export async function applyIntakeClassification(id: string, analysis: IntakeAnal
 }
 
 export async function processWhatsappIntake(limit = 5) {
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const instance = (await evolutionConfig()).instance
   const candidates = await db.select().from(crmRecords).where(sql`${crmRecords.resource}='whatsappIntake' and ${crmRecords.deleted}=false and ${crmRecords.data}->>'instance'=${instance} and (${crmRecords.data}->>'state'='pending' or (${crmRecords.data}->>'state'='processing' and ${crmRecords.updatedAt}<now()-interval '3 minutes')) and ${crmRecords.updatedAt}<now()-interval '10 seconds'`).orderBy(crmRecords.updatedAt).limit(limit)
   for (const candidate of candidates) {
     const lease = randomUUID()

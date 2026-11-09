@@ -1,5 +1,6 @@
 "use client"
 
+import { useBusinessServices } from "@/lib/saas/use-services"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
@@ -21,6 +22,7 @@ import { dealDateSchema, dealDateToIso, todayDealDate } from "@/lib/data/deal-da
 import type { Deal, ProjectType, StageKey } from "@/types"
 
 const schema = z.object({
+  serviceId: z.string().optional(),
   leadId: v.required("Lead"),
   title: v.required("Título"),
   pipelineId: v.required("Pipeline"),
@@ -42,6 +44,7 @@ interface DealFormDialogProps {
 }
 
 export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogProps) {
+  const { generic, options: serviceOptions } = useBusinessServices()
   const router = useRouter()
   const add = useCrm((s) => s.add)
   const logActivity = useCrm((s) => s.logActivity)
@@ -52,11 +55,12 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
 
   const initial = (): Values => {
     const lead = leads.find((l) => l.id === defaults?.leadId)
-    const projectType = lead?.projectType ?? "site"
+    const projectType = lead?.projectType ?? (generic ? "outros" : "site")
     return {
       leadId: lead?.id ?? "",
       title: lead ? `Projeto — ${lead.company || lead.name}` : "",
-      pipelineId: pipelineFor(projectType),
+      serviceId: lead?.serviceId || "",
+      pipelineId: generic ? "pip_services" : pipelineFor(projectType),
       stage: "novo_lead",
       projectType,
       value: 0,
@@ -88,6 +92,7 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
       pipelineId: values.pipelineId,
       stage: values.stage as StageKey,
       projectType: values.projectType,
+      serviceId: values.serviceId || undefined,
       source: lead?.source ?? "manual",
       value: values.value,
       monthlyFee: values.monthlyFee,
@@ -125,7 +130,8 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
                   if (lead) {
                     setValue("title", `Projeto — ${lead.company || lead.name}`)
                     setValue("projectType", lead.projectType)
-                    setValue("pipelineId", pipelineFor(lead.projectType))
+                    setValue("pipelineId", generic ? "pip_services" : pipelineFor(lead.projectType))
+                    setValue("serviceId", lead.serviceId || "")
                     setValue("ownerId", lead.ownerId)
                   }
                 }}
@@ -155,9 +161,9 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
         <FormField label="Etapa" required>
           <Controller control={control} name="stage" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={stageOptions} />} />
         </FormField>
-        <FormField label="Tipo de projeto" required>
+        {generic ? <FormField label="Serviço de interesse"><Controller control={control} name="serviceId" render={({field})=><OptionSelect value={field.value} onChange={field.onChange} options={serviceOptions}/>} /></FormField> : <FormField label="Tipo de projeto" required>
           <Controller control={control} name="projectType" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PROJECT_TYPE_LABEL)} />} />
-        </FormField>
+        </FormField>}
         <FormField label="Responsável" required>
           <Controller control={control} name="ownerId" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={userOptions} />} />
         </FormField>

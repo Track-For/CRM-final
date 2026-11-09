@@ -1,5 +1,7 @@
 "use client"
 
+import { useBusinessServices, useServiceLabel } from "@/lib/saas/use-services"
+
 import { SalesViewNav } from "@/components/sales/sales-view-nav"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -26,6 +28,8 @@ import { cn } from "@/lib/utils"
 import type { Deal } from "@/types"
 
 export function DealsList() {
+  const serviceLabel = useServiceLabel()
+  const { generic, options: serviceOptions } = useBusinessServices()
   const router = useRouter()
   const deals = useDeals()
   const leads = useById("leads")
@@ -68,12 +72,12 @@ export function DealsList() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return deals.filter((d) => {
-      if (!matches(stage, d.stage) || !matches(pipelineId, d.pipelineId) || !matches(owner, d.ownerId) || !matches(type, d.projectType) || !matches(source, d.source)) return false
+      if (!matches(stage, d.stage) || !matches(pipelineId, d.pipelineId) || !matches(owner, d.ownerId) || !matches(type, generic ? d.serviceId || "" : d.projectType) || !matches(source, d.source)) return false
       if (!q) return true
       const lead = leads.get(d.leadId)
       return `${d.title} ${lead?.name ?? ""} ${lead?.company ?? ""}`.toLowerCase().includes(q)
     })
-  }, [deals, leads, search, stage, pipelineId, owner, type, source])
+  }, [generic, deals, leads, search, stage, pipelineId, owner, type, source])
 
   const columns = useMemo<ColumnDef<Deal, unknown>[]>(
     () => [
@@ -87,7 +91,7 @@ export function DealsList() {
             <div className="min-w-0 max-w-72">
               <p className="truncate font-medium">{row.original.title}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {lead?.name} · {PROJECT_TYPE_LABEL[row.original.projectType]}
+                {lead?.name} · {serviceLabel(row.original)}
               </p>
             </div>
           )
@@ -120,7 +124,7 @@ export function DealsList() {
         },
       },
     ],
-    [leads, pipelines],
+    [leads, pipelines, serviceLabel],
   )
 
   return (
@@ -153,7 +157,7 @@ export function DealsList() {
             { key: "stage", label: "Etapa", value: stage, onChange: setStage, options: toOptions(STAGE_LABEL) },
             { key: "pipeline", label: "Pipeline", value: pipelineId, onChange: setPipelineId, options: pipelines.map((p) => ({ value: p.id, label: p.name })) },
             { key: "owner", label: "Responsável", value: owner, onChange: setOwner, options: userOptions },
-            { key: "type", label: "Tipo", value: type, onChange: setType, options: toOptions(PROJECT_TYPE_LABEL) },
+            { key: "type", label: generic ? "Serviço" : "Tipo", value: type, onChange: setType, options: generic ? serviceOptions.filter(o=>o.value) : toOptions(PROJECT_TYPE_LABEL) },
             { key: "source", label: "Origem", value: source, onChange: setSource, options: toOptions(SOURCE_LABEL) },
           ]}
           onClear={() => {

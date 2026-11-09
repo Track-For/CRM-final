@@ -1,5 +1,6 @@
 "use client"
 
+import { useBusinessServices } from "@/lib/saas/use-services"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch, type FieldPath } from "react-hook-form"
@@ -62,6 +63,7 @@ interface QuoteWizardProps {
 }
 
 export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
+  const { generic } = useBusinessServices()
   const router = useRouter()
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
@@ -104,7 +106,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
     const clientId = initial?.clientId ?? deal?.clientId
     const lead = leads.find((l) => l.id === leadId)
     const suggested = lead
-      ? catalog.find((c) => c.active && c.projectType === lead.projectType)
+      ? catalog.find((c) => c.active && c.id === lead.serviceId) || (generic ? undefined : catalog.find((c) => c.active && c.projectType === lead.projectType))
       : undefined
     return {
       party: encodeParty({ leadId, clientId }),
@@ -128,7 +130,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
   const values = useWatch({ control }) as Values
 
   const item = catalog.find((c) => c.id === values.catalogItemId)
-  const plan = plans.find((p) => p.id === values.hostingPlanId)
+  const plan = generic && item?.monthlyFee ? undefined : plans.find((p) => p.id === values.hostingPlanId)
   const calc = calculateQuote(
     {
       catalogItem: item,
@@ -155,7 +157,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
   const partyLead = leads.find((l) => l.id === (party.leadId ?? partyClient?.leadId))
   const partyName = partyClient?.name ?? (partyLead ? `${partyLead.name}${partyLead.company ? ` — ${partyLead.company}` : ""}` : undefined)
   const partyPhone = partyClient?.whatsapp ?? partyLead?.whatsapp
-  const isRecurring = item?.projectType === "anuncio"
+  const isRecurring = generic ? Boolean(item?.monthlyFee) : item?.projectType === "anuncio"
 
   const goTo = async (target: number) => {
     if (target <= step) {
@@ -188,7 +190,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
       languages: data.languages,
       addonIds: data.addonIds,
       express: data.express,
-      hostingPlanId: data.hostingPlanId || undefined,
+      hostingPlanId: generic && item?.monthlyFee ? undefined : data.hostingPlanId || undefined,
       payment: data.payment,
       installments: calc.installments,
       manualDiscount: data.manualDiscount,
@@ -256,7 +258,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
 
   const generatePdf = handleSubmit(async () => {
     try {
-      const result = await generateQuotePdfAction({ number: quote?.number || "Rascunho", company: useCrm.getState().company.name, customer: partyName || "Cliente", project: item?.name || "Projeto", pages: values.pages || 0, languages: values.languages || 1, addons: addons.filter(addon => values.addonIds?.includes(addon.id)).map(addon => addon.name), total: calc.total, monthlyFee: calc.monthlyFee, deadline: calc.deadlineDays, payment: paymentDescription(values.payment || "entrada", calc), validUntil: quote ? formatDate(quote.validUntil) : `${rules.quoteValidityDays} dias`, notes: values.notes || "" })
+      const result = await generateQuotePdfAction({ number: quote?.number || "Rascunho", company: useCrm.getState().company.name, generic, customer: partyName || "Cliente", project: item?.name || "Projeto", pages: values.pages || 0, languages: values.languages || 1, addons: addons.filter(addon => values.addonIds?.includes(addon.id)).map(addon => addon.name), total: calc.total, monthlyFee: calc.monthlyFee, deadline: calc.deadlineDays, payment: paymentDescription(values.payment || "entrada", calc), validUntil: quote ? formatDate(quote.validUntil) : `${rules.quoteValidityDays} dias`, notes: values.notes || "" })
       const bytes = Uint8Array.from(atob(result.base64), char => char.charCodeAt(0))
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }))
       const link = document.createElement("a"); link.href = url; link.download = `proposta-${quote?.number || "rascunho"}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -431,11 +433,11 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
                       <Controller control={control} name="pages" render={({ field }) => <Counter value={field.value} onChange={field.onChange} min={1} max={100} />} />
                     </FormField>
                   ) : (
-                    <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Escopo de telas definido no diagnóstico; ajuste com os adicionais abaixo.</div>
+                    <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Escopo definido na proposta; ajuste com os adicionais abaixo.</div>
                   )}
-                  <FormField label="Idiomas" error={errors.languages?.message} hint={`Cada idioma extra: +${rules.extraLanguagePercent}%`}>
+                  {!generic && <FormField label="Idiomas" error={errors.languages?.message} hint={`Cada idioma extra: +${rules.extraLanguagePercent}%`}>
                     <Controller control={control} name="languages" render={({ field }) => <Counter value={field.value} onChange={field.onChange} min={1} max={5} />} />
-                  </FormField>
+                  </FormField>}
                 </div>
                 <div>
                   <p className="mb-2 text-xs text-muted-foreground">Adicionais</p>
@@ -486,9 +488,9 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
             {step === 4 &&
               (isRecurring ? (
                 <div className="rounded-lg border bg-surface p-4 text-sm">
-                  <p className="font-medium">Gestão de tráfego tem mensalidade própria</p>
+                  <p className="font-medium">Este serviço tem mensalidade própria</p>
                   <p className="num mt-1 text-primary">{formatMoney(item?.monthlyFee ?? 0)}/mês</p>
-                  <p className="mt-1 text-xs text-muted-foreground">O primeiro mês sai por {formatMoney(item?.firstMonthPrice ?? 0)}; planos de hospedagem não se aplicam.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">O valor recorrente é o cadastrado neste serviço.</p>
                 </div>
               ) : (
                 <Controller
@@ -623,13 +625,13 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
 
 const isRecurringType = (t: string) => t === "anuncio"
 
-const STEP_TITLES = ["Cliente ou lead", "Tipo de projeto", "Escopo", "Prazo", "Mensalidade", "Pagamento", "Revisão"]
+const STEP_TITLES = ["Cliente ou lead", "Serviço", "Escopo", "Prazo", "Mensalidade", "Pagamento", "Revisão"]
 const STEP_HINTS = [
   "Para quem é esta proposta",
   "Escolha um item do catálogo",
-  "Páginas, idiomas e adicionais",
+  "Escopo e adicionais",
   "Normal ou expresso",
-  "Hospedagem e manutenção",
+  "Serviços recorrentes",
   "Condição de pagamento e descontos",
   "Confira tudo antes de enviar",
 ]

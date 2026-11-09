@@ -1,5 +1,5 @@
 // Somente servidor: nunca importe este módulo em Client Components.
-import postgres from "postgres";
+import { scopedSql } from "@/lib/saas/scoped-client";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
@@ -20,7 +20,7 @@ function getDb(): Database {
   }
   // Transações interativas são necessárias para idempotência e automações,
   // inclusive em bancos hospedados (o adaptador HTTP não as suporta).
-  instance = drizzlePostgres(postgres(url, { max: 5, prepare: false }), { schema });
+  instance = drizzlePostgres(scopedSql(), { schema });
   return instance;
 }
 

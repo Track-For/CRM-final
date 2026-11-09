@@ -1,10 +1,11 @@
+import { connectionEnv } from "@/lib/saas/connections"
 import { timingSafeEqual } from "node:crypto"
 import { object, messageRows } from "@/lib/whatsapp/normalize"
 import { storeMessages, updateDelivery, learnContactMappings } from "@/lib/whatsapp/storage"
 
 export const runtime = "nodejs"
 export async function POST(request: Request) {
-  const token = process.env.EVOLUTION_WEBHOOK_TOKEN
+  const token = (await connectionEnv()).EVOLUTION_WEBHOOK_TOKEN
   const received = request.headers.get("x-webhook-token") || ""
   if (!token || Buffer.byteLength(token) !== Buffer.byteLength(received) || !timingSafeEqual(Buffer.from(token), Buffer.from(received))) {
     return Response.json({ error: "Não autorizado" }, { status: 401 })
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   if (Buffer.byteLength(body) > 5_000_000) return Response.json({ error: "Evento muito grande" }, { status: 413 })
   let payload: Record<string, unknown>
   try { payload = object(JSON.parse(body)) } catch { return Response.json({ error: "JSON inválido" }, { status: 400 }) }
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const instance = (await connectionEnv()).EVOLUTION_INSTANCE || "crm-principal"
   if (payload.instance !== instance) return Response.json({ error: "Instância inválida" }, { status: 400 })
   const event = String(payload.event || "").toLowerCase().replaceAll("_", ".")
   const list = messageRows(payload.data)

@@ -36,7 +36,7 @@ export async function readApiBody(request: Request) {
 }
 export async function apiPipelines() {
   const rows = await db.select().from(crmRecords).where(sql`${crmRecords.resource}='pipelines'`)
-  return defaults.filter(p => !rows.some(r => r.id === p.id)).concat(rows.filter(r => !r.deleted).map(r => ({ ...r.data, id: r.id }) as unknown as typeof defaults[number]))
+  return defaults.filter(p => !rows.some(r => r.id === "pip_services" && !r.deleted) && !rows.some(r => r.id === p.id)).concat(rows.filter(r => !r.deleted).map(r => ({ ...r.data, id: r.id }) as unknown as typeof defaults[number]))
 }
 async function references(data: Record<string, unknown>) {
   for (const field of ["ownerId", "assigneeId"]) if (data[field]) {

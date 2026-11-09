@@ -1,5 +1,6 @@
 "use client"
 
+import { useBusinessServices } from "@/lib/saas/use-services"
 import { useEffect } from "react"
 import Link from "next/link"
 import { Controller, useForm } from "react-hook-form"
@@ -24,6 +25,7 @@ import { dealDateInput, dealDateSchema, dealDateToIso } from "@/lib/data/deal-da
 import type { Deal, DealHistoryEntry, StageKey } from "@/types"
 
 const schema = z.object({
+  serviceId: z.string().optional(),
   title: v.required("Título"),
   clientId: z.string(),
   stage: v.required("Etapa"),
@@ -44,6 +46,7 @@ interface DealEditDialogProps {
 }
 
 const toValues = (deal: Deal): Values => ({
+  serviceId: deal.serviceId || "",
   title: deal.title,
   clientId: deal.clientId ?? "",
   stage: deal.stage,
@@ -56,6 +59,7 @@ const toValues = (deal: Deal): Values => ({
 })
 
 export function DealEditDialog({ deal, onOpenChange, onStageChange }: DealEditDialogProps) {
+  const { generic, options: serviceOptions } = useBusinessServices()
   const update = useCrm((s) => s.update)
   const currentUserId = useCrm((s) => s.currentUserId)
   const pipelines = usePipelines()
@@ -86,6 +90,7 @@ export function DealEditDialog({ deal, onOpenChange, onStageChange }: DealEditDi
       title: values.title,
       clientId: values.clientId || undefined,
       projectType: values.projectType,
+      serviceId: values.serviceId || undefined,
       value: values.value,
       monthlyFee: values.monthlyFee,
       startDate: values.startDate ? dealDateToIso(values.startDate) : "",
@@ -130,9 +135,9 @@ export function DealEditDialog({ deal, onOpenChange, onStageChange }: DealEditDi
         <FormField label="Etapa" required>
           <Controller control={control} name="stage" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={stageOptions} />} />
         </FormField>
-        <FormField label="Tipo de projeto" required>
+        {generic ? <FormField label="Serviço de interesse"><Controller control={control} name="serviceId" render={({field})=><OptionSelect value={field.value} onChange={field.onChange} options={serviceOptions}/>} /></FormField> : <FormField label="Tipo de projeto" required>
           <Controller control={control} name="projectType" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PROJECT_TYPE_LABEL)} />} />
-        </FormField>
+        </FormField>}
         <FormField label="Valor do projeto" required error={errors.value?.message}>
           <Controller control={control} name="value" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} aria-invalid={!!errors.value} />} />
         </FormField>

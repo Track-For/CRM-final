@@ -1,5 +1,6 @@
 "use server"
 
+import { currentWorkspace } from "@/lib/saas/context"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/session"
@@ -17,14 +18,15 @@ async function admin() {
 export async function getAiSettingsAction() {
   await admin()
   const saved = await readAiSettings()
-  return { model: saved?.model || process.env.OPENAI_MODEL || "", enabled: saved?.enabled ?? true, hasKey: Boolean(saved?.apiKeyEncrypted || process.env.OPENAI_API_KEY), keySource: saved?.apiKeyEncrypted ? "crm" : process.env.OPENAI_API_KEY ? "server" : "none", configured: await aiConfigured() }
+  const tenant = await currentWorkspace()
+  return { model: saved?.model || (tenant ? "" : process.env.OPENAI_MODEL) || "", enabled: saved?.enabled ?? true, hasKey: Boolean(saved?.apiKeyEncrypted || (!tenant && process.env.OPENAI_API_KEY)), keySource: saved?.apiKeyEncrypted ? "crm" : !tenant && process.env.OPENAI_API_KEY ? "server" : "none", configured: await aiConfigured() }
 }
 export async function saveAiSettingsAction(input: { model: string; apiKey: string; enabled: boolean }) {
   const user = await admin()
   const value = z.object({ model: z.string().trim().min(1, "Informe o modelo.").max(160).regex(/^[a-zA-Z0-9._:/-]+$/, "Nome de modelo inválido."), apiKey: z.string().trim().max(1000).refine(key => !key || /^sk-[a-zA-Z0-9_-]{16,}$/.test(key), "Informe uma chave de API válida."), enabled: z.boolean() }).strict().parse(input)
   const previous = await readAiSettings()
   const encrypted = value.apiKey ? encryptSecret(value.apiKey) : previous?.apiKeyEncrypted
-  if (value.enabled && !encrypted && !process.env.OPENAI_API_KEY) throw new Error("Informe a chave da OpenAI para ativar a análise.")
+  if (value.enabled && !encrypted && (await currentWorkspace() || !process.env.OPENAI_API_KEY)) throw new Error("Informe a chave da OpenAI para ativar a análise.")
   const data = { model: value.model, enabled: value.enabled, ...(encrypted && { apiKeyEncrypted: encrypted }) }
   await db.insert(crmRecords).values({ resource: "aiProviderSettings", id: "openai", data, created: true, updatedBy: user.id }).onConflictDoUpdate({ target: [crmRecords.resource, crmRecords.id], set: { data, deleted: false, updatedAt: new Date(), updatedBy: user.id } })
   return getAiSettingsAction()

@@ -60,6 +60,7 @@ export interface Utm {
 }
 
 export interface Lead {
+  serviceId?: ID
   intakeSummary?: string
   suggestedNextStep?: string
   id: ID
@@ -126,6 +127,7 @@ export interface DealHistoryEntry {
 }
 
 export interface Deal {
+  serviceId?: ID
   paymentPlan?: { method: PaymentMethod; paymentChannel?: "pix" | "asaas"; pixKey: string; milestones: { id: string; label: string; percent: number; amount: number; dueDate?: string; installments?: number; cardFeeMode?: "none" | "asaas"; asaasFeePercent?: number }[] }
   id: ID
   title: string
@@ -685,6 +687,7 @@ export interface IntegrationLog {
 /* ------------------------------------------------------------------ */
 
 export interface Company {
+  businessProfile?: { segment: string; description: string; brandName: string; brandColor: string; logo: string; configuredAt: string }
   pixKey?: string
   name: string
   legalName: string

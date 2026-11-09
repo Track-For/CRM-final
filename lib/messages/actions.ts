@@ -1,5 +1,6 @@
 "use server"
 
+import { connectionEnv } from "@/lib/saas/connections"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/session"
@@ -15,7 +16,8 @@ async function authorize() {
 }
 export async function getLeadMessagingAvailability() {
   await authorize()
-  return { email: Boolean(process.env.SMTP_HOST && process.env.EMAIL_FROM), whatsapp: Boolean(process.env.EVOLUTION_URL && process.env.EVOLUTION_API_KEY) }
+  const env = await connectionEnv()
+  return { email: Boolean(env.SMTP_HOST && env.EMAIL_FROM), whatsapp: Boolean(env.EVOLUTION_URL && env.EVOLUTION_API_KEY) }
 }
 const schema = messageDeliverySchema.extend({ leadId: z.string().min(1).max(120) })
 export async function sendLeadMessage(input: z.input<typeof schema>) {

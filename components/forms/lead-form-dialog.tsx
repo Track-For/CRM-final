@@ -1,5 +1,6 @@
 "use client"
 
+import { useBusinessServices } from "@/lib/saas/use-services"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
@@ -19,6 +20,7 @@ import { v } from "@/lib/validation"
 import type { Lead } from "@/types"
 
 const schema = z.object({
+  serviceId: z.string().optional(),
   name: v.required("Nome"),
   whatsapp: v.phone(),
   email: v.emailOptional(),
@@ -42,6 +44,7 @@ interface LeadFormDialogProps {
 }
 
 export function LeadFormDialog({ open, onOpenChange, lead, onSaved, defaults: initialContact }: LeadFormDialogProps) {
+  const { generic, options: serviceOptions } = useBusinessServices()
   const router = useRouter()
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
@@ -54,7 +57,8 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved, defaults: in
     whatsapp: lead?.whatsapp ?? initialContact?.whatsapp ?? "",
     email: lead?.email ?? "",
     company: lead?.company ?? "",
-    projectType: lead?.projectType ?? "site",
+    serviceId: lead?.serviceId || "",
+    projectType: lead?.projectType ?? (generic ? "outros" : "site"),
     revenue: lead?.revenue ?? "10k_50k",
     source: lead?.source ?? "manual",
     temperature: lead?.temperature ?? "morno",
@@ -112,9 +116,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved, defaults: in
         </FormField>
       </FormGrid>
       <details className="rounded-xl border bg-surface p-4" open={Boolean(lead || errors.ownerId || errors.projectType || errors.revenue)}><summary className="flex items-center justify-between text-sm font-semibold text-primary">Mais detalhes e qualificação<span aria-hidden>+</span></summary><p className="mt-2 text-xs text-muted-foreground">Origem, interesse e responsável já vêm preenchidos. Ajuste quando necessário.</p><FormGrid className="mt-4">
-        <FormField label="Tipo de projeto" required error={errors.projectType?.message}>
+        {generic ? <FormField label="Serviço de interesse"><Controller control={control} name="serviceId" render={({field})=><OptionSelect value={field.value} onChange={field.onChange} options={serviceOptions}/>} /></FormField> : <FormField label="Tipo de projeto" required error={errors.projectType?.message}>
           <Controller control={control} name="projectType" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PROJECT_TYPE_LABEL)} />} />
-        </FormField>
+        </FormField>}
         <FormField label="Faturamento" required error={errors.revenue?.message}>
           <Controller control={control} name="revenue" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(REVENUE_LABEL)} />} />
         </FormField>

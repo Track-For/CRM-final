@@ -68,7 +68,7 @@ export function Sidebar() {
   return (
     <aside className={cn("crm-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex", collapsed ? "w-[76px]" : "w-[232px]")}>
       <div className={cn("flex h-[72px] items-center border-b border-sidebar-border px-5", collapsed ? "justify-center" : "justify-between")}>
-        <Link href="/dashboard" aria-label="Nexo CRM — início">
+        <Link href="/dashboard" aria-label="CRM — início">
           <Logo collapsed={collapsed} />
         </Link>
       </div>

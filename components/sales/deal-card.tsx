@@ -1,8 +1,10 @@
 "use client"
 
+import { useServiceLabel } from "@/lib/saas/use-services"
+
 import { Building2, Clock } from "lucide-react"
 import { UserAvatar } from "@/components/shared/user-avatar"
-import { PROJECT_TYPE_LABEL, STALE_DEAL_DAYS } from "@/lib/constants"
+import { STALE_DEAL_DAYS } from "@/lib/constants"
 import { dealIdleDays, isOpenDeal } from "@/lib/data/selectors"
 import { formatMoney } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -18,6 +20,7 @@ interface DealCardProps {
 }
 
 export function DealCard({ deal, lead, clientName, overlay, onOpen }: DealCardProps) {
+  const serviceLabel = useServiceLabel()
   const idle = dealIdleDays(deal)
   const stale = isOpenDeal(deal) && idle > STALE_DEAL_DAYS
   return (
@@ -36,7 +39,7 @@ export function DealCard({ deal, lead, clientName, overlay, onOpen }: DealCardPr
         <p className="truncate text-xs text-muted-foreground">{lead?.company || deal.title}</p>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex rounded-md border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">{PROJECT_TYPE_LABEL[deal.projectType]}</span>
+        <span className="inline-flex rounded-md border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">{serviceLabel(deal)}</span>
         {clientName && (
           <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border border-primary/35 bg-card px-1.5 py-0.5 text-[11px] text-primary" title="Cliente vinculado">
             <Building2 className="size-3 shrink-0" />

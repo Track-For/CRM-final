@@ -1,3 +1,4 @@
+import { currentWorkspace } from "@/lib/saas/context"
 import { and, eq } from "drizzle-orm"
 import { db, googleCalendarConnections, googleCalendarSettings } from "@/lib/db"
 import { decryptSecret, encryptSecret } from "@/lib/fiscal/crypto"
@@ -19,7 +20,8 @@ export async function readGoogleConnection(userId: string) {
 }
 const refreshing = new Map<string, Promise<string>>()
 export async function googleAccessToken(userId: string): Promise<string> {
-  if (refreshing.has(userId)) return refreshing.get(userId)!
+  const cacheKey = `${(await currentWorkspace())?.id || "legacy"}:${userId}`
+  if (refreshing.has(cacheKey)) return refreshing.get(cacheKey)!
   // Reserve antes da primeira leitura: outra chamada pode ter lido um token
   // expirado enquanto a renovação anterior terminava e removia a promessa.
   const job = (async () => {
@@ -38,8 +40,8 @@ export async function googleAccessToken(userId: string): Promise<string> {
       throw error
     }
   })()
-  refreshing.set(userId, job)
-  try { return await job } finally { refreshing.delete(userId) }
+  refreshing.set(cacheKey, job)
+  try { return await job } finally { refreshing.delete(cacheKey) }
 }
 export async function listGoogleCalendars(token: string): Promise<GoogleCalendar[]> {
   const calendars: GoogleCalendar[] = []

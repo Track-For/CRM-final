@@ -17,6 +17,8 @@ import urllib.error, urllib.parse, urllib.request, uuid, webbrowser
 import sqlite3
 import copy
 import hmac
+import tenant_proxy
+import signal
 import business
 import growth
 import receita
@@ -734,6 +736,8 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Type", tipo)
         self.send_header("Content-Length", str(len(dados)))
         self.send_header("Cache-Control", "no-store")
+        if getattr(self, "workspace_id", None):
+            self.send_header("X-Workspace-ID", self.workspace_id)
         self.end_headers()
         self.wfile.write(dados)
 
@@ -1004,6 +1008,8 @@ def proteger(handler):
                     return self._envia(403, {"erro": "Origem não permitida."})
                 if self.command != "DELETE" and not self.headers.get("Content-Type", "").startswith("application/json"):
                     return self._envia(415, {"erro": "Use application/json."})
+            if tenant_proxy.dispatch(self, DADOS):
+                return
             return handler(self)
         except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._envia(400, {"erro": "Dados inválidos: " + str(e)[:200]})
@@ -1016,6 +1022,7 @@ for metodo in ("GET", "POST", "PATCH", "PUT", "DELETE"):
     setattr(H, "do_" + metodo, proteger(getattr(H, "do_" + metodo)))
 
 def main():
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
     carregar()
     threading.Thread(target=trabalhador, daemon=True).start()
@@ -1035,6 +1042,9 @@ def main():
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        tenant_proxy.close_all()
+        srv.server_close()
 
 
 if __name__ == "__main__":

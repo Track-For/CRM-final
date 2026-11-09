@@ -15,6 +15,7 @@ import { deleteRecord, loadRecordOverlay, saveRecord, type RecordOverlay } from 
 /** Carga inicial com os registros criados no banco e a agenda conectada. */
 export async function getDatabase(): Promise<MockDatabase> {
   const [data, overlay, google] = await Promise.all([Promise.resolve(structuredClone(initialDatabase)), loadRecordOverlay(), getGoogleCalendarState().catch(() => null)])
+  if (overlay.some(row => row.resource === "settings" && row.id === "company" && (row.data.company as { businessProfile?: unknown } | undefined)?.businessProfile)) data.pipelines = []
   const result = applyOverlay(data, overlay)
   const identity = await getCrmIdentity()
   result.users = identity.users

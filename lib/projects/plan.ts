@@ -49,7 +49,7 @@ export function defaultProjectStages(project: Project, days?: number, assigneeId
   return phases.map((phase, index) => {
     const stageStart = start && days ? addDays(start, offset) : ""
     offset += phase.days
-    return { id: `${project.id}_stage_${index + 1}`, name: phase.label, description: "", status: project.status === "entregue" ? "concluida" : index === 0 && project.status === "em_andamento" ? "em_andamento" : "pendente", assigneeId, startDate: stageStart, dueDate: start && days ? addDays(start, offset) : "" }
+    return { id: `${project.id}_stage_${index + 1}`, name: project.projectType === "outros" && phases.length === 4 ? ["Planejamento", "Execução do serviço", "Revisão", "Entrega"][index] : phase.label, description: "", status: project.status === "entregue" ? "concluida" : index === 0 && project.status === "em_andamento" ? "em_andamento" : "pendente", assigneeId, startDate: stageStart, dueDate: start && days ? addDays(start, offset) : "" }
   })
 }
 /** Materializa somente o projeto de uma venda ganha; não altera um plano já criado. */

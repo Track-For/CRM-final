@@ -1,5 +1,6 @@
 "use server"
 
+import { workspaceOrigin } from "@/lib/saas/origin"
 import { randomBytes, createHash } from "node:crypto"
 import { headers } from "next/headers"
 import { sql, eq } from "drizzle-orm"
@@ -17,7 +18,7 @@ export async function requestPasswordRecovery(_previous: ActionState, form: Form
   if (!email.success) return { error: "Informe um e-mail válido." }
   let origin: URL
   try {
-    origin = new URL(process.env.CRM_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === "development" ? "http://localhost:3000" : ""))
+    origin = new URL(await workspaceOrigin() || process.env.CRM_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === "development" ? "http://localhost:3000" : ""))
     if (origin.protocol !== "https:" && !(process.env.NODE_ENV === "development" && origin.protocol === "http:")) throw Error()
   } catch { return { error: "A recuperação de acesso ainda não está configurada. Fale com o administrador." } }
   if (!process.env.SMTP_HOST || !process.env.EMAIL_FROM) return { error: "O envio de e-mail ainda não está configurado. Fale com o administrador." }

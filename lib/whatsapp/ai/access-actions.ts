@@ -1,4 +1,6 @@
 "use server"
+
+import { evolutionConfig } from "@/lib/whatsapp/client"
 import { randomBytes, randomUUID } from "node:crypto"
 import { sql } from "drizzle-orm"
 import { db, crmRecords } from "@/lib/db"
@@ -15,7 +17,7 @@ export async function createHermesAccessAction(input: HermesPermissions) {
   const permissions = hermesPermissionsSchema.parse(input)
   const token = `sk_live_${randomBytes(32).toString("base64url")}`
   const id = randomUUID()
-  const data = { id, name: "Hermes · atendimento WhatsApp", prefix: token.slice(0, 12), scopes: [HERMES_SCOPE], tokenHash: sha256Hex(token), whatsappInstance: process.env.EVOLUTION_INSTANCE || "crm-principal", contextPermissions: permissions, createdAt: new Date().toISOString() }
+  const data = { id, name: "Hermes · atendimento WhatsApp", prefix: token.slice(0, 12), scopes: [HERMES_SCOPE], tokenHash: sha256Hex(token), whatsappInstance: (await evolutionConfig()).instance, contextPermissions: permissions, createdAt: new Date().toISOString() }
   await db.insert(crmRecords).values({ resource: "apiKeys", id, data, created: true, updatedBy: user.id })
   return { id, token }
 }

@@ -78,6 +78,20 @@
       "when": 1794073309798,
       "tag": "0010_normal_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794250800000,
+      "tag": "0011_saas_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794250801000,
+      "tag": "0012_saas_registration_limits",
+      "breakpoints": true
     }
   ]
 }

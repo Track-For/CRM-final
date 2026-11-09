@@ -1,5 +1,7 @@
 "use client"
 
+import { useServiceLabel } from "@/lib/saas/use-services"
+
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
@@ -33,7 +35,6 @@ import {
   EVENT_TYPE_LABEL,
   LEAD_STATUS_LABEL,
   LEAD_STATUS_TONE,
-  PROJECT_TYPE_LABEL,
   QUOTE_STATUS_LABEL,
   QUOTE_STATUS_TONE,
   REVENUE_LABEL,
@@ -60,6 +61,7 @@ function Count({ n }: { n: number }) {
 }
 
 export function LeadDetail({ id }: { id: string }) {
+  const serviceLabel = useServiceLabel()
   const lead = useLead(id)
   const deals = useDeals()
   const quotes = useQuotes()
@@ -167,7 +169,7 @@ export function LeadDetail({ id }: { id: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <EnumBadge value={lead.status} labels={LEAD_STATUS_LABEL} tones={LEAD_STATUS_TONE} />
           <EnumBadge value={lead.temperature} labels={TEMPERATURE_LABEL} tones={TEMPERATURE_TONE} />
-          <StatusBadge dot={false}>{PROJECT_TYPE_LABEL[lead.projectType]}</StatusBadge>
+          <StatusBadge dot={false}>{serviceLabel(lead)}</StatusBadge>
           <StatusBadge dot={false}>{SOURCE_LABEL[lead.source]}</StatusBadge>
           <span className="text-xs text-muted-foreground">Entrou {formatRelative(lead.createdAt)}</span>
         </div>
@@ -211,7 +213,7 @@ export function LeadDetail({ id }: { id: string }) {
               </InfoRow>
               <InfoRow label="E-mail">{lead.email || "—"}</InfoRow>
               <InfoRow label="Empresa">{lead.company || "—"}</InfoRow>
-              <InfoRow label="Tipo de projeto">{PROJECT_TYPE_LABEL[lead.projectType]}</InfoRow>
+              <InfoRow label="Tipo de projeto">{serviceLabel(lead)}</InfoRow>
               <InfoRow label="Faturamento">{REVENUE_LABEL[lead.revenue]}</InfoRow>
               <InfoRow label="Cadastro" mono>
                 {formatDate(lead.createdAt)}

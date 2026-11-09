@@ -19,7 +19,7 @@ function stop(signal = "SIGTERM") {
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => stop(signal))
 
 function start(name, scriptArgs) {
-  const child = spawn(process.execPath, scriptArgs, { stdio: "inherit", env })
+  const child = spawn(process.execPath, scriptArgs, { stdio: "inherit", env: name === "Next.js" ? env : { ...env, SAAS_WORKSPACE: "legacy" } })
   children.push(child)
   return new Promise(resolve => {
     child.on("error", () => { console.error(`[crm] Não foi possível iniciar ${name}.`); process.exitCode = 1; stop(); resolve() })

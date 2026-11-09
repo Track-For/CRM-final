@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto"
+import { currentWorkspace } from "@/lib/saas/context"
 import { cache } from "react"
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
@@ -52,7 +53,7 @@ export async function getCurrentSessionId(): Promise<string | null> {
 
 /** Usuário logado (cacheado por requisição). Apaga a sessão se estiver expirada. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
-  if (isLoginPaused()) {
+  if (isLoginPaused() && !await currentWorkspace()) {
     const user: CurrentUser = { id: DEVELOPMENT_USER_ID, name: "Administrador local", email: "desenvolvimento@localhost.invalid", role: "admin", totpEnabled: false }
     // Persiste a identidade para manter válidas as referências de autoria do CRM.
     await db.insert(users).values({ id: user.id, name: user.name, email: user.email, role: user.role, passwordHash: "login-local-desativado" }).onConflictDoNothing()

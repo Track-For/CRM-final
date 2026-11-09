@@ -1,5 +1,7 @@
 "use server"
 
+import { workspaceOrigin } from "@/lib/saas/origin"
+
 import { randomBytes } from "node:crypto"
 import { revalidatePath } from "next/cache"
 import { and, eq, isNull, or, sql } from "drizzle-orm"
@@ -99,7 +101,9 @@ function readApiKey(settings: BillingSettings): string | null {
   }
 }
 
-function webhookUrl(): string {
+async function webhookUrl(): Promise<string> {
+  const tenantOrigin = await workspaceOrigin()
+  if (tenantOrigin) return `${tenantOrigin}/api/webhooks/asaas`
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "")
   if (configured) return `${configured}/api/webhooks/asaas`
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
@@ -117,7 +121,7 @@ function newWebhookToken(): string {
 export async function getBillingSettings(): Promise<BillingSettingsView> {
   const user = await requireBillingUser()
   if (!user) {
-    return { connected: false, environment: "sandbox", apiKeyLast4: null, finePercent: 0, interestPercent: 0, webhookUrl: webhookUrl(), webhookToken: null, updatedAt: null }
+    return { connected: false, environment: "sandbox", apiKeyLast4: null, finePercent: 0, interestPercent: 0, webhookUrl: await webhookUrl(), webhookToken: null, updatedAt: null }
   }
   const settings = await loadBillingSettings()
   let apiKeyLast4: string | null = null
@@ -134,7 +138,7 @@ export async function getBillingSettings(): Promise<BillingSettingsView> {
     apiKeyLast4,
     finePercent: Number(settings.finePercent),
     interestPercent: Number(settings.interestPercent),
-    webhookUrl: webhookUrl(),
+    webhookUrl: await webhookUrl(),
     webhookToken,
     updatedAt: settings.updatedAt?.toISOString() ?? null,
   }

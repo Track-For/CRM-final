@@ -1,5 +1,7 @@
 "use server"
 
+import { evolutionConfig } from "@/lib/whatsapp/client"
+
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db, crmRecords } from "@/lib/db"
@@ -15,7 +17,7 @@ async function authorize() {
 }
 const phoneSchema = z.string().regex(/^[+\d\s().-]+$/).transform(normalizePhone).pipe(z.string().regex(/^\d{7,15}$/))
 async function contact(input: string) {
-  const phone = phoneSchema.parse(input), instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const phone = phoneSchema.parse(input), instance = (await evolutionConfig()).instance
   const { rows } = await readIntakeContext(instance, phone)
   if (!rows.some(r => r.direction === "in")) throw Error("Aguarde uma mensagem recebida e identifique o telefone antes de classificar.")
   const id = intakeId(instance, phone)

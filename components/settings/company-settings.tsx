@@ -1,5 +1,7 @@
 "use client"
 
+import { WorkspaceConnections } from "@/components/saas/workspace-connections"
+import Link from "next/link"
 import { useState } from "react"
 import { saveRecord } from "@/lib/data/records-actions"
 import { Controller, useForm } from "react-hook-form"
@@ -42,13 +44,15 @@ export function CompanySettings() {
   const e = formState.errors
 
   const onSubmit = handleSubmit((values) => {
-    setSingleton("company", { ...values, pixKey: company.pixKey, website: values.website ?? "", address: { ...values.address, state: values.address.state.toUpperCase() } })
+    setSingleton("company", { ...company, ...values, pixKey: company.pixKey, website: values.website ?? "", address: { ...values.address, state: values.address.state.toUpperCase() } })
     reset(values)
     toast.success("Dados da empresa salvos", { description: "Usados em propostas, cobranças e notas fiscais" })
   })
 
   return (
     <>
+    {company.businessProfile && <Panel title="Marca e serviços" description="Revise o segmento, a identidade visual e os serviços da sua empresa." actions={<Button asChild variant="outline"><Link href="/configuracao-inicial">Editar marca e serviços</Link></Button>}><p className="text-sm text-muted-foreground">{company.businessProfile.segment}</p></Panel>}
+    {company.businessProfile && <WorkspaceConnections />}
     <PixSettings key={company.pixKey || ""} initialKey={company.pixKey || ""} />
     <form onSubmit={onSubmit} noValidate className="space-y-6">
       <Panel

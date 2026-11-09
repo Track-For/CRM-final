@@ -25,7 +25,7 @@ export function prospectContactSalesPlan(prospect: Prospect, actorId: string, ro
     .map(r => ({ ...r.data, id: r.id }) as unknown as Deal).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
   const savedDeal = deals.find(d => !d.wonAt && !d.lostAt && !["ganho", "perdido"].includes(d.stage)) || deals[0]
   const storedPipelines = rows.filter(r => r.resource === "pipelines")
-  const pipelines = [...storedPipelines.filter(r => !r.deleted).map(r => ({ ...r.data, id: r.id }) as unknown as Pipeline), ...defaults.filter(p => !storedPipelines.some(r => r.id === p.id))]
+  const pipelines = [...storedPipelines.filter(r => !r.deleted).map(r => ({ ...r.data, id: r.id }) as unknown as Pipeline), ...defaults.filter(p => !storedPipelines.some(r => r.id === "pip_services" && !r.deleted) && !storedPipelines.some(r => r.id === p.id))]
   const preferred = lead.projectType === "sistema" || lead.projectType === "app" ? "pip_sistemas" : lead.projectType === "anuncio" ? "pip_trafego" : "pip_sites"
   const eligible = pipelines.filter(p => p.stages.some(s => s.key === "contato_feito" && s.kind === "open"))
   const pipeline = savedDeal ? pipelines.find(p => p.id === savedDeal.pipelineId) : eligible.find(p => p.id === preferred) || eligible[0]

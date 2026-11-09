@@ -20,7 +20,7 @@ async function authorize() {
 export async function getChargeWhatsappStatus() {
   await authorize()
   try {
-    const { instance } = evolutionConfig()
+    const { instance } = await evolutionConfig()
     const result = await evolutionRequest<{ instance?: { state?: string } }>(`/instance/connectionState/${instance}`)
     return { connected: result.instance?.state === "open" }
   } catch { return { connected: false } }
@@ -73,7 +73,7 @@ export async function sendChargeWhatsapp(chargeId: string, draft: string) {
   const user = await authorize()
   z.string().min(1).max(120).parse(chargeId)
   z.string().trim().min(1).max(9000).parse(draft)
-  const { instance } = evolutionConfig()
+  const { instance } = await evolutionConfig()
   const outcome = await db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`charge-whatsapp:${chargeId}`}))`)
     const [row] = await tx.select().from(crmRecords).where(and(eq(crmRecords.resource, "charges"), eq(crmRecords.id, chargeId), eq(crmRecords.deleted, false)))

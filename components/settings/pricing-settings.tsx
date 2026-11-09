@@ -1,5 +1,7 @@
 "use client"
 
+import { useBusinessServices } from "@/lib/saas/use-services"
+
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -40,18 +42,19 @@ const itemSchema = z.object({
 type ItemValues = z.infer<typeof itemSchema>
 
 function CatalogItemDialog({ item, open, onOpenChange }: { item?: CatalogItem; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { generic } = useBusinessServices()
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
   const toValues = (): ItemValues => ({
     name: item?.name ?? "",
     description: item?.description ?? "",
-    projectType: item?.projectType ?? "site",
+    projectType: item?.projectType ?? (generic ? "outros" : "site"),
     basePrice: item?.basePrice ?? 0,
     monthlyFee: item?.monthlyFee ?? 0,
     firstMonthPrice: item?.firstMonthPrice ?? 0,
     deadline: item?.deadlineDays != null ? String(item.deadlineDays) : "",
     priceFrom: item?.priceFrom ?? false,
-    includedPages: item?.includedPages ?? 1,
+    includedPages: item?.includedPages ?? (generic ? 0 : 1),
     active: item?.active ?? true,
   })
   const { register, control, handleSubmit, reset, formState } = useForm<ItemValues>({ resolver: zodResolver(itemSchema), defaultValues: toValues() })
@@ -90,9 +93,9 @@ function CatalogItemDialog({ item, open, onOpenChange }: { item?: CatalogItem; o
         <FormField label="Descrição" className="sm:col-span-2">
           <Textarea rows={2} {...register("description")} />
         </FormField>
-        <FormField label="Tipo de projeto" required>
+        {!generic && <FormField label="Tipo de projeto" required>
           <Controller control={control} name="projectType" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PROJECT_TYPE_LABEL)} />} />
-        </FormField>
+        </FormField>}
         <FormField label="Prazo (dias)" error={e.deadline?.message} hint="Vazio = a combinar">
           <Input inputMode="numeric" className="num" {...register("deadline")} placeholder="Ex.: 15" />
         </FormField>
@@ -102,12 +105,12 @@ function CatalogItemDialog({ item, open, onOpenChange }: { item?: CatalogItem; o
         <FormField label="Mensalidade">
           <Controller control={control} name="monthlyFee" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} />} />
         </FormField>
-        <FormField label="Valor do 1º mês" hint="Para recorrentes (ex.: tráfego). Zero = não usa">
+        <FormField label="Valor do 1º mês" hint="Para serviços recorrentes. Zero = não usa">
           <Controller control={control} name="firstMonthPrice" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} />} />
         </FormField>
-        <FormField label="Páginas incluídas" error={e.includedPages?.message}>
+        {!generic && <FormField label="Páginas incluídas" error={e.includedPages?.message}>
           <Input type="number" min={0} className="num" {...register("includedPages", { valueAsNumber: true })} />
-        </FormField>
+        </FormField>}
         <label className="flex items-center gap-2 text-sm">
           <Controller control={control} name="priceFrom" render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />} />
           Preço &ldquo;a partir de&rdquo;
@@ -122,6 +125,7 @@ function CatalogItemDialog({ item, open, onOpenChange }: { item?: CatalogItem; o
 }
 
 function CatalogPanel() {
+  const { generic } = useBusinessServices()
   const catalog = useCatalog()
   const remove = useCrm((s) => s.remove)
   const [editing, setEditing] = useState<CatalogItem | undefined>()
@@ -129,7 +133,7 @@ function CatalogPanel() {
 
   return (
     <Panel
-      title="Catálogo de projetos"
+      title="Catálogo de serviços"
       description="Base do formulário de precificação em Orçamentos."
       actions={
         <Button
@@ -153,7 +157,7 @@ function CatalogPanel() {
                 {!c.active && <StatusBadge>Inativo</StatusBadge>}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {PROJECT_TYPE_LABEL[c.projectType]} · {c.description}
+                {!generic && `${PROJECT_TYPE_LABEL[c.projectType]} · `}{c.description}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -240,9 +244,9 @@ function PlansPanel() {
   return (
     <Panel
       title="Planos de mensalidade"
-      description="Hospedagem e manutenção oferecidos no orçamento."
+      description="Serviços recorrentes oferecidos no orçamento."
       actions={
-        <Button size="sm" variant="outline" onClick={() => add("hostingPlans", { id: newId("plan"), name: "Novo plano", monthly: 250, description: "" })}>
+        <Button size="sm" variant="outline" onClick={() => add("hostingPlans", { id: newId("plan"), name: "Novo plano", monthly: 0, description: "" })}>
           <Plus /> Plano
         </Button>
       }
@@ -276,6 +280,7 @@ const rulesSchema = z.object({
 })
 
 function RulesPanel() {
+  const { generic } = useBusinessServices()
   const rules = usePricingRules()
   const setSingleton = useCrm((s) => s.setSingleton)
   const { register, control, handleSubmit, reset, formState } = useForm<PricingRules>({ resolver: zodResolver(rulesSchema), defaultValues: rules })
@@ -315,12 +320,12 @@ function RulesPanel() {
           <FormField label="Máximo de parcelas sem juros" error={e.maxInstallments?.message}>
             <Input type="number" className="num" {...register("maxInstallments", { valueAsNumber: true })} />
           </FormField>
-          <FormField label="Valor por página extra" error={e.extraPagePrice?.message}>
+          {!generic && <FormField label="Valor por página extra" error={e.extraPagePrice?.message}>
             <Controller control={control} name="extraPagePrice" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} />} />
-          </FormField>
-          <FormField label="Acréscimo por idioma extra" error={e.extraLanguagePercent?.message}>
+          </FormField>}
+          {!generic && <FormField label="Acréscimo por idioma extra" error={e.extraLanguagePercent?.message}>
             {pct("extraLanguagePercent")}
-          </FormField>
+          </FormField>}
           <FormField label="Validade da proposta (dias)" error={e.quoteValidityDays?.message}>
             <Input type="number" className="num" {...register("quoteValidityDays", { valueAsNumber: true })} />
           </FormField>

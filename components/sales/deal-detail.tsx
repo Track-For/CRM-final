@@ -1,5 +1,7 @@
 "use client"
 
+import { useServiceLabel } from "@/lib/saas/use-services"
+
 import Link from "next/link"
 import { useMemo } from "react"
 import { useReceiptMetrics } from "@/lib/finance/use-receipt-metrics"
@@ -36,7 +38,6 @@ import { orderedStages, stageName } from "@/components/sales/utils"
 import {
   EVENT_TYPE_LABEL,
   EVENT_TYPE_TONE,
-  PROJECT_TYPE_LABEL,
   QUOTE_STATUS_LABEL,
   QUOTE_STATUS_TONE,
   SOURCE_LABEL,
@@ -142,6 +143,7 @@ function DealEditForm({ deal }: { deal: Deal }) {
 }
 
 export function DealDetail({ id }: { id: string }) {
+  const serviceLabel = useServiceLabel()
   const deal = useDeal(id)
   const range = useMemo(() => getPeriodRange("mes"), [])
   const receipts = useReceiptMetrics(range, [])
@@ -192,7 +194,7 @@ export function DealDetail({ id }: { id: string }) {
             <StatusBadge tone={STAGE_TONE[deal.stage]}>{stageName(pipelines, deal.pipelineId, deal.stage)}</StatusBadge>
             <span>Pipeline {pipeline?.name ?? "—"}</span>
             <span>·</span>
-            <span>{PROJECT_TYPE_LABEL[deal.projectType]}</span>
+            <span>{serviceLabel(deal)}</span>
           </span>
         }
         className="mb-0"

@@ -69,6 +69,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("beforeunload", warn)
     return () => window.removeEventListener("beforeunload", warn)
   }, [pendingWrites])
+  const brandColor = useCrm(s => s.company.businessProfile?.brandColor)
+  useEffect(() => {
+    if (brandColor) document.body.style.setProperty("--primary", brandColor)
+    else document.body.style.removeProperty("--primary")
+    return () => { document.body.style.removeProperty("--primary") }
+  }, [brandColor])
   const density = useUiStore((s) => s.density)
   const showGrid = useUiStore((s) => s.showGrid)
   useEffect(() => {

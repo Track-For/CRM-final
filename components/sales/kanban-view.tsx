@@ -1,5 +1,7 @@
 "use client"
 
+import { useBusinessServices } from "@/lib/saas/use-services"
+
 import { SalesViewNav } from "@/components/sales/sales-view-nav"
 import { useCallback, useMemo, useState } from "react"
 import { Plus } from "lucide-react"
@@ -20,6 +22,7 @@ import { useUiStore } from "@/lib/store/ui-store"
 import type { Deal, StageKey } from "@/types"
 
 export function KanbanView() {
+  const { generic, options: serviceOptions } = useBusinessServices()
   const deals = useDeals()
   const leads = useById("leads")
   const pipelines = usePipelines()
@@ -38,12 +41,12 @@ export function KanbanView() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return deals.filter((d) => {
-      if (!matches(pipelineId, d.pipelineId) || !matches(owner, d.ownerId) || !matches(type, d.projectType) || !matches(source, d.source)) return false
+      if (!matches(pipelineId, d.pipelineId) || !matches(owner, d.ownerId) || !matches(type, generic ? d.serviceId || "" : d.projectType) || !matches(source, d.source)) return false
       if (!q) return true
       const lead = leads.get(d.leadId)
       return `${d.title} ${lead?.name ?? ""} ${lead?.company ?? ""}`.toLowerCase().includes(q)
     })
-  }, [deals, leads, pipelineId, owner, type, source, search])
+  }, [generic, deals, leads, pipelineId, owner, type, source, search])
 
   const pipeline = pipelines.find((p) => p.id === pipelineId)
   const columns: KanbanColumn[] = useMemo(
@@ -90,7 +93,7 @@ export function KanbanView() {
         filters={[
           { key: "pipeline", label: "Pipeline", value: pipelineId, onChange: setPipelineId, options: pipelines.map((p) => ({ value: p.id, label: p.name })) },
           { key: "owner", label: "Responsável", value: owner, onChange: setOwner, options: userOptions },
-          { key: "type", label: "Tipo", value: type, onChange: setType, options: toOptions(PROJECT_TYPE_LABEL) },
+          { key: "type", label: generic ? "Serviço" : "Tipo", value: type, onChange: setType, options: generic ? serviceOptions.filter(o=>o.value) : toOptions(PROJECT_TYPE_LABEL) },
           { key: "source", label: "Origem", value: source, onChange: setSource, options: toOptions(SOURCE_LABEL) },
         ]}
         onClear={() => {

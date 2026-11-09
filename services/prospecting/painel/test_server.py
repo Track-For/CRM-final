@@ -37,6 +37,7 @@ class CRM(unittest.TestCase):
 
     def tearDown(self):
         self.http.shutdown(); self.http.server_close()
+        app.tenant_proxy.close_all()
         app.store.close(); app.store = None
         self.paths.stop(); self.temp.cleanup()
 
@@ -48,6 +49,29 @@ class CRM(unittest.TestCase):
                 return res.status, json.load(res)
         except urllib.error.HTTPError as e:
             return e.code, json.load(e)
+
+    def test_workspace_proxy_isolates_searches_contacts_and_backups(self):
+        first, second = 'a' * 32, 'b' * 32
+        original_name = app.leads['p1']['nome']
+        def tenant(workspace, route, method='GET', data=None):
+            request = urllib.request.Request(f'http://127.0.0.1:{self.http.server_port}'+route,
+                data=json.dumps(data).encode() if data is not None else None, method=method,
+                headers={'Content-Type': 'application/json', 'X-Workspace-ID': workspace})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return json.load(response)
+        self.assertEqual(tenant(first, '/api/leads'), [])
+        self.assertEqual(tenant(second, '/api/leads'), [])
+        tenant(first, '/api/restaurar', 'POST', app.snapshot())
+        self.assertEqual(len(tenant(first, '/api/leads')), 1)
+        self.assertEqual(tenant(second, '/api/leads'), [])
+        tenant(first, '/api/leads/p1', 'PATCH', {'obs': 'Somente empresa A'})
+        self.assertEqual(tenant(first, '/api/leads/p1')['obs'], 'Somente empresa A')
+        self.assertEqual(app.leads['p1']['nome'], original_name)
+        tenant(first, '/api/buscas/b1', 'DELETE')
+        self.assertEqual(tenant(first, '/api/buscas'), [])
+        self.assertIn('b1', app.buscas)
+        self.assertTrue(os.path.isfile(os.path.join(app.DADOS, 'workspaces', first, 'prospecta.sqlite3')))
+        self.assertTrue(os.path.isfile(os.path.join(app.DADOS, 'workspaces', second, 'prospecta.sqlite3')))
 
     def test_search_without_website_filters_before_save_and_enrichment(self):
         self.b['parametros']['somente_sem_site'] = True

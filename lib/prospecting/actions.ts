@@ -1,5 +1,6 @@
 "use server"
 
+import { currentWorkspace } from "@/lib/saas/context"
 import { z } from "zod"
 import { eq, and } from "drizzle-orm"
 import { requireUser } from "@/lib/auth/session"
@@ -13,11 +14,13 @@ async function authorize() {
   return user
 }
 async function request<T>(path: string, body?: unknown, method = body ? "POST" : "GET"): Promise<T> {
+  const workspace = await currentWorkspace()
   const base = process.env.PROSPECTING_URL || "http://127.0.0.1:8091"
   let response: Response
   try {
-    response = await fetch(`${base}${path}`, { method, headers: { "Content-Type": "application/json", ...(process.env.PROSPECTING_TOKEN ? { Authorization: `Bearer ${process.env.PROSPECTING_TOKEN}` } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: "no-store", signal: AbortSignal.timeout(15000) })
+    response = await fetch(`${base}${path}`, { method, headers: { "Content-Type": "application/json", ...(workspace ? { "X-Workspace-ID": workspace.id } : {}), ...(process.env.PROSPECTING_TOKEN ? { Authorization: `Bearer ${process.env.PROSPECTING_TOKEN}` } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: "no-store", signal: AbortSignal.timeout(15000) })
   } catch { throw new Error("Serviço de buscas indisponível. Inicie o serviço com npm run prospecting:start e o motor com npm run prospecting:engine.") }
+  if (workspace && response.headers.get("X-Workspace-ID") !== workspace.id) throw new Error("O serviço de buscas precisa ser atualizado para oferecer isolamento entre empresas. Nenhum contato de outra empresa foi carregado.")
   if (!response.ok) {
     if ([400, 404, 409].includes(response.status)) {
       const payload = await response.json().catch(() => null)

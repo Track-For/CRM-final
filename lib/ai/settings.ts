@@ -1,4 +1,5 @@
 // Somente servidor. Esta coleção não é exposta pelas APIs genéricas do CRM.
+import { currentWorkspace } from "@/lib/saas/context"
 import { and, eq } from "drizzle-orm"
 import { db, crmRecords } from "@/lib/db"
 import { decryptSecret } from "@/lib/fiscal/crypto"
@@ -11,7 +12,8 @@ export async function readAiSettings() {
 export async function aiCredentials() {
   const saved = await readAiSettings()
   if (saved && !saved.enabled) return null
-  const model = saved?.model || process.env.OPENAI_MODEL?.trim()
-  const key = saved?.apiKeyEncrypted ? decryptSecret(saved.apiKeyEncrypted) : process.env.OPENAI_API_KEY?.trim()
+  const tenant = await currentWorkspace()
+  const model = saved?.model || (tenant ? undefined : process.env.OPENAI_MODEL?.trim())
+  const key = saved?.apiKeyEncrypted ? decryptSecret(saved.apiKeyEncrypted) : (tenant ? undefined : process.env.OPENAI_API_KEY?.trim())
   return model && key ? { model, key } : null
 }

@@ -1,3 +1,4 @@
+import { evolutionConfig } from "@/lib/whatsapp/client"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db, whatsappMessages } from "@/lib/db"
@@ -16,7 +17,7 @@ export async function authorizedMediaMessage(id: string) {
   const user = await requireUser()
   if (!["admin", "comercial", "operacao"].includes(user.role)) throw Error("Sem permissão para acessar arquivos do WhatsApp.")
   z.string().regex(/^[a-f0-9]{64}$/).parse(id)
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const instance = (await evolutionConfig()).instance
   const [message] = await db.select().from(whatsappMessages).where(and(eq(whatsappMessages.id, id), eq(whatsappMessages.instance, instance))).limit(1)
   if (!message || !["imageMessage", "audioMessage", "documentMessage", "stickerMessage"].includes(message.messageType)) throw Error("Arquivo não encontrado ou tipo indisponível.")
   return { user, message }

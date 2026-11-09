@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, or } from "drizzle-orm"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/session"
 import { db, whatsappMessages, whatsappContacts, crmRecords } from "@/lib/db"
+import { connectionEnv } from "@/lib/saas/connections"
 import { evolutionConfig, EvolutionError, evolutionRequest } from "./client"
 import { normalizePhone, object, phoneIdentity, isLid } from "./normalize"
 import { reconcileRecentWhatsapp, reconcileWhatsappHistory } from "./sync"
@@ -20,10 +21,11 @@ async function authorize(admin = false) {
 }
 export async function getWhatsappConnection() {
   await authorize()
-  const expectedPhone = process.env.EVOLUTION_PHONE || ""
-  if (!process.env.EVOLUTION_URL || !process.env.EVOLUTION_API_KEY) return { state: "unconfigured", expectedPhone, error: "Serviço do WhatsApp ainda não configurado." }
+  const env = await connectionEnv()
+  const expectedPhone = env.EVOLUTION_PHONE || ""
+  if (!env.EVOLUTION_URL || !env.EVOLUTION_API_KEY) return { state: "unconfigured", expectedPhone, error: "Serviço do WhatsApp ainda não configurado." }
   try {
-    const { instance } = evolutionConfig()
+    const { instance } = await evolutionConfig()
     const result = await evolutionRequest<{ instance: { state: string } }>(`/instance/connectionState/${instance}`)
     return { state: result.instance?.state || "close", expectedPhone, error: "" }
   } catch (e) {
@@ -33,9 +35,10 @@ export async function getWhatsappConnection() {
 }
 export async function connectWhatsapp() {
   await authorize(true)
-  const { instance } = evolutionConfig()
-  const url = process.env.EVOLUTION_WEBHOOK_URL
-  const token = process.env.EVOLUTION_WEBHOOK_TOKEN
+  const { instance } = await evolutionConfig()
+  const env = await connectionEnv()
+  const url = env.EVOLUTION_WEBHOOK_URL
+  const token = env.EVOLUTION_WEBHOOK_TOKEN
   if (!url || !token) throw new Error("Configure a URL e o token do webhook antes de conectar.")
   const webhook = { enabled: true, url, headers: { "x-webhook-token": token }, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "MESSAGES_SET", "MESSAGES_UPDATE", "SEND_MESSAGE", "CONNECTION_UPDATE", "CONTACTS_UPSERT", "CONTACTS_UPDATE", "CONTACTS_SET"] }
   let result: Record<string, unknown> = {}
@@ -55,7 +58,7 @@ export async function connectWhatsapp() {
 }
 export async function disconnectWhatsapp() {
   await authorize(true)
-  const { instance } = evolutionConfig()
+  const { instance } = await evolutionConfig()
   await evolutionRequest(`/instance/logout/${instance}`, "DELETE")
 }
 export async function getWhatsappInbox() {
@@ -63,7 +66,7 @@ export async function getWhatsappInbox() {
   const connection = await getWhatsappConnection()
   if (["close", "connecting", "unconfigured"].includes(connection.state)) return []
   if (connection.state === "open") try { await reconcileRecentWhatsapp() } catch { /* Mantém disponível a cópia local quando o provedor está fora do ar. */ }
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const { instance } = await evolutionConfig()
   const rows = await db.select().from(whatsappMessages).where(eq(whatsappMessages.instance, instance)).orderBy(desc(whatsappMessages.sentAt)).limit(2000)
   const byPhone = new Map<string, { phone: string; name: string; preview: string; sentAt: string; direction: string; unresolved: boolean }>()
   for (const row of rows) {
@@ -93,7 +96,7 @@ export async function getWhatsappThread(input: string) {
   const lid = isLid(input) ? input : undefined
   const phone = lid ? undefined : phoneSchema.parse(input)
   try { await reconcileRecentWhatsapp() } catch { /* O histórico local continua disponível. */ }
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const { instance } = await evolutionConfig()
   const [mapping] = lid ? await db.select({ phone: whatsappContacts.phone }).from(whatsappContacts).where(and(eq(whatsappContacts.instance, instance), eq(whatsappContacts.lid, lid))).limit(1) : []
   const resolved = phone || mapping?.phone
   const contact = resolved ? (lid ? or(inArray(whatsappMessages.phone, aliases(resolved)), eq(whatsappMessages.remoteJid, lid)) : inArray(whatsappMessages.phone, aliases(resolved))) : eq(whatsappMessages.remoteJid, lid!)
@@ -106,7 +109,7 @@ export async function sendWhatsappText(input: string, text: string) {
   await authorize()
   const phone = phoneSchema.parse(input)
   const value = z.string().trim().min(1).max(10000).parse(text)
-  const { instance } = evolutionConfig()
+  const { instance } = await evolutionConfig()
   const result = await evolutionRequest<Record<string, unknown>>(`/message/sendText/${instance}`, "POST", { number: phone, text: value })
   if (!object(result.key).id) throw new Error("O servidor não confirmou o envio. Confira a conversa no celular antes de tentar novamente.")
   try { await storeMessages(instance, [{ ...result, message: result.message || { conversation: value }, messageTimestamp: result.messageTimestamp || Math.floor(Date.now() / 1000) }]) }

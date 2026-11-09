@@ -1,3 +1,4 @@
+import { currentWorkspace } from "@/lib/saas/context"
 import { and, eq, inArray } from "drizzle-orm"
 import { db, whatsappContacts } from "@/lib/db"
 import { evolutionConfig, evolutionRequest } from "./client"
@@ -17,7 +18,7 @@ async function history(instance: string, remoteJid?: string, maxPages = 1) {
   return rows
 }
 export async function reconcileWhatsappHistory(phone?: string, deep = false, pendingLid?: string) {
-  const { instance } = evolutionConfig()
+  const { instance } = await evolutionConfig()
   const connection = await evolutionRequest<{ instance?: { state?: string } }>(`/instance/connectionState/${instance}`)
   if (connection.instance?.state !== "open") throw new Error("Conecte o WhatsApp pelo QR Code antes de sincronizar as conversas.")
   // Aprende pares LID/telefone antes de buscar a conversa; ambos os sentidos são importados.
@@ -41,11 +42,12 @@ export async function reconcileWhatsappHistory(phone?: string, deep = false, pen
 const recentSync = new Map<string, { attemptedAt: number; job: Promise<unknown>; settled: boolean }>()
 /** Recupera eventos perdidos sem consultar o provedor a cada polling de cinco segundos. */
 export async function reconcileRecentWhatsapp() {
-  const { instance } = evolutionConfig()
-  const previous = recentSync.get(instance)
+  const { instance } = await evolutionConfig()
+  const cacheKey = `${(await currentWorkspace())?.id || "legacy"}:${instance}`
+  const previous = recentSync.get(cacheKey)
   if (previous && (!previous.settled || Date.now() - previous.attemptedAt < 15000)) { await previous.job; return }
   const job = reconcileWhatsappHistory()
   const entry = { attemptedAt: Date.now(), job, settled: false }
-  recentSync.set(instance, entry)
+  recentSync.set(cacheKey, entry)
   try { await job } finally { entry.settled = true }
 }

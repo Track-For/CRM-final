@@ -7,7 +7,7 @@ import { isLoginPaused } from "@/lib/auth/development"
  */
 const SESSION_COOKIE = "crm_session"
 // O webhook do Asaas não tem cookie: a rota valida o header asaas-access-token.
-const PUBLIC_EXACT = new Set(["/recuperar-acesso", "/login", "/login/verificar", "/primeiro-acesso", "/icon", "/apple-icon", "/api/webhooks/asaas", "/api/webhooks/evolution", "/api/whatsapp/ai/context"])
+const PUBLIC_EXACT = new Set(["/criar-conta", "/recuperar-acesso", "/login", "/login/verificar", "/primeiro-acesso", "/icon", "/apple-icon", "/api/webhooks/asaas", "/api/webhooks/evolution", "/api/whatsapp/ai/context"])
 const PUBLIC_PREFIXES = ["/f/", "/convite/", "/api/v1/"]
 
 function isPublic(pathname: string): boolean {
@@ -17,9 +17,14 @@ function isPublic(pathname: string): boolean {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  if (isLoginPaused()) {
+  const actualHost = request.headers.get("host") || request.nextUrl.host
+  const actualHostname = actualHost.toLowerCase().replace(/:\d+$/, "")
+  const origin = new URL(request.url)
+  origin.host = actualHost
+  const tenantHost = process.env.SAAS_BASE_DOMAIN && actualHostname !== process.env.SAAS_BASE_DOMAIN && actualHostname !== `www.${process.env.SAAS_BASE_DOMAIN}`
+  if (isLoginPaused() && !tenantHost) {
     if (["/login", "/login/verificar", "/primeiro-acesso"].includes(pathname)) {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      return NextResponse.redirect(new URL("/dashboard", origin))
     }
     return NextResponse.next()
   }
@@ -29,7 +34,7 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
   }
-  return NextResponse.redirect(new URL("/login", request.url))
+  return NextResponse.redirect(new URL("/login", origin))
 }
 
 export const config = {

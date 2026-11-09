@@ -1,3 +1,4 @@
+import { connectionEnv } from "@/lib/saas/connections"
 import nodemailer from "nodemailer"
 import { z } from "zod"
 import { sendWhatsappText } from "@/lib/whatsapp/actions"
@@ -34,17 +35,18 @@ export async function deliverContactMessage(value: z.infer<typeof messageDeliver
   }
   const to = z.email("O contato não possui um e-mail válido.").parse(recipient)
   if (!value.subject) throw new Error("Preencha o assunto do e-mail.")
-  if (!process.env.SMTP_HOST || !process.env.EMAIL_FROM) throw new Error("O envio de e-mail ainda não foi configurado. Peça ao administrador para configurar SMTP e EMAIL_FROM.")
-  const port = Number(process.env.SMTP_PORT || 587)
-  const transport = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined, connectionTimeout: 15000, socketTimeout: 30000, disableFileAccess: true, disableUrlAccess: true })
+  const env = await connectionEnv()
+  if (!env.SMTP_HOST || !env.EMAIL_FROM) throw new Error("O envio de e-mail ainda não foi configurado. Peça ao administrador para configurar SMTP e EMAIL_FROM.")
+  const port = Number(env.SMTP_PORT || 587)
+  const transport = nodemailer.createTransport({ host: env.SMTP_HOST, port, secure: port === 465, auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined, connectionTimeout: 15000, socketTimeout: 30000, disableFileAccess: true, disableUrlAccess: true })
   const date = new Date()
   let messageId: string
   try {
-    const result = await transport.sendMail({ from: process.env.EMAIL_FROM, to, subject: value.subject, text: value.text, date })
+    const result = await transport.sendMail({ from: env.EMAIL_FROM, to, subject: value.subject, text: value.text, date })
     if (!result.accepted?.length) throw new Error("rejected")
     messageId = result.messageId
   } catch { throw new Error("O servidor de e-mail não confirmou o envio. Confira a caixa de saída antes de tentar novamente.") }
   finally { transport.close() }
-  const warning = await saveSentEmail({ from: process.env.EMAIL_FROM, to, subject: value.subject, text: value.text, date, messageId })
+  const warning = await saveSentEmail({ from: env.EMAIL_FROM, to, subject: value.subject, text: value.text, date, messageId }, env)
   return { deliveredText: value.text, remainingText: "", sentCount: 1, totalCount: 1, warning }
 }

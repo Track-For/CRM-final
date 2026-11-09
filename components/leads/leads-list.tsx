@@ -1,5 +1,7 @@
 "use client"
 
+import { useBusinessServices, useServiceLabel } from "@/lib/saas/use-services"
+
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Download, MessageCircle, Plus, Upload, UserRound } from "lucide-react"
@@ -42,6 +44,8 @@ import type { Lead, LeadStatus } from "@/types"
 const PERIOD_OPTIONS = (Object.keys(PERIOD_LABEL) as PeriodPreset[]).map((p) => ({ value: p, label: PERIOD_LABEL[p] }))
 
 export function LeadsList() {
+  const serviceLabel = useServiceLabel()
+  const { generic, options: serviceOptions } = useBusinessServices()
   const router = useRouter()
   const leads = useLeads()
   const users = useById("users")
@@ -80,7 +84,7 @@ export function LeadsList() {
         if (range && !inRange(l.createdAt, range.from, range.to)) return false
         return (
           matches(source, l.source) &&
-          matches(projectType, l.projectType) &&
+          matches(projectType, generic ? l.serviceId || "" : l.projectType) &&
           matches(revenue, l.revenue) &&
           matches(temperature, l.temperature) &&
           matches(owner, l.ownerId) &&
@@ -88,7 +92,7 @@ export function LeadsList() {
         )
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [leads, search, source, projectType, revenue, temperature, owner, status, period])
+  }, [generic, leads, search, source, projectType, revenue, temperature, owner, status, period])
 
   const kpis = useMemo(() => {
     const range = getPeriodRange(globalPeriod)
@@ -132,7 +136,7 @@ export function LeadsList() {
           </a>
         ),
       },
-      { accessorKey: "projectType", header: "Projeto", cell: ({ row }) => <span className="text-xs">{PROJECT_TYPE_LABEL[row.original.projectType]}</span> },
+      { accessorKey: "projectType", header: generic ? "Serviço" : "Projeto", cell: ({ row }) => <span className="text-xs">{serviceLabel(row.original)}</span> },
       { accessorKey: "source", header: "Origem", cell: ({ row }) => <span className="text-xs">{SOURCE_LABEL[row.original.source]}</span> },
       {
         accessorKey: "temperature",
@@ -148,7 +152,7 @@ export function LeadsList() {
       },
       { accessorKey: "createdAt", header: "Entrada", cell: ({ row }) => <span className="num text-xs text-muted-foreground">{formatDate(row.original.createdAt)}</span> },
     ],
-    [users],
+    [users, generic, serviceLabel],
   )
 
   const exportRows = (rows: Lead[]) =>
@@ -159,7 +163,7 @@ export function LeadsList() {
         WhatsApp: l.whatsapp,
         "E-mail": l.email,
         Empresa: l.company,
-        "Tipo de projeto": PROJECT_TYPE_LABEL[l.projectType],
+        "Tipo de projeto": serviceLabel(l),
         Faturamento: REVENUE_LABEL[l.revenue],
         Origem: SOURCE_LABEL[l.source],
         Temperatura: TEMPERATURE_LABEL[l.temperature],
@@ -217,7 +221,7 @@ export function LeadsList() {
         filters={[
           { key: "status", label: "Status", options: toOptions(LEAD_STATUS_LABEL), value: status, onChange: setStatus },
           { key: "source", label: "Origem", options: toOptions(SOURCE_LABEL), value: source, onChange: setSource },
-          { key: "projectType", label: "Projeto", options: toOptions(PROJECT_TYPE_LABEL), value: projectType, onChange: setProjectType },
+          { key: "projectType", label: generic ? "Serviço" : "Projeto", options: generic ? serviceOptions.filter(o=>o.value) : toOptions(PROJECT_TYPE_LABEL), value: projectType, onChange: setProjectType },
           { key: "revenue", label: "Faturamento", options: toOptions(REVENUE_LABEL), value: revenue, onChange: setRevenue },
           { key: "temperature", label: "Temperatura", options: toOptions(TEMPERATURE_LABEL), value: temperature, onChange: setTemperature },
           { key: "owner", label: "Responsável", options: userOptions, value: owner, onChange: setOwner },
@@ -299,7 +303,7 @@ export function LeadsList() {
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <EnumBadge value={l.status} labels={LEAD_STATUS_LABEL} tones={LEAD_STATUS_TONE} />
-              <StatusBadge dot={false}>{PROJECT_TYPE_LABEL[l.projectType]}</StatusBadge>
+              <StatusBadge dot={false}>{serviceLabel(l)}</StatusBadge>
               <StatusBadge dot={false}>{SOURCE_LABEL[l.source]}</StatusBadge>
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">

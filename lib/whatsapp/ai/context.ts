@@ -1,3 +1,4 @@
+import { evolutionConfig } from "@/lib/whatsapp/client"
 import { randomUUID } from "node:crypto"
 import { and, eq, sql } from "drizzle-orm"
 import { db, crmRecords, whatsappMessages, whatsappContacts, invoices } from "@/lib/db"
@@ -11,7 +12,7 @@ export async function getHermesCustomerContext(authorization: string | null, inp
   const [key] = await db.select().from(crmRecords).where(sql`${crmRecords.resource}='apiKeys' and ${crmRecords.deleted}=false and ${crmRecords.data}->>'tokenHash'=${sha256Hex(token)} and ${crmRecords.data}->'scopes' ? ${HERMES_SCOPE}`).limit(1)
   if (!key) throw new ContextError(403, "Chave inválida, revogada ou sem permissão para atendimento.")
   const permissions = hermesPermissionsSchema.safeParse(key.data.contextPermissions)
-  const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
+  const instance = (await evolutionConfig()).instance
   if (!permissions.success || key.data.whatsappInstance !== instance) throw new ContextError(403, "Acesso não habilitado para esta instância.")
   const parsed = contextRequestSchema.safeParse(input)
   if (!parsed.success) throw new ContextError(400, "Informe apenas o identificador da conversa individual.")

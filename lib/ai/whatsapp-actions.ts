@@ -1,5 +1,7 @@
 "use server"
 
+import { evolutionConfig } from "@/lib/whatsapp/client"
+
 import { dispatchCrmEvent } from "@/lib/integrations/webhooks"
 import { randomUUID } from "node:crypto"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
@@ -50,7 +52,7 @@ export async function analyzeWhatsappConversation(input: string) {
   if (!(reserved as unknown[]).length) throw new Error("Aguarde um minuto antes de analisar esta conversa novamente.")
   const identity = phoneIdentity(c.phone)
   const aliases = /^55\d{10}$/.test(identity) ? [identity, identity.slice(0, 4) + "9" + identity.slice(4)] : [c.phone]
-  const rows = await db.select().from(whatsappMessages).where(and(eq(whatsappMessages.instance, process.env.EVOLUTION_INSTANCE || "crm-principal"), inArray(whatsappMessages.phone, aliases))).orderBy(desc(whatsappMessages.sentAt)).limit(100)
+  const rows = await db.select().from(whatsappMessages).where(and(eq(whatsappMessages.instance, (await evolutionConfig()).instance), inArray(whatsappMessages.phone, aliases))).orderBy(desc(whatsappMessages.sentAt)).limit(100)
   const media = rows.length ? await db.select().from(crmRecords).where(and(eq(crmRecords.resource, "whatsappMediaAnalyses"), inArray(crmRecords.id, rows.map(row => row.id)))) : []
   const readings = new Map(media.filter(row => row.data.state === "completed").map(row => [row.id, String(row.data.text || "")]))
   let budget = 16000
