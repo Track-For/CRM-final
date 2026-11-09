@@ -41,7 +41,9 @@ export type AsaasCustomerInput = {
 export type AsaasPaymentInput = {
   customer: string
   billingType: "BOLETO" | "PIX" | "CREDIT_CARD" | "UNDEFINED"
-  value: number
+  value?: number
+  installmentCount?: number
+  totalValue?: number
   dueDate: string
   description?: string
   externalReference: string
@@ -50,6 +52,7 @@ export type AsaasPaymentInput = {
 }
 
 export type AsaasPayment = {
+  installment?: string
   id: string
   customer?: string
   status?: string
@@ -197,13 +200,15 @@ export function createAsaasClient(apiKey: string, environment: AsaasEnvironment)
     createCustomer: (input: AsaasCustomerInput) => request<AsaasCustomer>("POST", "/customers", { body: input }),
 
     createPayment: (input: AsaasPaymentInput) => request<AsaasPayment>("POST", "/payments", { body: input }),
+    simulateCard: (value: number, installmentCount: number) => request<{ creditCard?: { netValue: number; feePercentage: number; operationFee: number } }>("POST", "/payments/simulate", { body: { value, installmentCount, billingTypes: ["CREDIT_CARD"] } }),
 
     getPayment: (id: string) => request<AsaasPayment>("GET", `/payments/${path(id)}`),
+    getInstallmentPayments: (id: string) => listAll<AsaasPayment>(`/installments/${path(id)}/payments`),
 
     /** Reconciliação depois de uma tentativa incerta: ignora cobranças removidas. */
     async findPaymentByExternalReference(externalReference: string): Promise<AsaasPayment | null> {
       const list = await request<AsaasList<AsaasPayment>>("GET", "/payments", { query: { externalReference } })
-      return (list.data ?? []).find((p) => !p.deleted) ?? null
+      return (list.data ?? []).find((p) => !p.deleted && (!p.installmentNumber || p.installmentNumber === 1)) ?? null
     },
 
     getIdentificationField: (id: string) => request<AsaasIdentificationField>("GET", `/payments/${path(id)}/identificationField`),

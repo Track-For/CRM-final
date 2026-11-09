@@ -1,4 +1,4 @@
-# Track For CRM
+# Nexo CRM
 
 CRM com Next.js 16, React 19, TypeScript, Postgres/Drizzle, Zustand e Tailwind 4. Leads, negócios, clientes, orçamentos, tarefas, formulários, financeiro e configurações são persistidos. O projeto usa integrações reais para Asaas, Brasil NFe, Evolution/WhatsApp e Google Agenda, mediante configuração dos provedores.
 
@@ -39,6 +39,12 @@ Etapas de execução podem ser vinculadas a etapas de pagamento por Admin ou Com
 ## Integrações
 
 **Asaas:** configure chave e ambiente em `/integracoes/asaas`. Vincule clientes e emita cobranças pelo CRM. Configure o webhook do provedor para conciliação automática. Pix/cartão manuais continuam como registro local. Cobranças de projetos e mensalidades também são derivadas das regras de negócio no servidor.
+
+Ao confirmar o ganho ou personalizar a cobrança de um projeto, selecione Pix direto ou Asaas. No Asaas, escolha Pix, boleto, cartão ou deixe o cliente escolher. No cartão de crédito, o valor integral do projeto é cobrado à vista ou em até 12 vezes, sem divisão por etapas. No parcelamento, escolha sem juros para o cliente (a empresa absorve as taxas) ou repassar as taxas do cartão, consultadas no simulador da conta Asaas e incluídas no total. A emissão revalida a simulação antes de criar a cobrança. Nas outras formas, cada etapa aceita de 1 a 12 parcelas mensais pelo Asaas. Admin e Financeiro emitem as cobranças com vencimento ao confirmar o ganho. O Comercial salva o plano para emissão posterior pelo Financeiro; as demais preservam as condições para emissão posterior em Cobranças. Parcelas emitidas são preservadas nas recargas.
+
+As telas usam as mesmas regras de saldo ponderado (saldo do projeto × probabilidade atual da etapa), MRR vigente (início e cancelamento) e atraso por vencimento no fuso America/Sao_Paulo. Nomes personalizados das etapas aparecem também no Dashboard, nos relatórios e na busca. Propostas e cobranças novas aceitam até 12 parcelas. Mensalidades distinguem Pix direto de pagamento pelo Asaas; recorrências vinculadas a uma assinatura Asaas são gerenciadas na plataforma, com atalho no CRM e proteção contra alterações locais. A primeira cobrança segue o dia configurado, preservando alterações manuais e pagamentos já registrados.
+
+As confirmações de sucesso aguardam as gravações pendentes. Uma falha reverte a alteração otimista e tenta reconciliar os dados com o servidor; o aviso de erro permanece visível. `scripts/test-consistency.mjs` cobre as regras entre telas e `scripts/test-save-feedback.mjs` verifica confirmação e rollback em falhas de criação, edição e exclusão.
 
 **Brasil NFe:** configure token, ambiente, município e padrões de serviço em `/integracoes/brasil_nfe`; cadastre certificado e empresa no provedor. Notas em processamento são consultadas a cada 10 segundos na listagem. PDF/XML são servidos pela rota autenticada `/api/notas-fiscais/[id]/arquivo`.
 
@@ -94,3 +100,7 @@ WhatsApp usa a conexão Evolution existente. E-mail requer `SMTP_HOST`, `EMAIL_F
 ## Recuperação de acesso
 
 A tela de login oferece **Esqueci minha senha**, em `/recuperar-acesso`. Com SMTP e URL pública configurados, a conta ativa recebe um link de uso único, válido por 30 minutos. Um novo pedido substitui o link anterior. Só o hash do token fica no banco; a resposta não informa se o e-mail existe. Há limites persistidos por IP e e-mail. A troca de senha revoga sessões e desafios pendentes, preservando o autenticador. A próxima entrada continua exigindo segundo fator.
+
+## Gestão comercial e API
+
+**Gestão comercial** reúne metas mensais, previsão ponderada de vendas, relatórios personalizados com CSV e automações configuráveis por evento. A documentação da API fica em `/integracoes/api`, com especificação em `/api/v1/openapi`, chaves por escopo e criações idempotentes. Veja [Gestão comercial e API](docs/gestao-comercial-api.md) para recursos, permissões, exemplos e execução da fila. Valide com `npm run commercial:check`.

@@ -4,10 +4,13 @@
  * endpoints agregados (GET /api/metrics/...).
  */
 import { differenceInCalendarDays, endOfMonth, startOfMonth } from "date-fns"
-import type { Charge, Deal, Lead, StageKey, Subscription } from "@/types"
+import type { Charge, Deal, FinancialEntry, Lead, StageKey, Subscription } from "@/types"
 import { STAGE_ORDER } from "@/lib/constants"
 import { inRange } from "@/lib/period"
 import { sum } from "@/lib/data/selectors"
+import { collectReceipts, receiptTotals, receiptsIn } from "@/lib/finance/receipts"
+import { recurringRevenueAt } from "@/lib/finance/recurring"
+import { paymentStatus } from "@/lib/finance/payment-status"
 
 export interface Range {
   from: Date
@@ -47,11 +50,7 @@ export function leadsIn(leads: Lead[], r: Range) {
 
 /** MRR ativo em uma data (considera início e cancelamento). */
 export function mrrAt(subs: Subscription[], date: Date) {
-  const t = date.getTime()
-  return sum(
-    subs.filter((s) => new Date(s.startDate).getTime() <= t && (!s.canceledAt || new Date(s.canceledAt).getTime() > t) && s.status !== "pausada"),
-    (s) => s.amount,
-  )
+  return recurringRevenueAt(subs, date)
 }
 
 export function churnIn(subs: Subscription[], r: Range) {
@@ -75,10 +74,10 @@ export interface Kpis {
   overdueRate: number
 }
 
-export function computeKpis(r: Range, data: { leads: Lead[]; deals: Deal[]; subscriptions: Subscription[]; charges: Charge[] }, now = new Date()): Kpis {
+export function computeKpis(r: Range, data: { leads: Lead[]; deals: Deal[]; subscriptions: Subscription[]; charges: Charge[]; entries?: FinancialEntry[] }, now = new Date()): Kpis {
   const leads = leadsIn(data.leads, r).length
   const won = wonIn(data.deals, r)
-  const sales = sum(won, (d) => d.value)
+  const sales = receiptTotals(receiptsIn(collectReceipts(data.charges, data.entries || []).receipts, r.from, r.to)).total
   const ref = r.to.getTime() < now.getTime() ? r.to : now
   const monthFrom = startOfMonth(ref)
   const monthTo = endOfMonth(ref)
@@ -87,13 +86,13 @@ export function computeKpis(r: Range, data: { leads: Lead[]; deals: Deal[]; subs
     (c) => c.amount,
   )
   const dueInRange = data.charges.filter((c) => c.status !== "cancelado" && inRange(c.dueDate, r.from, r.to) && new Date(c.dueDate) <= now)
-  const overdue = sum(dueInRange.filter((c) => c.status === "vencido"), (c) => c.amount)
+  const overdue = sum(dueInRange.filter((c) => paymentStatus(c, now) === "vencido"), (c) => c.amount)
   const dueTotal = sum(dueInRange, (c) => c.amount)
   return {
     leads,
     conversion: leads ? won.length / leads : 0,
     sales,
-    ticket: won.length ? sales / won.length : 0,
+    ticket: won.length ? sum(won, d => d.value) / won.length : 0,
     mrr: mrrAt(data.subscriptions, ref),
     receivable,
     overdue,

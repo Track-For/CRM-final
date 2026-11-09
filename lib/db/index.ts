@@ -1,6 +1,4 @@
 // Somente servidor: nunca importe este módulo em Client Components.
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
 import postgres from "postgres";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
@@ -20,10 +18,9 @@ function getDb(): Database {
       "DATABASE_URL não está definida. Rode `npm run db:local` para desenvolvimento local ou configure a conexão do banco em .env.local.",
     );
   }
-  const hostname = new URL(url).hostname;
-  instance = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)
-    ? drizzlePostgres(postgres(url, { max: 5, prepare: false }), { schema })
-    : drizzle(neon(url), { schema });
+  // Transações interativas são necessárias para idempotência e automações,
+  // inclusive em bancos hospedados (o adaptador HTTP não as suporta).
+  instance = drizzlePostgres(postgres(url, { max: 5, prepare: false }), { schema });
   return instance;
 }
 

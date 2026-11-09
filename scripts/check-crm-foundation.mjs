@@ -51,6 +51,9 @@ try {
     }
   }
   process.env.FOUNDATION_ROLE = "admin"
+  await api.saveRecord("subscriptions", "provider-managed", { id: "provider-managed", asaasSubscriptionId: "sub_fixture", method: "asaas", status: "ativa", amount: 100 }, true)
+  for (const patch of [{ status: "cancelada" }, { status: "pausada" }, { amount: 200 }, { paymentChannel: "pix" }]) await assert.rejects(api.saveRecord("subscriptions", "provider-managed", patch), /gerenciada pelo Asaas/)
+  await assert.rejects(api.saveRecord("settings", "pricingRules", { pricingRules: { maxInstallments: 24 } }), /12/)
   for (const resource of ["catalog", "addons", "hostingPlans", "pipelines", "lostReasons", "financialCategories"]) {
     await api.saveRecord(resource, "persisted", { id: "persisted", name: "Antes" }, true)
     await api.saveRecord(resource, "persisted", { name: "Depois" })
@@ -182,17 +185,18 @@ try {
   process.env.FOUNDATION_ROLE = "admin"
   const key = await api.createApiKeyAction("fixture", ["leads:read", "leads:write", "tasks:write"])
   assert.equal(JSON.stringify(await api.loadRecordOverlay()).includes("tokenHash"), false)
-  const request = { headers: new Headers({ authorization: `Bearer ${key.token}` }), nextUrl: new URL("https://crm.example/api/v1/leads"), text: async () => JSON.stringify({ name: "API lead" }) }
+  const apiRequest = (body) => { const req = new Request("https://crm.example/api/v1/leads", { method: "POST", headers: { authorization: `Bearer ${key.token}` }, body: JSON.stringify(body) }); req.nextUrl = new URL(req.url); return req }
+  const request = apiRequest({ name: "API lead" })
   assert.equal((await api.POST(request, { params: Promise.resolve({ resource: "leads" }) })).status, 201)
   assert.equal((await api.GET(request, { params: Promise.resolve({ resource: "leads" }) })).status, 200)
   assert.equal((await api.GET(request, { params: Promise.resolve({ resource: "charges" }) })).status, 403)
-  const taskRequest = { ...request, text: async () => JSON.stringify({ title: "Tarefa API" }) }
+  const taskRequest = apiRequest({ title: "Tarefa API" })
   const taskResponse = await api.POST(taskRequest, { params: Promise.resolve({ resource: "tasks" }) })
   assert.equal(taskResponse.status, 201)
   const task = (await taskResponse.json()).data
-  assert.equal(task.status, "todo"); assert.deepEqual(task.comments, []); assert.deepEqual(task.attachments, [])
+  assert.equal(task.status, "todo"); const [storedTask] = await sql`select data from crm_records where resource='tasks' and id=${task.id}`; assert.deepEqual(storedTask.data.comments, []); assert.deepEqual(storedTask.data.attachments, [])
   await api.deleteRecord("apiKeys", key.key.id)
-  assert.equal((await api.GET(request, { params: Promise.resolve({ resource: "leads" }) })).status, 403)
+  assert.equal((await api.GET(request, { params: Promise.resolve({ resource: "leads" }) })).status, 401)
   process.env.FOUNDATION_ROLE = "comercial"
   const aiPermissions = { projects: true, billing: false, quotes: true, publicInformation: "Atendimento de segunda a sexta" }
   await assert.rejects(api.createHermesAccessAction(aiPermissions))

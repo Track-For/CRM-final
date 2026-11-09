@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Download, MessageCircle, Plus, Upload, UserRound } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -153,7 +153,7 @@ export function LeadsList() {
 
   const exportRows = (rows: Lead[]) =>
     downloadCsv(
-      "leads-track-for",
+      "leads-nexo-crm",
       rows.map((l) => ({
         Nome: l.name,
         WhatsApp: l.whatsapp,

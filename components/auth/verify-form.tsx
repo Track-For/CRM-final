@@ -78,7 +78,7 @@ export function VerifyForm({ maskedEmail, hasTotp, emailSent }: VerifyFormProps)
     ? sent
       ? `Enviamos um código de 6 dígitos para ${maskedEmail}.`
       : `Vamos enviar um código de 6 dígitos para ${maskedEmail}.`
-    : "Abra o Google Authenticator e digite o código de 6 dígitos do Track For CRM."
+    : "Abra o Google Authenticator e digite o código de 6 dígitos do Nexo CRM."
   const error = verifyState.error
   const canVerify = !isEmail || sent
 

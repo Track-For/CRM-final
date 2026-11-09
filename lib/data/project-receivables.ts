@@ -10,6 +10,7 @@ export function projectReceivables(deal: Deal, charges: Charge[]) {
   const existing = charges.filter(charge => charge.dealId === deal.id && !charge.subscriptionId)
   if (deal.value === 0) return { records: result, remove: existing.filter(editableForecast) }
   const stages = deal.paymentPlan?.milestones || []
+  const paymentChannel = deal.paymentPlan?.paymentChannel || (deal.paymentPlan?.method && deal.paymentPlan.method !== "pix" ? "asaas" : "pix")
   for (const charge of existing) {
     if (editableForecast(charge) && !stages.some(stage => stage.id === charge.milestoneId)) remove.push(charge)
   }
@@ -23,7 +24,9 @@ export function projectReceivables(deal: Deal, charges: Charge[]) {
     const charge: Charge = {
       id, dueDateOverridden: previous?.dueDateOverridden, automatic: true, number: previous?.number || `PROJ-${deal.id}-${index + 1}`, clientId: deal.clientId,
       dealId: deal.id, milestoneId: stage.id, description: `${deal.title} — ${stage.label}`,
-      amount: stage.amount, method: deal.paymentPlan?.method || "pix", pixKey: deal.paymentPlan?.pixKey || "",
+      amount: Math.round(stage.amount * (1 + (paymentChannel === "asaas" && stage.cardFeeMode === "asaas" ? stage.asaasFeePercent || 0 : 0) / 100) * 100) / 100, method: deal.paymentPlan?.method || "pix", pixKey: deal.paymentPlan?.pixKey || "",
+      paymentChannel,
+      ...(paymentChannel === "asaas" ? { paymentTerms: { baseAmount: stage.amount, surchargePercent: stage.cardFeeMode === "asaas" ? stage.asaasFeePercent || 0 : 0, count: stage.installments || 1, ...(stage.cardFeeMode ? { cardFeeMode: stage.cardFeeMode } : {}) } } : {}),
       installment: index + 1, installments: stages.length, dueDate, status: "pendente",
       digitableLine: "", barcode: "", pixCode: "", createdAt: previous?.createdAt || deal.wonAt || deal.stageChangedAt,
     }

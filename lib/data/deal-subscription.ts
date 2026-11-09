@@ -1,5 +1,16 @@
 import type { Charge, Deal, Subscription } from "@/types"
 
+export function firstSubscriptionDueDate(subscription: Pick<Subscription, "startDate" | "billingDay">) {
+  const start = new Date(subscription.startDate)
+  if (!Number.isFinite(start.getTime())) return ""
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(start)
+  const [year, month, startDay] = day.split("-").map(Number)
+  const wanted = Math.min(31, Math.max(1, subscription.billingDay || startDay))
+  let due = new Date(Date.UTC(year, month - 1, Math.min(wanted, new Date(Date.UTC(year, month, 0)).getUTCDate()), 15))
+  if (due.toISOString().slice(0, 10) < day) due = new Date(Date.UTC(year, month, Math.min(wanted, new Date(Date.UTC(year, month + 1, 0)).getUTCDate()), 15))
+  return due.toISOString()
+}
+
 /** Uma mensalidade por negócio. A data usa o fuso comercial do CRM. */
 export function subscriptionForDeal(deal: Deal, subscriptions: Subscription[], charges: Charge[] = []): Subscription | null {
   if (deal.stage !== "ganho" || !deal.clientId || !(deal.monthlyFee > 0)) return null
@@ -26,7 +37,7 @@ export function subscriptionForDeal(deal: Deal, subscriptions: Subscription[], c
     day = date.getUTCDate()
   }
   return { ...existing, id: existing?.id || id, dealId: deal.id, clientId: deal.clientId, description: existing?.description || `Mensalidade — ${deal.title}`, amount: existing?.amount ?? deal.monthlyFee,
-    method: existing?.method || deal.paymentPlan?.method || "pix", pixKey: existing?.pixKey ?? deal.paymentPlan?.pixKey ?? "", billingDay: day,
+    method: existing?.method || deal.paymentPlan?.method || "pix", paymentChannel: existing?.paymentChannel || deal.paymentPlan?.paymentChannel, pixKey: existing?.pixKey ?? deal.paymentPlan?.pixKey ?? "", billingDay: day,
     status: !settled ? "aguardando" : existing?.status === "pausada" ? "pausada" : "ativa",
     startDate: start, nextBillingDate: start && existing?.startDate === start ? existing.nextBillingDate : start }
 }
@@ -36,7 +47,7 @@ export function monthlyForecastChanges(subscription: Subscription, charges: Char
   const charge = charges.find(item => item.id === `chg_first_${subscription.id}`)
   if (!charge || charge.dueDateOverridden || charge.status === "pago" || charge.status === "cancelado" || charge.gatewayId) return null
   const waiting = !subscription.startDate
-  return { charge, patch: { awaitingProjectPayment: waiting, ...(waiting ? {} : { dueDate: subscription.startDate }) } }
+  return { charge, patch: { awaitingProjectPayment: waiting, ...(waiting ? {} : { dueDate: firstSubscriptionDueDate(subscription) }) } }
 }
 
 /** Avança após uma cobrança emitida, preservando o dia original nos meses seguintes. */
@@ -60,13 +71,12 @@ export function firstMonthlyReceivable(subscription: Subscription, charges: impo
   const id = `chg_first_${subscription.id}`
   // Cobranças já cadastradas para esta mensalidade têm prioridade.
   if (charges.some(charge => charge.subscriptionId === subscription.id)) return null
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(subscription.startDate))
-  const part = (type: string) => parts.find(item => item.type === type)!.value
-  const dueDate = `${part("year")}-${part("month")}-${part("day")}T15:00:00.000Z`
+  const dueDate = firstSubscriptionDueDate(subscription)
+  if (!dueDate) return null
   const charge: import("@/types").Charge = {
     id, number: `MENS-${subscription.id}`, clientId: subscription.clientId, dealId: subscription.dealId,
     subscriptionId: subscription.id, description: subscription.description, amount: subscription.amount,
-    method: subscription.method, pixKey: subscription.pixKey, installment: 1, installments: 1,
+    method: subscription.method, paymentChannel: subscription.paymentChannel, pixKey: subscription.pixKey, installment: 1, installments: 1,
     dueDate, status: "pendente", digitableLine: "", barcode: "", pixCode: "", createdAt: subscription.startDate,
   }
   const entry: import("@/types").FinancialEntry = {

@@ -5,7 +5,7 @@ import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { FlaskConical, KeyRound, Plus, Trash2, Webhook as WebhookIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -29,15 +29,12 @@ import { api, newId, useApiKeys, useCrm, useWebhooks } from "@/lib/data"
 import { formatDate, formatRelative } from "@/lib/format"
 import type { Integration, Webhook, WebhookEvent } from "@/types"
 
+import { API_SCOPES } from "@/lib/integrations/api-contract"
+import { API_PERMISSIONS } from "@/lib/integrations/api-permissions"
+import { ApiPermissionsGuide, ApiPermissionsIntro } from "./api-permissions-guide"
+
 const EVENT_OPTIONS = WEBHOOK_EVENTS.map((e) => ({ value: e.value, label: `${e.value} · ${e.label}` }))
-const SCOPES = [
-  { value: "leads:write", label: "Criar leads" },
-  { value: "leads:read", label: "Ler leads" },
-  { value: "deals:read", label: "Ler negócios" },
-  { value: "deals:write", label: "Atualizar negócios" },
-  { value: "tasks:write", label: "Criar tarefas" },
-  { value: "charges:read", label: "Ler cobranças" },
-]
+const SCOPES = API_SCOPES.map(value => ({ value, ...API_PERMISSIONS[value] }))
 
 function WebhookCard({ webhook }: { webhook: Webhook }) {
   const update = useCrm((s) => s.update)
@@ -183,7 +180,7 @@ function ApiKeysPanel() {
   return (
     <Panel
       title="Chaves de API (entrada)"
-      description="Use no n8n para criar leads, tarefas e atualizar negócios via POST /api/v1."
+      description="Conecte qualquer sistema à API do CRM. O n8n é opcional."
       actions={
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus /> Nova chave
@@ -191,6 +188,10 @@ function ApiKeysPanel() {
       }
       contentClassName="p-0"
     >
+      <details className="border-b p-4">
+        <summary className="cursor-pointer text-sm font-medium">Entenda cada permissão e veja exemplos</summary>
+        <div className="mt-4"><ApiPermissionsGuide /></div>
+      </details>
       {keys.length === 0 ? (
         <EmptyState icon={KeyRound} title="Nenhuma chave criada" compact className="m-4" />
       ) : (
@@ -203,7 +204,7 @@ function ApiKeysPanel() {
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {k.scopes.map((s) => (
                     <StatusBadge key={s} dot={false}>
-                      <span className="num">{s}</span>
+                      <span className="num" title={API_PERMISSIONS[s as keyof typeof API_PERMISSIONS]?.description}>{s}</span>
                     </StatusBadge>
                   ))}
                 </div>
@@ -230,19 +231,22 @@ function ApiKeysPanel() {
         </div>
       )}
 
-      <FormDialog open={creating} onOpenChange={setCreating} title="Nova chave de API" onSubmit={create} submitLabel="Gerar chave" size="md">
+      <FormDialog open={creating} onOpenChange={setCreating} title="Nova chave de API" description="Escolha quais dados esta integração poderá consultar ou alterar." onSubmit={create} submitLabel="Gerar chave" size="xl">
         <FormField label="Nome" required error={nameError}>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: n8n produção" aria-invalid={!!nameError} />
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: formulário do site" aria-invalid={!!nameError} />
         </FormField>
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Permissões</p>
+        <fieldset className="space-y-3">
+          <legend className="mb-2 text-sm font-medium">Permissões da integração</legend>
+          <ApiPermissionsIntro />
+          <div className="grid gap-3 sm:grid-cols-2">
           {SCOPES.map((s) => (
-            <label key={s.value} className="flex items-center gap-2 text-sm">
-              <Checkbox checked={scopes.includes(s.value)} onCheckedChange={(v) => setScopes((cur) => (v ? [...cur, s.value] : cur.filter((x) => x !== s.value)))} />
-              {s.label} <span className="num text-xs text-muted-foreground">{s.value}</span>
+            <label key={s.value} className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5">
+              <Checkbox className="mt-0.5 shrink-0" aria-describedby={`permission-${s.value.replace(":", "-")}`} checked={scopes.includes(s.value)} onCheckedChange={(v) => setScopes((cur) => (v ? [...cur, s.value] : cur.filter((x) => x !== s.value)))} />
+              <span className="min-w-0 space-y-1"><span className="block font-medium">{s.label}</span><code className="block text-xs text-primary">{s.value}</code><span id={`permission-${s.value.replace(":", "-")}`} className="block text-xs leading-relaxed text-muted-foreground">{s.description}</span></span>
             </label>
           ))}
-        </div>
+          </div>
+        </fieldset>
       </FormDialog>
 
       <Dialog open={!!created} onOpenChange={(o) => !o && setCreated(null)}>

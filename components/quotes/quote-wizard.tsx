@@ -6,7 +6,7 @@ import { Controller, useForm, useWatch, type FieldPath } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { addDays } from "date-fns"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Check, ChevronDown, ChevronLeft, ChevronRight, FileDown, MessageCircle, Minus, Plus, Save, Wallet, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -95,7 +95,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
         express: quote.express,
         hostingPlanId: quote.hostingPlanId ?? "",
         payment: quote.payment,
-        installments: quote.installments,
+        installments: Math.min(quote.installments, rules.maxInstallments),
         manualDiscount: quote.manualDiscount,
         notes: quote.notes,
       }
@@ -512,18 +512,18 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
                   render={({ field }) => (
                     <div className="grid gap-3 md:grid-cols-3">
                       <ChoiceCard active={field.value === "avista"} onClick={() => field.onChange("avista")} title="À vista" subtitle={`${rules.cashDiscountPercent}% de desconto`} value={formatMoney(calculateQuoteTotal("avista"))} />
-                      <ChoiceCard active={field.value === "parcelado"} onClick={() => field.onChange("parcelado")} title="Parcelado" subtitle={`Até ${rules.maxInstallments}x sem juros`} value={
+                      {rules.maxInstallments > 1 && <ChoiceCard active={field.value === "parcelado"} onClick={() => field.onChange("parcelado")} title="Parcelado" subtitle={`Até ${rules.maxInstallments}x sem juros`} value={
                           field.value === "parcelado"
                             ? `${calc.installments}x de ${formatMoney(calc.installmentValue)}`
                             : `${rules.maxInstallments}x de ${formatMoney(calculateQuoteTotal("parcelado") / rules.maxInstallments)}`
                         }
-                      />
+                      />}
                       <ChoiceCard active={field.value === "entrada"} onClick={() => field.onChange("entrada")} title="Entrada + entrega" subtitle="50% agora, 50% na entrega" value={formatMoney(calculateQuoteTotal("entrada") / 2)} />
                     </div>
                   )}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {values.payment === "parcelado" && (
+                  {values.payment === "parcelado" && rules.maxInstallments > 1 && (
                     <FormField label="Parcelas" error={errors.installments?.message} hint={`${calc.installments}x de ${formatMoney(calc.installmentValue)}`}>
                       <Controller
                         control={control}
@@ -532,7 +532,7 @@ export function QuoteWizard({ quote, initial }: QuoteWizardProps) {
                           <OptionSelect
                             value={String(field.value)}
                             onChange={(v) => field.onChange(Number(v))}
-                            options={Array.from({ length: Math.max(1, rules.maxInstallments - 1) }, (_, i) => ({ value: String(i + 2), label: `${i + 2}x sem juros` }))}
+                            options={Array.from({ length: Math.max(0, rules.maxInstallments - 1) }, (_, i) => ({ value: String(i + 2), label: `${i + 2}x sem juros` }))}
                           />
                         )}
                       />

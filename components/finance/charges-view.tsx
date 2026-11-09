@@ -14,6 +14,7 @@ import { downloadCsv } from "@/lib/browser"
 import { CHARGE_STATUS_LABEL, PAYMENT_METHOD_LABEL, toOptions } from "@/lib/constants"
 import { useById, useCharges } from "@/lib/data"
 import { sum } from "@/lib/data/selectors"
+import { billingLabel } from "@/lib/finance/payment-options"
 import { formatDate, formatMoney } from "@/lib/format"
 import { getPeriodRange, inRange } from "@/lib/period"
 import { useUiStore } from "@/lib/store/ui-store"
@@ -77,9 +78,10 @@ function ChargesViewContent({ initialCharge, initialView }: { initialCharge: str
                   Número: c.number,
                   Cliente: clients.get(c.clientId)?.name,
                   Descrição: c.description,
-                  Forma: PAYMENT_METHOD_LABEL[c.method],
+                  Forma: billingLabel(c),
                   Parcela: `${c.installment}/${c.installments}`,
                   Vencimento: formatDate(c.dueDate),
+                  "Pago em": c.status === "pago" ? formatDate(c.paidAt) : "",
                   Valor: c.amount.toFixed(2).replace(".", ","),
                   Status: CHARGE_STATUS_LABEL[c.status],
                 })),

@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation"
 import { useCallback, useMemo, useState } from "react"
 import { CheckSquare, Columns3, List, Plus } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"

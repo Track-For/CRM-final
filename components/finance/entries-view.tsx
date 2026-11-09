@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { ArrowDownCircle, ArrowUpCircle, Check, Download, MoreHorizontal, Pencil, Plus, Scale, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -13,6 +13,7 @@ import { ALL, FilterBar, matches } from "@/components/shared/filter-bar"
 import { StatCard } from "@/components/shared/stat-card"
 import { EnumBadge } from "@/components/shared/status-badge"
 import { EntryFormDialog } from "@/components/finance/entry-form-dialog"
+import { PaymentDateButton } from "@/components/finance/payment-date-button"
 import { FinanceToolbar } from "@/components/finance/finance-tabs"
 import { downloadCsv } from "@/lib/browser"
 import { ENTRY_STATUS_LABEL, ENTRY_STATUS_TONE, toOptions } from "@/lib/constants"
@@ -32,7 +33,6 @@ export function EntriesView() {
   const categoryList = useFinancialCategories()
   const clients = useById("clients")
   const charges = useById("charges")
-  const update = useCrm((s) => s.update)
   const remove = useCrm((s) => s.remove)
   const period = useUiStore((s) => s.period)
   const [now] = useState(() => new Date())
@@ -43,6 +43,7 @@ export function EntriesView() {
   const [formOpen, setFormOpen] = useState(false)
   const [formType, setFormType] = useState<EntryType>("receita")
   const [editing, setEditing] = useState<FinancialEntry | null>(null)
+  const [settling, setSettling] = useState(false)
   const [deleting, setDeleting] = useState<FinancialEntry | null>(null)
 
   const range = useMemo(() => getPeriodRange(period), [period])
@@ -62,12 +63,14 @@ export function EntriesView() {
   const totals = useMemo(() => entryTotals(filtered), [filtered])
 
   const openNew = (type: EntryType) => {
+    setSettling(false)
     setEditing(null)
     setFormType(type)
     setFormOpen(true)
   }
 
   const openEdit = (e: FinancialEntry) => {
+    setSettling(false)
     setEditing(e)
     setFormOpen(true)
   }
@@ -76,15 +79,14 @@ export function EntriesView() {
   const canSettle = (e: FinancialEntry) => e.status !== "pago" && !(e.chargeId && charges.get(e.chargeId)?.gatewayId)
 
   const markPaid = (e: FinancialEntry) => {
-    const paidAt = new Date().toISOString()
-    update("entries", e.id, { status: "pago", paidAt })
-    if (e.chargeId) update("charges", e.chargeId, { status: "pago", paidAt })
-    toast.success(e.type === "despesa" ? "Saída paga" : "Entrada recebida")
+    setEditing(e)
+    setSettling(true)
+    setFormOpen(true)
   }
 
   const renderActions = (e: FinancialEntry) => (
     <div className="flex items-center justify-end gap-1">
-      {canSettle(e) && (
+      {e.chargeId && charges.get(e.chargeId) ? <PaymentDateButton charge={charges.get(e.chargeId)!} /> : canSettle(e) && (
         <Button variant="outline" size="xs" onClick={() => markPaid(e)}>
           <Check />
           {e.type === "despesa" ? "Pagar" : "Baixar"}
@@ -262,7 +264,7 @@ export function EntriesView() {
           )}
         />
       </div>
-      <EntryFormDialog open={formOpen} onOpenChange={setFormOpen} defaultType={formType} entry={editing} />
+      <EntryFormDialog open={formOpen} onOpenChange={setFormOpen} defaultType={formType} entry={editing} settle={settling} />
       <AlertDialog open={Boolean(deleting)} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -3,6 +3,7 @@
 import { schedulePaidChargeInvoice } from "@/lib/fiscal/automatic-schedule"
 import { messageTemplateSchema } from "@/lib/messages/validation"
 import { dealValuesSchema } from "@/lib/data/deal-values"
+import { MAX_INSTALLMENTS } from "@/lib/finance/payment-options"
 import { projectForDeal } from "@/lib/projects/plan"
 import type { Project, Quote } from "@/types"
 import { webhookUrl } from "@/lib/security/webhook-url"
@@ -155,11 +156,21 @@ export async function saveRecord(resource: string, id: string, data: Record<stri
   if (!user) throw new Error("Sessão expirada. Entre novamente.")
   assertResourceAccess(user.role, resource, "write")
   const key = keySchema.parse({ resource, id })
+  if (["salesGoals", "savedReports", "automationRules"].includes(resource)) throw Error("Use a gestão comercial para salvar este recurso.")
   if (resource === "projects") throw new Error("Use o acompanhamento do projeto para editar suas etapas.")
   const value: Record<string, unknown> = resource === "quickMessages" ? messageTemplateSchema.parse({ ...data, id }) : dataSchema.parse(data)
+  if (resource === "settings" && value.pricingRules) {
+    const pricing = z.looseObject({ maxInstallments: z.number().int().min(1).max(MAX_INSTALLMENTS).optional() }).parse(value.pricingRules)
+    value.pricingRules = pricing
+  }
   if (resource === "deals") {
+    for (const field of ["startDate", "wonAt"] as const) if (value[field] !== undefined && value[field] !== null && value[field] !== "") z.iso.datetime({ offset: true }).parse(value[field])
     if (value.value !== undefined) dealValuesSchema.shape.value.parse(value.value)
     if (value.monthlyFee !== undefined) dealValuesSchema.shape.monthlyFee.parse(value.monthlyFee)
+  }
+  if (resource === "subscriptions") {
+    const [previous] = await db.select({ data: crmRecords.data }).from(crmRecords).where(sql`${crmRecords.resource}='subscriptions' and ${crmRecords.id}=${id} and ${crmRecords.deleted}=false`).limit(1)
+    if (previous?.data.asaasSubscriptionId && ["status", "method", "paymentChannel", "amount", "billingDay", "startDate", "nextBillingDate", "canceledAt", "cancelReason", "asaasSubscriptionId"].some(field => field in value && value[field] !== previous.data[field])) throw new Error("Esta mensalidade é gerenciada pelo Asaas. Altere na plataforma e sincronize o CRM.")
   }
   if (resource === "tasks") {
     const [previous] = await db.select({ data: crmRecords.data }).from(crmRecords).where(sql`${crmRecords.resource}='tasks' and ${crmRecords.id}=${id} and ${crmRecords.deleted}=false`).limit(1)

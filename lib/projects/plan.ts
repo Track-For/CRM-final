@@ -56,7 +56,7 @@ export function defaultProjectStages(project: Project, days?: number, assigneeId
 export function projectForDeal(deal: Deal, clientId: string, quotes: Quote[]): Project {
   const quote = quotes.filter(quote => quote.dealId === deal.id && quote.status !== "recusado" && quote.status !== "expirado").sort((a, b) => Number(b.status === "aceito") - Number(a.status === "aceito") || b.createdAt.localeCompare(a.createdAt))[0]
   const days = quote?.deadlineDays && Number.isFinite(quote.deadlineDays) ? Math.min(730, Math.max(1, Math.round(quote.deadlineDays))) : undefined
-  const startDate = (deal.wonAt || deal.stageChangedAt || "").slice(0, 10)
+  const startDate = (deal.startDate || deal.wonAt || deal.stageChangedAt || "").slice(0, 10)
   const project: Project = { id: `deal_project_${deal.id}`, clientId, dealId: deal.id, name: deal.title || "Projeto", projectType: deal.projectType || "outros", status: "planejamento", value: deal.value, startDate, deliveryDate: startDate && days ? addDays(startDate, days) : "", executionVersion: 0 }
   project.stages = defaultProjectStages(project, days, deal.ownerId || "")
   return project

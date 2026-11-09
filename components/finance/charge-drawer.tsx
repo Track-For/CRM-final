@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
-import { AlertTriangle, Ban, CheckCircle2, Copy, ExternalLink, FlaskConical, Loader2, MessageCircle, Receipt, RefreshCw } from "lucide-react"
-import { toast } from "sonner"
+import { AlertTriangle, Ban, Copy, ExternalLink, FlaskConical, Loader2, MessageCircle, Receipt, RefreshCw } from "lucide-react"
+import { toast } from "@/lib/store/save-feedback"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -17,7 +17,9 @@ import { Button } from "@/components/ui/button"
 import { EntityDrawer } from "@/components/shared/entity-drawer"
 import { InfoRow } from "@/components/shared/panel"
 import { EnumBadge } from "@/components/shared/status-badge"
-import { applyBoletoUpdate, chargeWhatsappUrl, isRegisteredBoleto, isUnregisteredBoleto, useChargeActions } from "@/components/finance/finance-actions"
+import { applyBoletoUpdate, isRegisteredBoleto, isUnregisteredBoleto, useChargeActions } from "@/components/finance/finance-actions"
+import { ChargeWhatsappDialog } from "@/components/finance/charge-whatsapp-dialog"
+import { PaymentDateButton } from "@/components/finance/payment-date-button"
 import { ChangeChargeDateButton } from "@/components/finance/change-charge-date-button"
 import { DeleteChargeButton } from "@/components/finance/delete-charge-button"
 import { PixQr } from "@/components/finance/payment-visuals"
@@ -27,10 +29,11 @@ import { refreshAsaasChargesAction } from "@/lib/boleto/import-actions"
 import { getDatabase } from "@/lib/data/api"
 import { useCrm } from "@/lib/data"
 import { cancelBoletoAction, syncBoletoAction } from "@/lib/boleto/actions"
-import { copyToClipboard, openWhatsapp } from "@/lib/browser"
-import { CHARGE_STATUS_LABEL, CHARGE_STATUS_TONE, PAYMENT_METHOD_LABEL } from "@/lib/constants"
+import { copyToClipboard } from "@/lib/browser"
+import { CHARGE_STATUS_LABEL, CHARGE_STATUS_TONE } from "@/lib/constants"
 import { useClient, useEntity, useInvoices } from "@/lib/data"
 import { useUiStore } from "@/lib/store/ui-store"
+import { billingLabel } from "@/lib/finance/payment-options"
 import { formatDate, formatMoney } from "@/lib/format"
 import type { Charge } from "@/types"
 
@@ -69,21 +72,13 @@ function RegisteredBoleto({ charge }: { charge: Charge }) {
           {charge.nossoNumero}
         </InfoRow>
       )}
-      {(charge.bankSlipUrl || charge.invoiceUrl) && (
+      {charge.bankSlipUrl && (
         <div className="grid gap-2 sm:grid-cols-2">
           {charge.bankSlipUrl && (
             <Button variant="outline" size="sm" asChild>
               <a href={charge.bankSlipUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink />
                 Abrir boleto
-              </a>
-            </Button>
-          )}
-          {charge.invoiceUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={charge.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink />
-                Abrir fatura
               </a>
             </Button>
           )}
@@ -99,10 +94,11 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
   const client = useClient(charge?.clientId)
   const invoices = useInvoices()
   const openQuickCreate = useUiStore(state => state.openQuickCreate)
-  const { markPaid, cancel } = useChargeActions()
+  const { cancel } = useChargeActions()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelBoletoOpen, setCancelBoletoOpen] = useState(false)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [syncing, startSync] = useTransition()
   const [canceling, startCancel] = useTransition()
 
@@ -160,7 +156,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
         footer={
           <>
             <DeleteChargeButton charge={charge} onDeleted={() => onOpenChange(false)} />
-            {open && !charge.gatewayId && charge.method === "asaas" && <Button onClick={() => { onOpenChange(false); openQuickCreate("charge", { chargeId: charge.id, clientId: charge.clientId, dealId: charge.dealId, subscriptionId: charge.subscriptionId, milestoneId: charge.milestoneId, amount: String(charge.amount), description: charge.description, method: "asaas", dueDate: charge.dueDate }) }}>Emitir e enviar pelo Asaas</Button>}
+            {open && !charge.gatewayId && (charge.paymentChannel === "asaas" || charge.method !== "pix") && <Button onClick={() => { onOpenChange(false); openQuickCreate("charge", { chargeId: charge.id, clientId: charge.clientId, dealId: charge.dealId, subscriptionId: charge.subscriptionId, milestoneId: charge.milestoneId, amount: String(charge.amount), description: charge.description, method: charge.method, dueDate: charge.dueDate }) }}>Emitir e enviar pelo Asaas</Button>}
             {open && !managed && (
               <Button variant="destructive" onClick={() => setCancelOpen(true)}>
                 <Ban />
@@ -179,12 +175,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
                 Emitir NF
               </Button>
             )}
-            {open && !managed && (
-              <Button variant="outline" onClick={() => markPaid(charge)}>
-                <CheckCircle2 />
-                Marcar como pago
-              </Button>
-            )}
+            <PaymentDateButton key={`payment-${charge.id}`} charge={charge} />
             {managed && charge.status !== "cancelado" && (
               <Button variant="outline" onClick={sync} disabled={syncing || canceling} aria-busy={syncing}>
                 {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
@@ -192,7 +183,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
               </Button>
             )}
             {open && !unregistered && (
-              <Button onClick={() => openWhatsapp(chargeWhatsappUrl(charge, client))}>
+              <Button onClick={() => setWhatsappOpen(true)}>
                 <MessageCircle />
                 Enviar no WhatsApp
               </Button>
@@ -203,8 +194,18 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
         <div className="space-y-5">
           {charge.gatewayId && <section className="space-y-2 rounded-xl border p-3 text-sm">
             <p>Dados sincronizados do Asaas. Pagamentos e cancelamentos são atualizados pela plataforma.</p>
-            {!registered && charge.invoiceUrl && <Button variant="outline" size="sm" asChild><a href={charge.invoiceUrl} target="_blank" rel="noopener noreferrer"><ExternalLink />Abrir fatura no Asaas</a></Button>}
           </section>}
+          {charge.invoiceUrl && (
+            <section className="space-y-3 rounded-xl border p-4">
+              <CopyRow label="Link de pagamento do Asaas" value={charge.invoiceUrl} copiedLabel="Link de pagamento copiado" />
+              <Button variant="outline" size="sm" asChild>
+                <a href={charge.invoiceUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink />
+                  Abrir pagamento no Asaas
+                </a>
+              </Button>
+            </section>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="min-w-0 rounded-lg border bg-surface p-3">
               <p className="text-xs text-muted-foreground">Valor</p>
@@ -228,7 +229,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
               )}
             </InfoRow>
             <InfoRow label="CPF/CNPJ" mono>{client?.document ?? "—"}</InfoRow>
-            <InfoRow label="Forma de pagamento">{PAYMENT_METHOD_LABEL[charge.method]}</InfoRow>
+            <InfoRow label="Forma de pagamento">{billingLabel(charge)}</InfoRow>
             <InfoRow label="Parcela" mono>{charge.installment}/{charge.installments}</InfoRow>
             <InfoRow label="Pago em" mono>{formatDate(charge.paidAt)}</InfoRow>
             <InfoRow label="Nota fiscal" mono>{invoice ? (invoice.number ? `NFS-e ${invoice.number}` : "Processando") : "—"}</InfoRow>
@@ -269,6 +270,7 @@ export function ChargeDrawer({ chargeId, onOpenChange }: { chargeId: string | nu
           )}
         </div>
       </EntityDrawer>
+      {whatsappOpen && client && <ChargeWhatsappDialog key={charge.id} charge={charge} client={client} onClose={() => setWhatsappOpen(false)} />}
       <ReasonDialog
         open={cancelOpen}
         onOpenChange={setCancelOpen}

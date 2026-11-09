@@ -39,7 +39,11 @@
     "fiscal:check": "node scripts/check-fiscal-automatic.mjs",
     "webhooks:process": "node scripts/process-webhooks.mjs",
     "webhooks:worker": "node scripts/process-webhooks.mjs --watch",
-    "access-media-webhooks:check": "node scripts/check-access-media-webhooks.mjs"
+    "access-media-webhooks:check": "node scripts/check-access-media-webhooks.mjs",
+    "commercial:check": "node scripts/check-commercial-api.mjs",
+    "whatsapp:check-reconnect": "node scripts/check-whatsapp-reconnect.mjs",
+    "whatsapp:check-intake": "node scripts/check-whatsapp-intake.mjs",
+    "whatsapp:triage": "node scripts/process-whatsapp-intake.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

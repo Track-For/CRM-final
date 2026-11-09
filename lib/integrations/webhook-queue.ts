@@ -61,7 +61,7 @@ export async function processPendingWebhooks() {
   if (Date.now() - lastCleanup > 3600000) {
     await db.execute(sql`delete from crm_records where
       (resource='passwordRecovery' and (data->>'expiresAt')::timestamptz<now()) or
-      (resource in ('passwordRecoveryRate','whatsappMediaRate') and updated_at<now()-interval '2 days')`)
+      (resource in ('passwordRecoveryRate','whatsappMediaRate','apiRate') and updated_at<now()-interval '2 days')`)
     lastCleanup = Date.now()
   }
   await db.insert(crmRecords).values({ resource: "workerHeartbeats", id: "webhooks", data: { checkedAt: new Date().toISOString() }, created: true })
@@ -94,12 +94,14 @@ export async function sendAndLog(webhook: Webhook, event: string, payload: unkno
     state: "pending", nextAttemptAt: new Date().toISOString(), createdAt: new Date().toISOString(), statusCode: 0, response: "Aguardando envio." }
   // O trabalho existe antes da primeira chamada HTTP; interrupções deixam uma entrega recuperável.
   await db.execute(sql`with queued as (
-    insert into crm_records(resource,id,data,created) values('webhookJobs',${job.id},${JSON.stringify(job)}::jsonb,true) returning id
+    insert into crm_records(resource,id,data,created) values('webhookJobs',${job.id},${JSON.stringify(job)}::jsonb || jsonb_build_object('nextAttemptAt',now()),true) returning id
   ) insert into crm_records(resource,id,data,created) select 'integrationLogs',id,${JSON.stringify(log(job))}::jsonb,true from queued`)
   return processWebhookJob(job.id)
 }
 
 export async function dispatchCrmEvent(event: WebhookEvent, payload: unknown) {
+  const { queueAutomationEvent } = await import("@/lib/commercial/automations")
+  await queueAutomationEvent(event, payload)
   const rows = await db.select({ data: crmRecords.data }).from(crmRecords).where(sql`${crmRecords.resource}='webhooks' and ${crmRecords.deleted}=false and ${crmRecords.data}->>'active'='true' and ${crmRecords.data}->>'event'=${event}`)
   await Promise.all(rows.map(row => sendAndLog(row.data as unknown as Webhook, event, payload)))
 }

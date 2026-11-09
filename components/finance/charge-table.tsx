@@ -7,8 +7,9 @@ import { DataTable, type ColumnDef } from "@/components/shared/data-table"
 import { DeleteChargeButton } from "@/components/finance/delete-charge-button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { EnumBadge } from "@/components/shared/status-badge"
-import { CHARGE_STATUS_LABEL, CHARGE_STATUS_TONE, PAYMENT_METHOD_LABEL } from "@/lib/constants"
+import { CHARGE_STATUS_LABEL, CHARGE_STATUS_TONE } from "@/lib/constants"
 import { useById } from "@/lib/data"
+import { billingLabel } from "@/lib/finance/payment-options"
 import { formatDate, formatMoney } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Charge } from "@/types"
@@ -38,7 +39,8 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
         ),
       },
       { id: "origin", header: "Origem", accessorFn: charge => charge.gatewayId ? "Asaas" : charge.automatic && charge.status !== "pago" ? "Previsto no CRM" : "Registro manual", cell: ({ row }) => <span className="text-xs">{row.original.gatewayId ? "Asaas" : row.original.automatic && row.original.status !== "pago" ? "Previsto no CRM" : "Registro manual"}</span> },
-      { id: "method", header: "Forma", accessorFn: (c) => c.method, cell: ({ row }) => PAYMENT_METHOD_LABEL[row.original.method] },
+      { id: "paidAt", header: "Pago em", accessorFn: c => c.paidAt || "", cell: ({ row }) => <span className="num text-xs">{row.original.status === "pago" ? formatDate(row.original.paidAt) : "—"}</span> },
+      { id: "method", header: "Forma", accessorFn: (c) => c.method, cell: ({ row }) => billingLabel(row.original) },
       { id: "installment", header: "Parcela", enableSorting: false, cell: ({ row }) => <span className="num text-xs">{row.original.installment}/{row.original.installments}</span> },
       {
         id: "due",
@@ -74,7 +76,7 @@ export function ChargeTable({ charges, onOpen, hideClient, pageSize }: ChargeTab
             <div className="min-w-0">
               <p className="truncate font-medium">{hideClient ? c.description : (clients.get(c.clientId)?.name ?? "—")}</p>
               <p className="num text-xs text-muted-foreground">
-                {c.gatewayId ? "Asaas" : "CRM"} · {c.number} · {PAYMENT_METHOD_LABEL[c.method]} · {c.installment}/{c.installments}
+                {c.gatewayId ? "Asaas" : "CRM"} · {c.number} · {billingLabel(c)} · {c.installment}/{c.installments}
               </p>
             </div>
             <div className="flex items-center gap-1"><EnumBadge value={c.status} labels={CHARGE_STATUS_LABEL} tones={CHARGE_STATUS_TONE} /><Button variant="ghost" size="icon-sm" aria-label={`Ver detalhes da cobrança ${c.number}`} onClick={event => { event.stopPropagation(); onOpen(c) }}><Eye /></Button><DeleteChargeButton charge={c} compact /></div>

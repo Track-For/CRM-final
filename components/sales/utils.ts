@@ -14,6 +14,10 @@ export const TONE_COLOR: Record<Tone, string> = {
 }
 
 export function stageName(pipelines: Pipeline[], pipelineId: string | undefined, key: StageKey): string {
+  if (!pipelineId) {
+    const names = [...new Set(pipelines.flatMap(p => p.stages.filter(s => s.key === key).map(s => s.name)))]
+    return names.length ? names.join(" / ") : STAGE_LABEL[key]
+  }
   const p = pipelines.find((x) => x.id === pipelineId)
   return p?.stages.find((s) => s.key === key)?.name ?? STAGE_LABEL[key]
 }

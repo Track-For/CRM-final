@@ -52,11 +52,11 @@ export function IntegrationsOverview({ fiscal, asaas, evolution, googleCalendar 
         title="Integrações"
         description="Conecte automações, WhatsApp, anúncios, agenda, pagamentos e emissão fiscal."
         actions={
-          <Button variant="outline" asChild>
+          <><Button variant="outline" asChild><Link href="/integracoes/api">API e documentação</Link></Button><Button variant="outline" asChild>
             <Link href="/integracoes/logs">
               <ScrollText /> Log de eventos
             </Link>
-          </Button>
+          </Button></>
         }
       />
       <StatGrid className="mb-6">

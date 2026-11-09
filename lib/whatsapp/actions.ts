@@ -8,6 +8,9 @@ import { db, whatsappMessages, whatsappContacts, crmRecords } from "@/lib/db"
 import { evolutionConfig, EvolutionError, evolutionRequest } from "./client"
 import { normalizePhone, object, phoneIdentity, isLid } from "./normalize"
 import { reconcileRecentWhatsapp, reconcileWhatsappHistory } from "./sync"
+import { intakeId, queueWhatsappIntake } from "./intake"
+import type { Lead } from "@/types"
+import type { IntakeData } from "./intake-model"
 import { storeMessages } from "./storage"
 
 async function authorize(admin = false) {
@@ -56,8 +59,10 @@ export async function disconnectWhatsapp() {
   await evolutionRequest(`/instance/logout/${instance}`, "DELETE")
 }
 export async function getWhatsappInbox() {
-  await authorize()
-  try { await reconcileRecentWhatsapp() } catch { /* Mantém disponível a cópia local quando o provedor está fora do ar. */ }
+  const user = await authorize()
+  const connection = await getWhatsappConnection()
+  if (["close", "connecting", "unconfigured"].includes(connection.state)) return []
+  if (connection.state === "open") try { await reconcileRecentWhatsapp() } catch { /* Mantém disponível a cópia local quando o provedor está fora do ar. */ }
   const instance = process.env.EVOLUTION_INSTANCE || "crm-principal"
   const rows = await db.select().from(whatsappMessages).where(eq(whatsappMessages.instance, instance)).orderBy(desc(whatsappMessages.sentAt)).limit(2000)
   const byPhone = new Map<string, { phone: string; name: string; preview: string; sentAt: string; direction: string; unresolved: boolean }>()
@@ -67,7 +72,16 @@ export async function getWhatsappInbox() {
     if (!current) byPhone.set(key, { phone: row.phone || row.remoteJid, unresolved: !row.phone, name: row.contactName, preview: row.text, sentAt: row.sentAt.toISOString(), direction: row.direction })
     else if (!current.name && row.contactName) current.name = row.contactName
   }
-  return [...byPhone.values()]
+  await queueWhatsappIntake(instance, rows)
+  const triage = await db.select({ id: crmRecords.id, data: crmRecords.data }).from(crmRecords).where(and(eq(crmRecords.resource, "whatsappIntake"), eq(crmRecords.deleted, false)))
+  const intake = new Map(triage.map(row => [row.id, row.data as unknown as IntakeData]))
+  const leadIds = triage.filter(r => r.data.instance === instance && typeof r.data.leadId === "string").map(r => String(r.data.leadId))
+  const linked = ["admin", "comercial"].includes(user.role) && leadIds.length ? await db.select({ id: crmRecords.id, data: crmRecords.data }).from(crmRecords).where(and(eq(crmRecords.resource, "leads"), eq(crmRecords.deleted, false), inArray(crmRecords.id, leadIds))) : []
+  return [...byPhone.values()].map(chat => {
+    const classification = chat.unresolved ? undefined : intake.get(intakeId(instance, chat.phone))
+    const lead = linked.find(row => row.id === classification?.leadId)
+    return { ...chat, intake: classification, lead: lead ? { ...lead.data, id: lead.id } as unknown as Lead : undefined }
+  })
 }
 const phoneSchema = z.string().trim().regex(/^[+\d\s().-]+$/, "Informe um telefone válido.").transform(normalizePhone).pipe(z.string().regex(/^\d{7,15}$/))
 function aliases(phone: string) {

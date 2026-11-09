@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { CalendarClock, MoreHorizontal, Pause, Play, Plus, Repeat, TrendingDown, Wallet, XCircle } from "lucide-react"
-import { toast } from "sonner"
+import { billingLabel } from "@/lib/finance/payment-options"
+import { CalendarClock, ExternalLink, MoreHorizontal, Pause, Play, Plus, Repeat, TrendingDown, Wallet, XCircle } from "lucide-react"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTable, type ColumnDef } from "@/components/shared/data-table"
@@ -15,8 +16,9 @@ import { EnumBadge } from "@/components/shared/status-badge"
 import { FinanceToolbar } from "@/components/finance/finance-tabs"
 import { ReasonDialog } from "@/components/finance/reason-dialog"
 import { SubscriptionFormDialog } from "@/components/finance/subscription-form-dialog"
-import { PAYMENT_METHOD_LABEL, SUBSCRIPTION_STATUS_LABEL, SUBSCRIPTION_STATUS_TONE, toOptions } from "@/lib/constants"
+import { SUBSCRIPTION_STATUS_LABEL, SUBSCRIPTION_STATUS_TONE, toOptions } from "@/lib/constants"
 import { useById, useCrm, useSubscriptions } from "@/lib/data"
+import { subscriptionActiveAt } from "@/lib/finance/recurring"
 import { mrr } from "@/lib/data/selectors"
 import { daysSince, daysUntil, formatDate, formatMoney, formatPercent } from "@/lib/format"
 import type { Subscription } from "@/types"
@@ -35,6 +37,7 @@ export function SubscriptionsView() {
   const recentCanceled = canceled.filter((s) => s.canceledAt && daysSince(s.canceledAt) <= 30)
   const lostMrr = recentCanceled.reduce((s, x) => s + x.amount, 0)
   const currentMrr = mrr(subscriptions)
+  const effective = active.filter(s => subscriptionActiveAt(s, new Date()))
   const upcoming = [...active].sort((a, b) => a.nextBillingDate.localeCompare(b.nextBillingDate)).filter((s) => daysUntil(s.nextBillingDate) <= 30)
 
   const filtered = useMemo(() => {
@@ -43,6 +46,7 @@ export function SubscriptionsView() {
   }, [subscriptions, clients, search, status])
 
   const setStatusFor = (s: Subscription, next: Subscription["status"]) => {
+    if (s.asaasSubscriptionId) { toast.error("Gerencie esta mensalidade no Asaas e sincronize o CRM."); return }
     update("subscriptions", s.id, { status: next, canceledAt: undefined, cancelReason: undefined })
     toast.success(next === "pausada" ? "Mensalidade pausada" : "Mensalidade reativada")
   }
@@ -63,7 +67,7 @@ export function SubscriptionsView() {
         ),
       },
       { id: "amount", header: "Valor", accessorFn: (s) => s.amount, cell: ({ row }) => <span className="num font-medium">{formatMoney(row.original.amount)}/mês</span> },
-      { id: "method", header: "Forma", accessorFn: (s) => s.method, cell: ({ row }) => PAYMENT_METHOD_LABEL[row.original.method] },
+      { id: "method", header: "Forma", accessorFn: (s) => s.method, cell: ({ row }) => billingLabel(row.original) },
       { id: "day", header: "Dia", accessorFn: (s) => s.billingDay, cell: ({ row }) => <span className="num">{row.original.billingDay || "A definir"}</span> },
       { id: "next", header: "Próxima cobrança", accessorFn: (s) => s.nextBillingDate, cell: ({ row }) => <span className="num text-xs">{row.original.status === "ativa" ? formatDate(row.original.nextBillingDate) : "—"}</span> },
       { id: "status", header: "Status", accessorFn: (s) => s.status, cell: ({ row }) => <EnumBadge value={row.original.status} labels={SUBSCRIPTION_STATUS_LABEL} tones={SUBSCRIPTION_STATUS_TONE} /> },
@@ -76,8 +80,8 @@ export function SubscriptionsView() {
   return (
     <div className="space-y-4">
       <StatGrid>
-        <StatCard label="MRR" value={formatMoney(currentMrr)} icon={Repeat} highlight hint="Receita recorrente mensal" />
-        <StatCard label="Mensalidades ativas" value={active.length} icon={Wallet} hint={`Ticket médio ${formatMoney(active.length ? currentMrr / active.length : 0)}`} />
+        <StatCard label="MRR vigente" value={formatMoney(currentMrr)} icon={Repeat} highlight hint="Receita recorrente mensal em vigor hoje" />
+        <StatCard label="Mensalidades vigentes" value={effective.length} icon={Wallet} hint={`Ticket médio ${formatMoney(effective.length ? currentMrr / effective.length : 0)}`} />
         <StatCard label="Próximos 30 dias" value={formatMoney(upcoming.reduce((s, x) => s + x.amount, 0))} icon={CalendarClock} hint={`${upcoming.length} cobrança(s)`} />
         <StatCard label="Churn (30 dias)" value={formatPercent(currentMrr + lostMrr ? lostMrr / (currentMrr + lostMrr) : 0)} icon={TrendingDown} hint={`${formatMoney(lostMrr)} perdidos`} />
       </StatGrid>
@@ -177,6 +181,7 @@ export function SubscriptionsView() {
         confirmLabel="Cancelar mensalidade"
         onConfirm={(reason) => {
           if (!canceling) return
+          if (canceling.asaasSubscriptionId) { toast.error("Cancele esta mensalidade no Asaas e sincronize o CRM."); return }
           update("subscriptions", canceling.id, { status: "cancelada", canceledAt: new Date().toISOString(), cancelReason: reason })
           toast.success("Mensalidade cancelada")
         }}
@@ -186,6 +191,7 @@ export function SubscriptionsView() {
 }
 
 function RowActions({ sub, onCancel, onStatus }: { sub: Subscription; onCancel: (s: Subscription) => void; onStatus: (s: Subscription, next: Subscription["status"]) => void }) {
+  if (sub.asaasSubscriptionId) return <Button asChild variant="outline" size="xs"><a href="https://www.asaas.com" target="_blank" rel="noopener noreferrer"><ExternalLink />Gerenciar no Asaas</a></Button>
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

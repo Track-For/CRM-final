@@ -24,6 +24,11 @@ export const resourcePolicy: Record<string, { read: Role[]; write: Role[] }> = {
   webhooks: { read: ["admin"], write: ["admin"] },
   apiKeys: { read: ["admin"], write: ["admin"] },
   integrationLogs: { read: ["admin"], write: ["admin"] },
+  salesGoals: { read: sales, write: ["admin", "comercial"] },
+  savedReports: { read: sales, write: sales },
+  automationRules: { read: ["admin"], write: ["admin"] },
+  automationRuns: { read: ["admin"], write: [] },
+  automationEvents: { read: ["admin"], write: [] },
   notifications: { read: all, write: all },
 }
 for (const key of ["catalog", "addons", "hostingPlans", "pipelines", "lostReasons", "quickMessages", "financialCategories"]) {

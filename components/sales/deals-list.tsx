@@ -16,6 +16,8 @@ import { stageName } from "@/components/sales/utils"
 import { PROJECT_TYPE_LABEL, SOURCE_LABEL, STAGE_ORDER, STAGE_LABEL, STAGE_TONE, STALE_DEAL_DAYS, toOptions } from "@/lib/constants"
 import { useById, useDeals, usePipelines } from "@/lib/data"
 import { useEntityOptions } from "@/lib/data/options"
+import { useReceiptMetrics } from "@/lib/finance/use-receipt-metrics"
+import { dealProbability } from "@/lib/data/deal-forecast"
 import { dealIdleDays, isOpenDeal, sum, weightedValue } from "@/lib/data/selectors"
 import { formatDate, formatMoney } from "@/lib/format"
 import { delta, getPeriodRange, inRange } from "@/lib/period"
@@ -39,8 +41,9 @@ export function DealsList() {
   const [type, setType] = useState(ALL)
   const [source, setSource] = useState(ALL)
 
+  const range = useMemo(() => getPeriodRange(period), [period])
+  const receipts = useReceiptMetrics(range, [])
   const kpis = useMemo(() => {
-    const range = getPeriodRange(period)
     const won = deals.filter((d) => d.stage === "ganho" && inRange(d.wonAt, range.from, range.to))
     const prevWon = deals.filter((d) => d.stage === "ganho" && inRange(d.wonAt, range.previousFrom, range.previousTo))
     const closed = sum(won, (d) => d.value)
@@ -53,14 +56,14 @@ export function DealsList() {
       closed,
       closedDelta: delta(closed, prevClosed),
       wonCount: won.length,
-      weighted: sum(open, weightedValue),
+      weighted: sum(open, d => weightedValue(d, pipelines, receipts.data?.projectPaidByDeal)),
       openCount: open.length,
       ticket,
       ticketDelta: delta(ticket, prevTicket),
       monthly: sum(won, (d) => d.monthlyFee),
       monthlyDelta: delta(sum(won, (d) => d.monthlyFee), sum(prevWon, (d) => d.monthlyFee)),
     }
-  }, [deals, period])
+  }, [deals, range, pipelines, receipts.data])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -103,8 +106,8 @@ export function DealsList() {
         accessorFn: (d) => d.monthlyFee,
         cell: ({ row }) => <span className="num text-muted-foreground">{row.original.monthlyFee ? formatMoney(row.original.monthlyFee) : "—"}</span>,
       },
-      { id: "probability", header: "Prob.", accessorFn: (d) => d.probability, cell: ({ row }) => <span className="num">{row.original.probability}%</span> },
-      { id: "close", header: "Previsão", accessorFn: (d) => d.expectedCloseDate, cell: ({ row }) => <span className="num text-muted-foreground">{formatDate(row.original.wonAt ?? row.original.lostAt ?? row.original.expectedCloseDate)}</span> },
+      { id: "probability", header: "Prob.", accessorFn: (d) => dealProbability(d, pipelines), cell: ({ row }) => <span className="num">{dealProbability(row.original, pipelines)}%</span> },
+      { id: "start", header: "Início", accessorFn: (d) => d.startDate, cell: ({ row }) => <span className="num text-muted-foreground">{formatDate(row.original.startDate)}</span> },
       { id: "owner", header: "Responsável", accessorFn: (d) => d.ownerId, cell: ({ row }) => <UserAvatar userId={row.original.ownerId} showName /> },
       {
         id: "idle",
@@ -136,7 +139,7 @@ export function DealsList() {
       <SalesViewNav />
       <StatGrid>
         <StatCard label={`Fechado (${kpis.label})`} value={formatMoney(kpis.closed)} icon={Handshake} highlight delta={kpis.closedDelta} hint={`${kpis.wonCount} ganho(s)`} />
-        <StatCard label="Previsto ponderado" value={formatMoney(kpis.weighted)} icon={Scale} hint={`${kpis.openCount} negócio(s) abertos`} />
+        <StatCard label="Previsto ponderado" value={receipts.data ? formatMoney(kpis.weighted) : "—"} loading={receipts.loading} icon={Scale} hint={`${kpis.openCount} negócios · saldo restante × probabilidade da etapa`} />
         <StatCard label="Ticket médio" value={formatMoney(kpis.ticket)} icon={Target} delta={kpis.ticketDelta} hint="vs. período anterior" />
         <StatCard label="Mensalidade nova" value={formatMoney(kpis.monthly)} icon={Repeat} delta={kpis.monthlyDelta} hint="recorrência dos ganhos" />
       </StatGrid>
@@ -183,7 +186,7 @@ export function DealsList() {
                 <div className="flex items-center justify-between text-xs">
                   <span className="num text-sm font-semibold text-primary">{formatMoney(d.value)}</span>
                   <span className="num text-muted-foreground">
-                    {d.probability}% · {formatDate(d.wonAt ?? d.lostAt ?? d.expectedCloseDate)}
+                    {dealProbability(d, pipelines)}% · Início: {formatDate(d.startDate)}
                   </span>
                 </div>
               </div>

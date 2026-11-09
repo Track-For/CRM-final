@@ -3,7 +3,7 @@ import QRCode from "qrcode"
 
 /** Implementação própria de TOTP (RFC 6238): HMAC-SHA1, 6 dígitos, passo de 30s. */
 
-const ISSUER = "Track For CRM"
+const ISSUER = "Nexo CRM"
 const DIGITS = 6
 const PERIOD = 30
 const WINDOW = 1

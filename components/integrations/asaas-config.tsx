@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react"
 import { Copy, CreditCard, ExternalLink, Eye, EyeOff, FlaskConical, Loader2, RefreshCw, Save, ShieldAlert, Unplug } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import {
   AlertDialog,
   AlertDialogAction,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Check, CheckCheck, Loader2, RefreshCw, Send, Sparkles } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { getWhatsappThread, sendWhatsappText, syncWhatsappHistory } from "@/lib/whatsapp/actions"

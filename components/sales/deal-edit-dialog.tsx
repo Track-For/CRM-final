@@ -5,9 +5,8 @@ import Link from "next/link"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { format } from "date-fns"
 import { ExternalLink } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FormDialog } from "@/components/forms/form-dialog"
@@ -21,6 +20,7 @@ import { newId, useCrm, useLeads, usePipelines } from "@/lib/data"
 import { useEntityOptions } from "@/lib/data/options"
 import { v } from "@/lib/validation"
 import { dealValuesSchema } from "@/lib/data/deal-values"
+import { dealDateInput, dealDateSchema, dealDateToIso } from "@/lib/data/deal-dates"
 import type { Deal, DealHistoryEntry, StageKey } from "@/types"
 
 const schema = z.object({
@@ -30,7 +30,8 @@ const schema = z.object({
   projectType: v.select(["app", "sistema", "site", "anuncio", "outros"], "o tipo de projeto"),
   value: dealValuesSchema.shape.value,
   monthlyFee: dealValuesSchema.shape.monthlyFee,
-  expectedCloseDate: v.date("Previsão de fechamento"),
+  startDate: dealDateSchema.or(z.literal("")),
+  expectedCloseDate: dealDateSchema.or(z.literal("")),
   ownerId: v.required("Responsável"),
 })
 type Values = z.infer<typeof schema>
@@ -49,7 +50,8 @@ const toValues = (deal: Deal): Values => ({
   projectType: deal.projectType,
   value: deal.value,
   monthlyFee: deal.monthlyFee,
-  expectedCloseDate: format(new Date(deal.expectedCloseDate), "yyyy-MM-dd"),
+  startDate: dealDateInput(deal.startDate),
+  expectedCloseDate: dealDateInput(deal.expectedCloseDate),
   ownerId: deal.ownerId,
 })
 
@@ -86,7 +88,8 @@ export function DealEditDialog({ deal, onOpenChange, onStageChange }: DealEditDi
       projectType: values.projectType,
       value: values.value,
       monthlyFee: values.monthlyFee,
-      expectedCloseDate: new Date(`${values.expectedCloseDate}T12:00:00`).toISOString(),
+      startDate: values.startDate ? dealDateToIso(values.startDate) : "",
+      expectedCloseDate: values.expectedCloseDate ? dealDateToIso(values.expectedCloseDate) : "",
       ownerId: values.ownerId,
       history,
     })
@@ -139,7 +142,10 @@ export function DealEditDialog({ deal, onOpenChange, onStageChange }: DealEditDi
         <FormField label="Responsável" required>
           <Controller control={control} name="ownerId" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={userOptions} />} />
         </FormField>
-        <FormField label="Previsão de fechamento" required error={errors.expectedCloseDate?.message}>
+        <FormField label="Data de início" error={errors.startDate?.message}>
+          <Input type="date" {...register("startDate")} />
+        </FormField>
+        <FormField label="Previsão de fechamento (opcional)" error={errors.expectedCloseDate?.message} hint="Usada na previsão comercial dos negócios em aberto.">
           <Input type="date" {...register("expectedCloseDate")} />
         </FormField>
       </FormGrid>

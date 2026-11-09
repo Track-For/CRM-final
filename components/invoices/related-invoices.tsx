@@ -1,5 +1,5 @@
 "use client"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { useEffect, useState } from "react"
 import { getFiscalSettings, getInvoice, listInvoices, type FiscalSettingsView, type InvoiceView } from "@/lib/fiscal/actions"
 import { InvoiceFormDialog as FiscalForm, type InvoiceDefaults } from "@/components/invoices/invoice-form-dialog"

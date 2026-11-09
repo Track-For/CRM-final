@@ -10,7 +10,7 @@ const dir = path.resolve(".next/webhook-unit"); await mkdir(dir, { recursive: tr
 const outfile = path.join(dir, "transport.mjs")
 await build({ stdin: { contents: 'export { deliverWebhook } from "./lib/integrations/webhooks"', resolveDir: process.cwd() }, outfile, bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "silent", plugins: [{ name: "transport-fixture", setup(plugin) {
   plugin.onResolve({ filter: /^(node:dns\/promises|node:https|@\/lib\/db)$/ }, args => ({ path: args.path, namespace: "fixture" }))
-  plugin.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: args.path === "node:dns/promises" ? 'export async function lookup(){return [{address:globalThis.fixtureAddress||"8.8.8.8",family:4}]}' : args.path === "@/lib/db" ? 'export const db={}; export const crmRecords={};' : `import {EventEmitter} from "node:events";
+  plugin.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: args.path === "node:dns/promises" ? 'export async function lookup(){return [{address:globalThis.fixtureAddress||"8.8.8.8",family:4}]}' : args.path === "@/lib/db" ? 'export const db={}; export const crmRecords={}; export const users={};' : `import {EventEmitter} from "node:events";
     export function request(url, options, callback){
       const req=new EventEmitter(); req.setTimeout=()=>req; req.destroy=error=>req.emit("error",error);
       req.end=body=>{globalThis.fixtureSent={url:String(url),options,body}; globalThis.fixtureCalls=(globalThis.fixtureCalls||0)+1;

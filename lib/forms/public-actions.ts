@@ -7,6 +7,7 @@ import { sha256Hex } from "@/lib/auth/session"
 import { buildFormSchema } from "@/lib/forms/validation"
 import { PROJECT_TYPE_LABEL, REVENUE_LABEL } from "@/lib/constants"
 import type { Lead, PublicForm, ProjectType, RevenueRange } from "@/types"
+import { dispatchCrmEvent } from "@/lib/integrations/webhooks"
 
 export async function getPublicFormAction(slug: string): Promise<PublicForm | null> {
   z.string().min(1).max(120).parse(slug)
@@ -46,5 +47,6 @@ export async function submitPublicFormAction(slug: string, input: Record<string,
     const [existing] = await db.select({ id: crmRecords.id }).from(crmRecords).where(sql`${crmRecords.resource}='leads' and ${crmRecords.id}=${id} and ${crmRecords.data}->>'formId'=${form.id}`).limit(1)
     if (!existing) throw new Error("Não foi possível enviar. Aguarde alguns minutos e tente novamente.")
   }
+  await dispatchCrmEvent("lead.created", lead).catch(() => {})
   return { ok: true }
 }

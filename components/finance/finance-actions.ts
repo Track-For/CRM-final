@@ -42,15 +42,6 @@ export function useChargeActions() {
   const update = useCrm((s) => s.update)
   const remove = useCrm((s) => s.remove)
 
-  const markPaid = (charge: Charge) => {
-    if (charge.gatewayId) { toast.error("Atualize o status pelo Asaas"); return }
-    const paidAt = new Date().toISOString()
-    update("charges", charge.id, { status: "pago", paidAt })
-    const entry = useCrm.getState().entries.find((e) => e.chargeId === charge.id)
-    if (entry) update("entries", entry.id, { status: "pago", paidAt })
-    toast.success(`${charge.number} marcada como paga`, { description: formatMoney(charge.amount) })
-  }
-
   const cancel = (charge: Charge) => {
     if (charge.gatewayId) { toast.error("Cancele a cobrança no Asaas e sincronize o CRM"); return }
     update("charges", charge.id, { status: "cancelado", paidAt: undefined })
@@ -59,7 +50,7 @@ export function useChargeActions() {
     toast.success(`${charge.number} cancelada`)
   }
 
-  return { markPaid, cancel }
+  return { cancel }
 }
 
 function boletoWhatsappText(charge: Charge) {

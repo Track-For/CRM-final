@@ -1,9 +1,11 @@
 "use client"
 
+import { useReceiptMetrics } from "@/lib/finance/use-receipt-metrics"
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { Bar, BarChart, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { CalendarDays, CircleDollarSign, Clock, Download, FileDown, Repeat, TrendingDown, UserRound } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,10 +20,11 @@ import { InitialsAvatar } from "@/components/shared/user-avatar"
 import { FunnelBars, RevenueChart, SourceBarChart, moneyTick, tooltipContent } from "@/components/dashboard/charts"
 import { avgCloseDays, churnIn, funnel, leadsIn, lostIn, mrrAt, wonIn, type Range } from "@/components/dashboard/metrics"
 import { ReportTable } from "@/components/reports/report-table"
-import { ROLE_LABEL, SOURCE_COLOR, SOURCE_LABEL, STAGE_LABEL } from "@/lib/constants"
+import { stageName } from "@/components/sales/utils"
+import { ROLE_LABEL, SOURCE_COLOR, SOURCE_LABEL } from "@/lib/constants"
 import { downloadCsv } from "@/lib/browser"
 import { useAdSpend, useCrm, useDeals, useEntries, useLeads, useLostReasons, usePipelines, useSubscriptions, useUsers } from "@/lib/data"
-import { isOpenDeal, monthBuckets, revenueByMonth, sum } from "@/lib/data/selectors"
+import { isOpenDeal, periodMonthBuckets, revenueByMonth, sum } from "@/lib/data/selectors"
 import { formatDate, formatDays, formatMoney, formatNumber, formatPercent } from "@/lib/format"
 import { PERIOD_LABEL, delta, getPeriodRange, type PeriodPreset } from "@/lib/period"
 import { useUiStore } from "@/lib/store/ui-store"
@@ -52,6 +55,8 @@ export function ReportsView() {
   const pipelines = usePipelines()
   const adSpend = useAdSpend()
   const setSingleton = useCrm((s) => s.setSingleton)
+  const receiptBuckets = useMemo(() => periodMonthBuckets(range), [range])
+  const receipts = useReceiptMetrics(range, receiptBuckets)
 
   /* ---------------------------- Comercial ---------------------------- */
   const commercial = useMemo(() => {
@@ -67,7 +72,7 @@ export function ReportsView() {
     })
     const createdCur = deals.filter((d) => cur.from <= new Date(d.createdAt) && new Date(d.createdAt) <= cur.to)
     const createdPrev = deals.filter((d) => prev.from <= new Date(d.createdAt) && new Date(d.createdAt) <= prev.to)
-    const funnelCur = funnel(createdCur.length ? createdCur : deals)
+    const funnelCur = funnel(createdCur)
     const funnelPrev = funnel(createdPrev)
     const stages = funnelCur.map((f, i) => ({ ...f, previous: funnelPrev[i]?.count ?? 0 }))
     const lost = lostIn(deals, cur)
@@ -79,7 +84,7 @@ export function ReportsView() {
       .filter((r) => r.count > 0)
       .sort((a, b) => b.count - a.count)
     const closeByPipeline = pipelines.map((p) => {
-      const list = deals.filter((d) => d.pipelineId === p.id && d.stage === "ganho")
+      const list = won.filter((d) => d.pipelineId === p.id)
       return { id: p.id, name: p.name, won: list.length, days: avgCloseDays(list) }
     })
     return {
@@ -89,10 +94,9 @@ export function ReportsView() {
       wonPrev,
       bySource,
       stages,
-      usedAllDeals: createdCur.length === 0,
       lost,
       reasons,
-      closeDays: avgCloseDays(won.length ? won : deals.filter((d) => d.stage === "ganho")),
+      closeDays: avgCloseDays(won),
       closeDaysPrev: avgCloseDays(wonPrev),
       closeByPipeline,
     }
@@ -101,11 +105,10 @@ export function ReportsView() {
 
   /* ----------------------------- Receita ----------------------------- */
   const revenue = useMemo(() => {
-    const buckets = monthBuckets(-5, 0)
+    const buckets = receiptBuckets
     const byMonth = revenueByMonth(entries, buckets)
     const now = new Date()
     const months = buckets.map((b, i) => {
-      const won = wonIn(deals, b)
       const ref = b.to > now ? now : b.to
       const mrr = mrrAt(subscriptions, ref)
       const mrrStart = mrrAt(subscriptions, new Date(b.from.getTime() - 1))
@@ -116,11 +119,10 @@ export function ReportsView() {
       )
       return {
         month: b.label,
-        realizado: byMonth[i].realizado,
+        realizado: receipts.data?.months[i]?.total ?? 0,
         previsto: byMonth[i].previsto,
-        vendas: sum(won, (d) => d.value),
-        negocios: won.length,
-        ticket: won.length ? sum(won, (d) => d.value) / won.length : 0,
+        mensalidades: receipts.data?.months[i]?.monthly ?? 0,
+        ticket: receipts.data?.months[i]?.average ?? 0,
         mrr,
         novo: newMrr,
         churn: churned,
@@ -128,7 +130,7 @@ export function ReportsView() {
       }
     })
     return { months }
-  }, [entries, deals, subscriptions])
+  }, [entries, subscriptions, receiptBuckets, receipts.data])
 
   /* ------------------------------ Equipe ----------------------------- */
   const team = useMemo(() => {
@@ -148,15 +150,16 @@ export function ReportsView() {
           leads: myLeads,
           won: myWon.length,
           wonValue,
+          received: receipts.data?.owners[u.id]?.total ?? 0,
           conversion: myLeads ? myWon.length / myLeads : 0,
           ticket: myWon.length ? wonValue / myWon.length : 0,
           pipeline: sum(open, (d) => d.value),
           closeDays: avgCloseDays(myWon),
         }
       })
-      .sort((a, b) => b.wonValue - a.wonValue)
+      .sort((a, b) => b.received - a.received)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users, leads, deals, range])
+  }, [users, leads, deals, range, receipts.data])
 
   /* --------------------------- Custo por lead ------------------------ */
   const cpl = useMemo(() => {
@@ -165,7 +168,7 @@ export function ReportsView() {
     const rows = adSpend.map((a) => {
       const count = curLeads.filter((l) => l.source === a.source).length
       const wonList = won.filter((d) => d.source === a.source)
-      const revenueWon = sum(wonList, (d) => d.value)
+      const revenueWon = receipts.data?.sources[a.source]?.total ?? 0
       return {
         source: a.source,
         label: SOURCE_LABEL[a.source],
@@ -182,7 +185,7 @@ export function ReportsView() {
     const wonTotal = sum(rows.filter((r) => r.amount > 0), (r) => r.won)
     return { rows, amount, leadsTotal, cpl: leadsTotal ? amount / leadsTotal : null, cac: wonTotal ? amount / wonTotal : null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adSpend, leads, deals, range])
+  }, [adSpend, leads, deals, range, receipts.data])
 
   const setSpend = (source: LeadSource, amount: number) => {
     setSingleton(
@@ -192,10 +195,10 @@ export function ReportsView() {
   }
 
   /* ----------------------------- Resumo ------------------------------ */
-  const salesCur = sum(commercial.won, (d) => d.value)
-  const salesPrev = sum(commercial.wonPrev, (d) => d.value)
-  const ticketCur = commercial.won.length ? salesCur / commercial.won.length : 0
-  const ticketPrev = commercial.wonPrev.length ? salesPrev / commercial.wonPrev.length : 0
+  const salesCur = receipts.data?.current.total ?? 0
+  const salesPrev = receipts.data?.previous.total ?? 0
+  const ticketCur = receipts.data?.current.average ?? 0
+  const ticketPrev = receipts.data?.previous.average ?? 0
   const lastMonth = revenue.months[revenue.months.length - 1]
   const prevMonth = revenue.months[revenue.months.length - 2]
 
@@ -209,7 +212,7 @@ export function ReportsView() {
     {
       key: "conversao-por-etapa",
       label: "Conversão por etapa",
-      rows: () => commercial.stages.map((s) => ({ Etapa: STAGE_LABEL[s.stage], Negócios: s.count, "Período anterior": s.previous, "Conversão da etapa anterior (%)": (s.conversion * 100).toFixed(1) })),
+      rows: () => commercial.stages.map((s) => ({ Etapa: stageName(pipelines, undefined, s.stage), Negócios: s.count, "Período anterior": s.previous, "Conversão da etapa anterior (%)": (s.conversion * 100).toFixed(1) })),
     },
     {
       key: "motivos-de-perda",
@@ -218,14 +221,14 @@ export function ReportsView() {
     },
     {
       key: "receita-mrr-churn",
-      label: "Receita, ticket, MRR e churn por mês",
+      label: "Recebimentos, MRR e churn por mês",
       rows: () =>
         revenue.months.map((m) => ({
           Mês: m.month,
           Realizado: m.realizado.toFixed(2),
           Previsto: m.previsto.toFixed(2),
-          "Vendas fechadas": m.vendas.toFixed(2),
-          "Ticket médio": m.ticket.toFixed(2),
+          "Mensalidades recebidas": m.mensalidades.toFixed(2),
+          "Média por pagamento": m.ticket.toFixed(2),
           MRR: m.mrr.toFixed(2),
           "MRR novo": m.novo.toFixed(2),
           Churn: m.churn.toFixed(2),
@@ -235,7 +238,7 @@ export function ReportsView() {
     {
       key: "desempenho-por-responsavel",
       label: "Desempenho por responsável",
-      rows: () => team.map((t) => ({ Responsável: t.name, Leads: t.leads, Ganhos: t.won, "Valor ganho": t.wonValue.toFixed(2), "Conversão (%)": (t.conversion * 100).toFixed(1), "Ticket médio": t.ticket.toFixed(2), "Pipeline aberto": t.pipeline.toFixed(2), "Tempo médio de fechamento (dias)": t.closeDays ?? "" })),
+      rows: () => team.map((t) => ({ Responsável: t.name, Leads: t.leads, Ganhos: t.won, "Recebido": t.received.toFixed(2), "Valor contratado": t.wonValue.toFixed(2), "Conversão (%)": (t.conversion * 100).toFixed(1), "Ticket contratado": t.ticket.toFixed(2), "Pipeline aberto": t.pipeline.toFixed(2), "Tempo médio de fechamento (dias)": t.closeDays ?? "" })),
     },
     {
       key: "custo-por-lead",
@@ -254,6 +257,7 @@ export function ReportsView() {
         description={`${range.label}: ${formatDate(range.from)} a ${formatDate(range.to)} · comparado com ${formatDate(range.previousFrom)} a ${formatDate(range.previousTo)}`}
         actions={
           <>
+            <Button variant="outline" size="sm" asChild><Link href="/gestao-comercial">Metas e relatórios personalizados</Link></Button>
             <Select value={period} onValueChange={(v) => setLocalPeriod(v as PeriodPreset)}>
               <SelectTrigger size="sm" className="w-44" aria-label="Período do relatório">
                 <CalendarDays className="size-3.5 text-muted-foreground" />
@@ -298,10 +302,12 @@ export function ReportsView() {
         }
       />
 
+      {receipts.error && <p role="alert" className="text-sm text-destructive">{receipts.error}</p>}
+      {!!receipts.data?.undated && <p className="text-xs text-muted-foreground">{receipts.data.undated} recebimento(s) sem data de pagamento válida ficaram fora dos totais. Corrija a data no Financeiro.</p>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Leads" icon={UserRound} value={formatNumber(commercial.curLeads.length)} delta={delta(commercial.curLeads.length, commercial.prevLeads.length)} hint={`anterior: ${commercial.prevLeads.length}`} />
-        <StatCard label="Vendas fechadas" icon={CircleDollarSign} value={formatMoney(salesCur)} delta={delta(salesCur, salesPrev)} highlight />
-        <StatCard label="Ticket médio" icon={CircleDollarSign} value={formatMoney(ticketCur)} delta={delta(ticketCur, ticketPrev)} />
+        <StatCard label="Receita recebida" icon={CircleDollarSign} value={receipts.data ? formatMoney(salesCur) : "—"} loading={receipts.loading} delta={receipts.data ? delta(salesCur, salesPrev) : null} hint="projetos + mensalidades · data do pagamento" highlight />
+        <StatCard label="Média por pagamento" icon={CircleDollarSign} value={receipts.data ? formatMoney(ticketCur) : "—"} loading={receipts.loading} delta={receipts.data ? delta(ticketCur, ticketPrev) : null} hint="recebido ÷ pagamentos do período" />
         <StatCard label="Tempo médio de fechamento" icon={Clock} value={formatDays(commercial.closeDays)} hint={commercial.closeDaysPrev != null ? `anterior: ${formatDays(commercial.closeDaysPrev)}` : "do lead ao ganho"} />
         <StatCard label="MRR atual" icon={Repeat} value={formatMoney(lastMonth?.mrr ?? 0)} delta={prevMonth ? delta(lastMonth.mrr, prevMonth.mrr) : null} hint="vs mês anterior" />
         <StatCard label="Churn do mês" icon={TrendingDown} value={formatPercent(lastMonth?.churnRate ?? 0)} hint={formatMoney(lastMonth?.churn ?? 0)} />
@@ -339,14 +345,14 @@ export function ReportsView() {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            <Panel title="Conversão por etapa" description={commercial.usedAllDeals ? "Sem negócios criados no período: exibindo todos os negócios" : "Negócios criados no período que alcançaram cada etapa"}>
-              <FunnelBars data={commercial.stages} />
+            <Panel title="Conversão por etapa" description="Negócios criados no período que alcançaram cada etapa">
+              <FunnelBars data={commercial.stages} stageLabel={stage => stageName(pipelines, undefined, stage)} />
               <ReportTable
                 className="mt-4"
                 rows={commercial.stages}
                 getKey={(r) => r.stage}
                 columns={[
-                  { key: "etapa", label: "Etapa", render: (r) => STAGE_LABEL[r.stage] },
+                  { key: "etapa", label: "Etapa", render: (r) => stageName(pipelines, undefined, r.stage) },
                   { key: "atual", label: "Atual", align: "right", mono: true, render: (r) => r.count },
                   { key: "anterior", label: "Anterior", align: "right", mono: true, render: (r) => r.previous },
                   { key: "conv", label: "Conv. etapa", align: "right", mono: true, render: (r) => formatPercent(r.conversion) },
@@ -386,17 +392,17 @@ export function ReportsView() {
 
         <TabsContent value="receita" className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Receita por mês" description="Realizado x previsto, últimos 6 meses" height={280}>
+            <ChartCard title="Receita por mês" description="Recebido pela data do pagamento e previsto pelo vencimento · histórico do período selecionado" height={280}>
               <RevenueChart data={revenue.months} />
             </ChartCard>
-            <ChartCard title="Ticket médio por mês" description="Valor médio dos negócios ganhos" height={280}>
+            <ChartCard title="Média recebida por pagamento" description="Projetos e mensalidades pela data real do pagamento" height={280}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={revenue.months} margin={{ left: 0, right: 8, top: 8 }}>
                   <CartesianGrid {...chartGrid} />
                   <XAxis dataKey="month" {...chartAxis} />
                   <YAxis {...chartAxis} width={64} tickFormatter={moneyTick} />
                   <Tooltip content={tooltipContent(true)} />
-                  <Line dataKey="ticket" name="Ticket médio" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3, fill: "var(--primary)" }} />
+                  <Line dataKey="ticket" name="Média por pagamento" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3, fill: "var(--primary)" }} />
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -427,8 +433,8 @@ export function ReportsView() {
                 { key: "mes", label: "Mês", render: (r) => <span className="capitalize">{r.month}</span> },
                 { key: "real", label: "Realizado", align: "right", mono: true, render: (r) => formatMoney(r.realizado) },
                 { key: "prev", label: "Previsto", align: "right", mono: true, render: (r) => formatMoney(r.previsto) },
-                { key: "vendas", label: "Vendas", align: "right", mono: true, render: (r) => formatMoney(r.vendas) },
-                { key: "ticket", label: "Ticket médio", align: "right", mono: true, render: (r) => formatMoney(r.ticket) },
+                { key: "mensalidades", label: "Mensalidades recebidas", align: "right", mono: true, render: (r) => formatMoney(r.mensalidades) },
+                { key: "ticket", label: "Média por pagamento", align: "right", mono: true, render: (r) => formatMoney(r.ticket) },
                 { key: "mrr", label: "MRR", align: "right", mono: true, render: (r) => formatMoney(r.mrr) },
                 { key: "churn", label: "Churn", align: "right", mono: true, render: (r) => `${formatMoney(r.churn)} (${formatPercent(r.churnRate)})` },
               ]}
@@ -437,20 +443,20 @@ export function ReportsView() {
         </TabsContent>
 
         <TabsContent value="equipe" className="space-y-4">
-          <ChartCard title="Valor ganho por responsável" description={range.label} height={240}>
-            {team.some((t) => t.wonValue > 0) ? (
+          <ChartCard title="Recebido por responsável" description={range.label} height={240}>
+            {team.some((t) => t.received > 0) ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={team.map((t) => ({ name: t.name.split(" ")[0], valor: t.wonValue, pipeline: t.pipeline }))} margin={{ left: 0, right: 8, top: 8 }}>
+                <BarChart data={team.map((t) => ({ name: t.name.split(" ")[0], valor: t.received, pipeline: t.pipeline }))} margin={{ left: 0, right: 8, top: 8 }}>
                   <CartesianGrid {...chartGrid} />
                   <XAxis dataKey="name" {...chartAxis} />
                   <YAxis {...chartAxis} width={64} tickFormatter={moneyTick} />
                   <Tooltip cursor={{ fill: "#e9f2ff" }} content={tooltipContent(true)} />
                   <Bar dataKey="pipeline" name="Pipeline aberto" fill="#c9ddfa" radius={[4, 4, 0, 0]} barSize={24} />
-                  <Bar dataKey="valor" name="Ganho" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar dataKey="valor" name="Recebido" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState compact title="Nenhum negócio ganho no período" className="h-full border-0" />
+              <EmptyState compact title="Nenhum recebimento no período" className="h-full border-0" />
             )}
           </ChartCard>
           <Panel title="Desempenho por responsável">
@@ -461,9 +467,10 @@ export function ReportsView() {
                 { key: "nome", label: "Responsável", render: (r) => <span className="inline-flex items-center gap-2"><InitialsAvatar name={r.name} id={r.id} />{r.name}</span> },
                 { key: "leads", label: "Leads", align: "right", mono: true, render: (r) => r.leads },
                 { key: "won", label: "Ganhos", align: "right", mono: true, render: (r) => r.won },
-                { key: "valor", label: "Valor ganho", align: "right", mono: true, render: (r) => <span className="text-primary">{formatMoney(r.wonValue)}</span> },
+                { key: "recebido", label: "Recebido", align: "right", mono: true, render: (r) => <span className="text-primary">{formatMoney(r.received)}</span> },
+                { key: "valor", label: "Valor contratado", align: "right", mono: true, render: r => formatMoney(r.wonValue) },
                 { key: "conv", label: "Conversão", align: "right", mono: true, render: (r) => formatPercent(r.conversion) },
-                { key: "ticket", label: "Ticket médio", align: "right", mono: true, render: (r) => formatMoney(r.ticket) },
+                { key: "ticket", label: "Ticket contratado", align: "right", mono: true, render: (r) => formatMoney(r.ticket) },
                 { key: "pipe", label: "Pipeline aberto", align: "right", mono: true, render: (r) => formatMoney(r.pipeline) },
                 { key: "dias", label: "Fechamento", align: "right", mono: true, render: (r) => (r.closeDays == null ? "—" : formatDays(r.closeDays)) },
               ]}

@@ -72,7 +72,7 @@ try {
   const leadId = `form_${requestId}`
   assert.equal((await row("forms", form.id)).submissions, 1)
   state().replace("leads", [await row("leads", leadId)])
-  const deal = { id: "cycle-deal", title: "Site do ciclo", leadId, pipelineId: state().pipelines[0].id, stage: "novo_lead", value: 1000, monthlyFee: 100, probability: 10, history: [], ownerId: "actor", projectType: "site", stageChangedAt: new Date().toISOString(), paymentPlan: { method: "pix", pixKey: "fixture-only", milestones: [{ id: "entry", label: "Entrada", amount: 500, percent: 50, dueDate: "2026-11-10" }, { id: "delivery", label: "Entrega", amount: 500, percent: 50, dueDate: "2026-11-20" }] } }
+  const deal = { id: "cycle-deal", title: "Site do ciclo", leadId, pipelineId: state().pipelines[0].id, stage: "novo_lead", value: 1000, monthlyFee: 100, probability: 10, history: [], ownerId: "actor", projectType: "site", startDate: "2026-10-15T15:00:00.000Z", expectedCloseDate: "", stageChangedAt: new Date().toISOString(), paymentPlan: { method: "pix", pixKey: "fixture-only", milestones: [{ id: "entry", label: "Entrada", amount: 500, percent: 50, dueDate: "2026-11-10" }, { id: "delivery", label: "Entrega", amount: 500, percent: 50, dueDate: "2026-11-20" }] } }
   state().add("deals", deal)
   for (const stage of ["contato_feito", "call_agendada", "proposta_enviada"]) state().moveDeal(deal.id, stage)
   const quote = { id: "cycle-quote", number: "ORC-CYCLE", leadId, dealId: deal.id, status: "rascunho", total: 1000, monthlyFee: 100, deadlineDays: 20, createdAt: new Date().toISOString() }
@@ -81,8 +81,13 @@ try {
   state().update("quotes", quote.id, { status: "aceito" })
   await flush()
   assert.equal((await row("quotes", quote.id)).status, "aceito")
-  state().moveDeal(deal.id, "ganho")
+  assert.throws(() => state().moveDeal(deal.id, "ganho", { wonDate: "2026-02-30" }))
+  assert.notEqual(state().deals.find(item => item.id === deal.id).stage, "ganho")
+  state().moveDeal(deal.id, "ganho", { wonDate: "2026-10-20" })
   await flush()
+  assert.equal((await row("deals", deal.id)).wonAt, "2026-10-20T15:00:00.000Z")
+  assert.equal((await row("deals", deal.id)).startDate, deal.startDate)
+  assert.notEqual((await row("deals", deal.id)).stageChangedAt, "2026-10-20T15:00:00.000Z")
   const clientId = state().leads[0].clientId
   assert.ok(clientId)
   assert.equal((await row("leads", leadId)).status, "convertido")
@@ -91,6 +96,7 @@ try {
   let overlay = await api.loadRecordOverlay()
   const project = overlay.find(item => item.resource === "projects" && item.data.dealId === deal.id).data
   assert.equal(project.clientId, clientId)
+  assert.equal(project.startDate, "2026-10-15")
   assert.ok(project.stages.length)
   assert.ok(project.deliveryDate)
   const projectCharges = overlay.filter(item => item.resource === "charges" && item.data.dealId === deal.id && !item.data.subscriptionId).map(item => item.data)
@@ -129,6 +135,8 @@ try {
   for (const charge of projectCharges) assert.equal((await row("charges", charge.id)).status, "pago")
   state().moveDeal(deal.id, "ganho")
   await flush()
+  const defaultWonAt = (await row("deals", deal.id)).wonAt
+  assert.equal(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(defaultWonAt)), new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()))
   await api.loadRecordOverlay()
   await api.loadRecordOverlay()
   assert.equal((await row("clients", clientId)).conversionReverted, false)

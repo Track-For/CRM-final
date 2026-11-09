@@ -37,5 +37,6 @@ function start(name, scriptArgs) {
 await Promise.all([
   start("Next.js", [require.resolve("next/dist/bin/next"), dev ? "dev" : "start", ...args]),
   start("Fila de webhooks", ["scripts/process-webhooks.mjs", "--watch"]),
+  start("Triagem WhatsApp", ["scripts/process-whatsapp-intake.mjs", "--watch"]),
 ])
 clearTimeout(timeout)

@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { addDays, addMonths, format } from "date-fns"
 import { AlertTriangle, FlaskConical } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Input } from "@/components/ui/input"
 import { insertIssuedBoleto } from "@/components/finance/finance-actions"
 import { FormDialog } from "@/components/forms/form-dialog"
@@ -15,9 +15,14 @@ import { lookupCep } from "@/components/invoices/fiscal-meta"
 import { EntityCombobox } from "@/components/shared/entity-combobox"
 import { FormField, FormGrid } from "@/components/shared/form-field"
 import { MoneyInput } from "@/components/shared/money-input"
+import { useCardTerms } from "@/components/finance/use-card-terms"
+import { ASAAS_METHOD_OPTIONS, BILLING_CHANNEL_OPTIONS, MAX_INSTALLMENTS } from "@/lib/finance/payment-options"
 import { OptionSelect } from "@/components/shared/option-select"
 import { getBillingSettings, issueBoletoAction, type BoletoPayer, type BoletoResult } from "@/lib/boleto/actions"
-import { PAYMENT_METHOD_LABEL, toOptions } from "@/lib/constants"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { createDirectPixCharge, getChargeWhatsappStatus, sendChargeWhatsapp } from "@/lib/finance/charge-actions"
+import { calculateChargeTerms, chargeMessage, type ChargeTerms } from "@/lib/finance/charge-plan"
 import { newId, useById, useCharges, useCompany, useCrm } from "@/lib/data"
 import { nextMonthlyBilling } from "@/lib/data/deal-subscription"
 import { useEntityOptions } from "@/lib/data/options"
@@ -33,7 +38,9 @@ const schema = z
     description: v.required("Descrição"),
     amount: v.money("Valor"),
     method: v.select(["boleto", "pix", "cartao", "asaas"], "a forma de pagamento"),
-    installments: z.string(),
+    installments: z.string().regex(/^(?:[1-9]|1[0-2])$/),
+    channel: z.enum(["pix", "asaas"]),
+    cardFeeMode: z.enum(["none", "asaas"]),
     dueDate: v.date("Vencimento"),
     payerName: z.string().trim(),
     payerDocument: z.string().trim(),
@@ -46,7 +53,7 @@ const schema = z
     payerDistrict: z.string().trim(),
   })
   .superRefine((val, ctx) => {
-    if (val.method !== "boleto" && val.method !== "asaas") return
+    if (val.channel !== "asaas") return
     const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message })
     if (!val.payerName) issue("payerName", "Nome do pagador é obrigatório")
     if (![11, 14].includes(onlyDigits(val.payerDocument).length)) issue("payerDocument", "Informe um CPF com 11 dígitos ou um CNPJ com 14")
@@ -96,27 +103,15 @@ interface IssueFailure {
 }
 
 /** Emite em sequência o que falta no lote e para na primeira falha. As parcelas emitidas ficam marcadas e já estão no store. */
-async function runBoletoPlan(plan: BoletoPlan, payer: BoletoPayer, onParcel: (parcel: number) => void): Promise<IssueFailure | null> {
-  for (const item of plan.items) {
-    if (item.issued) continue
-    onParcel(item.charge.installment)
-    let res: BoletoResult
-    try {
-      res = await issueBoletoAction({ charge: item.charge, entry: item.entry, payer })
-    } catch {
-      res = { ok: false, error: "Não foi possível falar com o servidor. Tente de novo." }
-    }
-    if (!res.ok || !res.charge) {
-      return {
-        issued: plan.items.filter((i) => i.issued).length,
-        total: plan.items.length,
-        parcel: item.charge.installment,
-        message: res.error ?? "Não foi possível criar a cobrança no Asaas.",
-      }
-    }
-    item.issued = true
-    insertIssuedBoleto(res.charge, item.entry)
-  }
+async function runBoletoPlan(plan: BoletoPlan, payer: BoletoPayer, installmentPlan: ChargeTerms): Promise<IssueFailure | null> {
+  const item = plan.items[0]
+  let res: BoletoResult
+  try { res = await issueBoletoAction({ charge: item.charge, entry: item.entry, payer, installmentPlan }) }
+  catch { res = { ok: false, error: "Não foi possível falar com o servidor. Tente novamente com os mesmos dados." } }
+  if (!res.ok || !res.charge) return { issued: 0, total: plan.items.length, parcel: 1, message: res.error || "Não foi possível criar a cobrança." }
+  const list = res.charges || [res.charge]
+  plan.items = list.map((charge, i) => ({ charge, entry: res.entries?.[i] || item.entry, issued: true }))
+  for (const entry of plan.items) insertIssuedBoleto(entry.charge, entry.entry)
   return null
 }
 
@@ -128,7 +123,6 @@ interface ChargeFormDialogProps {
 
 export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDialogProps) {
   const company = useCompany()
-  const add = useCrm((s) => s.add)
   const charges = useCharges()
   const clients = useById("clients")
   const { clientOptions } = useEntityOptions()
@@ -138,16 +132,27 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
   const [failure, setFailure] = useState<IssueFailure | null>(null)
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "notfound">("idle")
   const planRef = useRef<BoletoPlan | null>(null)
+  const directId = useRef<string | null>(null)
+  const [ready, setReady] = useState<Charge[] | null>(null)
+  const [whatsappConnected, setWhatsappConnected] = useState(false)
+  const [messageEdit, setMessageEdit] = useState<{ source: string; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [sendError, setSendError] = useState("")
 
-  const initial = (): Values => ({
-    clientId: defaults?.clientId ?? "",
-    description: defaults?.description ?? "",
-    amount: defaults?.amount ? Number(defaults.amount) : 0,
-    method: defaults?.method === "boleto" || defaults?.method === "cartao" || defaults?.method === "asaas" ? defaults.method : "pix",
-    installments: "1",
-    dueDate: defaults?.dueDate?.slice(0, 10) || format(addDays(new Date(), 5), "yyyy-MM-dd"),
-    ...payerFromClient(defaults?.clientId ? clients.get(defaults.clientId) : undefined),
-  })
+  const initial = (): Values => {
+    const existing = charges.find(charge => charge.id === defaults?.chargeId)
+    return {
+      clientId: defaults?.clientId ?? "",
+      description: defaults?.description ?? "",
+      amount: existing?.paymentTerms?.baseAmount ?? (defaults?.amount ? Number(defaults.amount) : 0),
+      method: defaults?.method === "boleto" || defaults?.method === "cartao" || defaults?.method === "asaas" ? defaults.method : "pix",
+      installments: String(existing?.paymentTerms?.count || 1),
+      channel: existing?.paymentChannel || (defaults?.method && defaults.method !== "pix" ? "asaas" : "pix"),
+      cardFeeMode: existing?.paymentTerms?.cardFeeMode || "none",
+      dueDate: defaults?.dueDate?.slice(0, 10) || format(addDays(new Date(), 5), "yyyy-MM-dd"),
+      ...payerFromClient(defaults?.clientId ? clients.get(defaults.clientId) : undefined),
+    }
+  }
   const { register, control, handleSubmit, reset, setValue, getValues, formState } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: initial() })
   const errors = formState.errors
 
@@ -158,27 +163,47 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     if (open) {
       setFailure(null)
       setCepStatus("idle")
+      setReady(null)
+      setSendError("")
+      setMessageEdit(null)
+      setWhatsappConnected(false)
     }
   }
 
   useEffect(() => {
     if (open) {
       reset(initial())
+      getChargeWhatsappStatus().then(s => setWhatsappConnected(s.connected)).catch(() => setWhatsappConnected(false))
       return
     }
     // Ao fechar: com parcelas já emitidas o usuário foi avisado e o lote acaba aqui. Sem nenhuma, os
     // ids continuam guardados para que repetir os mesmos dados depois de um timeout não duplique.
     if (planRef.current?.items.some((i) => i.issued)) planRef.current = null
+    if (ready) directId.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const amount = useWatch({ control, name: "amount" })
-  const installments = Number(useWatch({ control, name: "installments" }))
+  const selectedInstallments = Number(useWatch({ control, name: "installments" }))
+  const channel = useWatch({ control, name: "channel" })
   const method = useWatch({ control, name: "method" })
-  const isBoleto = method === "boleto"
-  const usesAsaas = isBoleto || method === "asaas"
-  const issuing = progress !== null
-  const locked = (failure?.issued ?? 0) > 0
+  const cardFeeMode = useWatch({ control, name: "cardFeeMode" })
+  const clientId = useWatch({ control, name: "clientId" })
+  const description = useWatch({ control, name: "description" })
+  const dueDate = useWatch({ control, name: "dueDate" })
+  const usesAsaas = channel === "asaas"
+  const installments = usesAsaas ? selectedInstallments : 1
+  const creditCard = usesAsaas && method === "cartao"
+  const cardQuote = useCardTerms(amount, installments, cardFeeMode, creditCard)
+  const issuing = progress !== null || busy
+  const locked = Boolean(ready) || Boolean(failure)
+  const terms: ChargeTerms = creditCard && cardQuote.terms && amount > 0 ? cardQuote.terms : { baseAmount: amount > 0 ? amount : 0.01, surchargePercent: 0, count: installments || 1 }
+  let calculation = { total: 0, surcharge: 0, amounts: [0] }
+  try { calculation = calculateChargeTerms(terms) } catch { /* Validation appears on submission. */ }
+  const client = clients.get(clientId)
+  const generatedMessage = calculation.total > 0 ? chargeMessage({ name: client?.contactName || client?.name || "", company: company.name || "nossa empresa", description, dueDate, terms: { ...terms, count: calculation.amounts.length }, pixKey: company.pixKey, asaas: usesAsaas }) : "Preencha o valor para preparar a mensagem."
+  const message = messageEdit?.source === generatedMessage ? messageEdit.text : generatedMessage
+  const canSend = whatsappConnected && onlyDigits(client?.whatsapp || "").length >= 10
 
   useEffect(() => {
     if (!open || !usesAsaas) return
@@ -226,10 +251,10 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
 
   const buildCharges = (values: Values): Charge[] => {
     const n = Number(values.installments)
-    const per = Math.round((values.amount / n) * 100) / 100
+    const amounts = calculateChargeTerms({ ...terms, baseAmount: values.amount, count: n }).amounts
     const seq = Math.max(...charges.map((c) => Number(c.number.replace(/\D/g, "")) || 0), 1200) + 1
     return Array.from({ length: n }, (_, i) => ({
-      id: defaults?.chargeId && n === 1 ? defaults.chargeId : newId("chg"),
+      id: defaults?.chargeId && i === 0 ? defaults.chargeId : newId("chg"),
       number: `COB-${seq + i}`,
       clientId: values.clientId,
       dealId: defaults?.dealId,
@@ -237,8 +262,9 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
       milestoneId: defaults?.milestoneId,
       subscriptionId: defaults?.subscriptionId,
       description: n > 1 ? `${values.description} (${i + 1}/${n})` : values.description,
-      amount: i === n - 1 ? Math.round((values.amount - per * (n - 1)) * 100) / 100 : per,
-      method: values.method,
+      amount: amounts[i],
+      method: values.channel === "pix" ? "pix" : values.method,
+      paymentChannel: values.channel,
       installment: i + 1,
       installments: n,
       dueDate: addMonths(new Date(`${values.dueDate}T12:00:00`), i).toISOString(),
@@ -276,67 +302,79 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
     // Lote com parcela já emitida continua igual, mesmo que algo tenha mudado no formulário.
     const pending = planRef.current
     const plan: BoletoPlan =
-      pending && (pending.signature === signature || pending.items.some((i) => i.issued))
+      pending
         ? pending
         : { signature, items: buildCharges(values).map((charge) => ({ charge, entry: buildEntry(charge), issued: false })) }
     planRef.current = plan
 
     const total = plan.items.length
     setFailure(null)
-    const failed = await runBoletoPlan(plan, toPayer(values), (current) => setProgress({ current, total }))
+    setProgress({ current: 1, total })
+    const failed = await runBoletoPlan(plan, toPayer(values), { ...terms, baseAmount: values.amount, count: Number(values.installments) })
     setProgress(null)
     if (failed) {
       setFailure(failed)
       toast.error(failed.issued ? `${failed.issued} de ${total} cobranças criadas. A emissão parou.` : "Cobrança não emitida", { description: failed.message })
-      return
+      return null
     }
     planRef.current = null
     advanceMonthlyBilling()
     toast.success(total > 1 ? `${total} cobranças criadas no Asaas` : "Cobrança criada no Asaas", {
       description: billing.environment === "sandbox" ? "Sandbox (teste, sem valor)" : "Envio pelo Asaas habilitado por e-mail ou SMS.",
     })
-    onOpenChange(false)
+    return plan.items.map(item => item.charge)
   }
 
-  const submit = async (values: Values) => {
-    if (values.method === "boleto" || values.method === "asaas") {
-      await issueBoletos(values)
-      return
-    }
-    const list = buildCharges(values)
-    for (const charge of list) {
-      add("charges", charge)
-      add("entries", buildEntry(charge))
-    }
-    advanceMonthlyBilling()
-    toast.success(list.length > 1 ? `${list.length} cobranças geradas` : "Cobrança gerada", { description: "Pronta para enviar no WhatsApp" })
-    onOpenChange(false)
+  const submit = async (values: Values, send = false) => {
+    if (creditCard && !ready && !cardQuote.terms) { toast.error(cardQuote.error || "Aguarde a consulta das taxas do Asaas"); return }
+    setBusy(true)
+    setSendError("")
+    try {
+      let list = ready
+      if (!list) {
+        if (values.channel === "asaas") list = await issueBoletos(values) || null
+        else {
+          directId.current ||= defaults?.chargeId || newId("chg")
+          const result = await createDirectPixCharge({ id: directId.current, clientId: values.clientId, description: values.description, dueDate: values.dueDate, terms: { baseAmount: values.amount, surchargePercent: 0, count: 1 }, dealId: defaults?.dealId, milestoneId: defaults?.milestoneId, subscriptionId: defaults?.subscriptionId })
+          list = result.charges
+          for (const charge of list) insertIssuedBoleto(charge, result.entries.find(entry => entry.chargeId === charge.id))
+          advanceMonthlyBilling()
+          toast.success("Cobrança Pix gerada")
+        }
+        if (!list) return
+        setReady(list)
+      }
+      if (send) {
+        const result = await sendChargeWhatsapp(list[0].id, message)
+        if (!result.ok) { setSendError(result.error || "Não foi possível enviar."); toast.error("Cobrança salva; envio não confirmado"); return }
+        toast.success("Cobrança enviada pelo WhatsApp")
+      }
+      directId.current = null
+      onOpenChange(false)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Não foi possível concluir. Tente novamente."
+      setSendError(detail)
+      toast.error(detail)
+    } finally { setBusy(false) }
   }
 
   const boletoBlocked = usesAsaas && billing?.kind !== "connected"
-  const submitLabel = progress
-    ? `Emitindo ${progress.current} de ${progress.total}...`
-    : !usesAsaas
-      ? "Gerar cobrança"
-      : locked && failure
-        ? `Continuar da parcela ${failure.parcel}`
-        : installments > 1
-          ? `Criar ${installments} cobranças no Asaas`
-          : "Criar e enviar pelo Asaas"
+  const submitLabel = issuing ? "Gerando cobrança..." : ready ? "Concluir sem enviar" : "Gerar cobrança"
 
   return (
     <FormDialog
       open={open}
       onOpenChange={changeOpen}
       title="Nova cobrança"
-      description="Escolha Asaas para criar a cobrança na plataforma e habilitar o envio ao cliente. Pix e cartão permitem registro manual no CRM."
-      onSubmit={(e) => void handleSubmit(submit)(e)}
+      description="Escolha Pix direto ou Asaas. Revise a mensagem e envie a cobrança pelo WhatsApp conectado ao CRM."
+      onSubmit={(e) => void handleSubmit(values => submit(values))(e)}
       submitLabel={submitLabel}
-      submitting={issuing || boletoBlocked}
+      submitting={issuing || (boletoBlocked && !ready)}
+      extraFooter={<Button type="button" variant="outline" disabled={issuing || !canSend || (boletoBlocked && !ready)} onClick={() => void handleSubmit(values => submit(values, true))()}>{ready ? "Enviar pelo WhatsApp" : "Gerar e enviar"}</Button>}
     >
       {usesAsaas && <p className="rounded-lg border p-3 text-sm">O Asaas enviará o aviso de cobrança para o e-mail do cliente ou, na ausência dele, por SMS. O envio segue as configurações e tarifas do Asaas.</p>}
       <fieldset disabled={locked || issuing} className="min-w-0 disabled:opacity-70">
-        {method === "pix" && company.pixKey && <p className="mb-3 break-all text-sm">Chave Pix: {company.pixKey}</p>}
+        {channel === "pix" && company.pixKey && <p className="mb-3 break-all text-sm">Chave Pix: {company.pixKey}</p>}
         <legend className="sr-only">Dados da cobrança</legend>
         <FormGrid>
           <FormField label="Cliente" required error={errors.clientId?.message} className="sm:col-span-2">
@@ -364,22 +402,44 @@ export function ChargeFormDialog({ open, onOpenChange, defaults }: ChargeFormDia
           <FormField label="Valor total" required error={errors.amount?.message}>
             <Controller control={control} name="amount" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} aria-invalid={!!errors.amount} />} />
           </FormField>
-          <FormField label="Forma de pagamento" required>
-            <Controller control={control} name="method" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PAYMENT_METHOD_LABEL)} />} />
+          <FormField label="Cobrar por" required>
+            <Controller control={control} name="channel" render={({ field }) => <OptionSelect value={field.value} onChange={value => { field.onChange(value); setValue("method", value === "asaas" ? "asaas" : "pix"); if (value === "pix") setValue("installments", "1") }} options={BILLING_CHANNEL_OPTIONS} />} />
           </FormField>
-          <FormField label="Parcelas" hint={installments > 1 ? `${installments}x de ${formatMoney(amount / installments)}` : undefined}>
+          {usesAsaas && <>
+            <FormField label="Forma de pagamento no Asaas" required>
+              <Controller control={control} name="method" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={ASAAS_METHOD_OPTIONS} />} />
+            </FormField>
+          </>}
+          {usesAsaas && <FormField label="Parcelas" hint={installments > 1 ? `${installments}x de ${formatMoney(calculation.amounts[0])}` : undefined}>
             <Controller
               control={control}
               name="installments"
-              render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} disabled={!!defaults?.chargeId} options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: i ? `${i + 1}x` : "À vista" }))} />}
+              render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} disabled={!!defaults?.chargeId} options={Array.from({ length: MAX_INSTALLMENTS }, (_, i) => ({ value: String(i + 1), label: i ? `${i + 1}x` : "À vista" }))} />}
             />
-          </FormField>
+          </FormField>}
+          {creditCard && installments > 1 && <FormField label="Condição do parcelamento"><Controller control={control} name="cardFeeMode" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={[{ value: "none", label: "Sem juros para o cliente" }, { value: "asaas", label: "Repassar taxas do Asaas ao cliente" }]} />} /></FormField>}
           <FormField label="Vencimento" required error={errors.dueDate?.message} hint={installments > 1 ? "Demais parcelas vencem a cada mês" : undefined}>
             <Input type="date" min={usesAsaas ? today() : undefined} {...register("dueDate")} aria-invalid={!!errors.dueDate} />
           </FormField>
         </FormGrid>
       </fieldset>
 
+      <div className="space-y-2 rounded-xl border p-4 text-sm">
+        <p>Valor original: <strong>{formatMoney(amount || 0)}</strong></p>
+        {creditCard && calculation.surcharge > 0 && <p>Taxas repassadas do Asaas: <strong>{formatMoney(calculation.surcharge)}</strong></p>}
+        {creditCard && cardQuote.loading && <p role="status">Consultando taxas do Asaas…</p>}
+        {creditCard && cardQuote.error && <p role="alert" className="text-danger">{cardQuote.error}</p>}
+        <p>Total a cobrar: <strong>{formatMoney(calculation.total)}</strong></p>
+        <p>{installments > 1 ? `${installments} parcelas; última de ${formatMoney(calculation.amounts.at(-1) || 0)}` : "À vista"}</p>
+        {usesAsaas && <p className="text-xs text-muted-foreground">As taxas de parcelamento seguem as condições da sua conta Asaas. Multa e juros por atraso seguem as configurações da integração. No cartão, o cliente informa os dados na página do Asaas.</p>}
+      </div>
+      <FormField label="Mensagem para o WhatsApp" hint={`Destinatário: ${client?.whatsapp || "cliente sem WhatsApp cadastrado"}`}>
+        <Textarea rows={8} value={message} disabled={issuing} onChange={event => setMessageEdit({ source: generatedMessage, text: event.target.value })} />
+        {usesAsaas && !ready && <p className="text-xs text-muted-foreground">O marcador de link será substituído pelo link real do Asaas após gerar a cobrança.</p>}
+        {!whatsappConnected && <p className="text-xs text-muted-foreground">WhatsApp desconectado. Você pode gerar sem enviar e reconectar em WhatsApp.</p>}
+        {ready && <p className="text-sm text-success">Cobrança já salva. Uma nova tentativa enviará apenas a mensagem.</p>}
+        {sendError && <p role="alert" className="text-sm text-danger">{sendError}</p>}
+      </FormField>
       {usesAsaas && billing === null && <p className="rounded-lg border bg-surface p-3 text-xs text-muted-foreground">Verificando a conexão com o Asaas...</p>}
 
       {usesAsaas && billing?.kind === "disconnected" && (

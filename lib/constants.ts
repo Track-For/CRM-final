@@ -198,7 +198,7 @@ export const TASK_PRIORITY_TONE: ToneMap<TaskPriority> = {
   urgente: "danger",
 }
 
-export const PAYMENT_METHOD_LABEL: LabelMap<PaymentMethod> = { boleto: "Boleto", pix: "Pix", cartao: "Cartão", asaas: "Asaas" }
+export const PAYMENT_METHOD_LABEL: LabelMap<PaymentMethod> = { boleto: "Boleto", pix: "Pix", cartao: "Cartão de crédito", asaas: "Cliente escolhe no Asaas" }
 
 export const CHARGE_STATUS_LABEL: LabelMap<ChargeStatus> = {
   pendente: "Pendente",

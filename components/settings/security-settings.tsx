@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react"
 import { Check, Copy, KeyRound, Loader2, Mail, ShieldCheck, ShieldOff, Smartphone } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import {
   changePasswordAction,
   confirmTotpSetupAction,

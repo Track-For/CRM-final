@@ -3,12 +3,14 @@
  * Financeiro e Relatórios. Quando a API existir, vários destes podem virar
  * endpoints agregados (ex.: GET /api/metrics/mrr).
  */
-import { addMonths, differenceInCalendarMonths, endOfMonth, format, startOfDay, startOfMonth, subMonths } from "date-fns"
+import { addMonths, differenceInCalendarMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import type { Charge, Deal, EntryStatus, EntryType, FinancialEntry, Subscription } from "@/types"
 import { STALE_DEAL_DAYS } from "@/lib/constants"
 import { daysSince } from "@/lib/format"
 import { inRange } from "@/lib/period"
+import { paymentStatus } from "@/lib/finance/payment-status"
+import { recurringRevenueAt } from "@/lib/finance/recurring"
 
 export const isOpenDeal = (d: Deal) => d.stage !== "ganho" && d.stage !== "perdido"
 
@@ -16,10 +18,10 @@ export const dealIdleDays = (d: Deal) => daysSince(d.stageChangedAt)
 
 export const isStaleDeal = (d: Deal) => isOpenDeal(d) && dealIdleDays(d) > STALE_DEAL_DAYS
 
-export const weightedValue = (d: Deal) => (d.value * d.probability) / 100
+export { weightedProject as weightedValue } from "./deal-forecast"
 
 export function mrr(subscriptions: Subscription[]): number {
-  return subscriptions.filter((s) => s.status === "ativa").reduce((sum, s) => sum + s.amount, 0)
+  return recurringRevenueAt(subscriptions, new Date())
 }
 
 export function sum<T>(list: T[], pick: (item: T) => number): number {
@@ -27,7 +29,7 @@ export function sum<T>(list: T[], pick: (item: T) => number): number {
 }
 
 export function overdueCharges(charges: Charge[]): Charge[] {
-  return charges.filter((c) => c.status === "vencido")
+  return charges.filter((c) => paymentStatus(c) === "vencido")
 }
 
 export interface MonthBucket {
@@ -48,13 +50,14 @@ export function monthBuckets(startOffset: number, endOffset = 0, now = new Date(
   return out
 }
 
-/** Receita realizada (pago) x prevista (tudo que vence no mês) por mês. */
+/** Recebido pela data de pagamento x previsto pelo vencimento. */
 export function revenueByMonth(entries: FinancialEntry[], buckets: MonthBucket[]) {
   return buckets.map((b) => {
-    const monthEntries = entries.filter((e) => e.type === "receita" && inRange(e.dueDate, b.from, b.to))
+    const visible = entries.filter(e => e.type === "receita" && !e.deletedAt && !e.conversionReverted && !e.awaitingProjectPayment)
+    const monthEntries = visible.filter(e => inRange(e.dueDate, b.from, b.to))
     return {
       month: b.label,
-      realizado: sum(monthEntries.filter((e) => e.status === "pago"), (e) => e.amount),
+      realizado: sumAmount(visible.filter(e => e.status === "pago" && inRange(e.paidAt, b.from, b.to))),
       previsto: sum(monthEntries, (e) => e.amount),
     }
   })
@@ -81,12 +84,12 @@ export function sumAmount(entries: FinancialEntry[]): number {
 const subtractMoney = (a: number, b: number) => (Math.round(a * 100) - Math.round(b * 100)) / 100
 
 export const isEntryOverdue = (e: FinancialEntry, now = new Date()) =>
-  e.status === "vencido" || (e.status === "pendente" && new Date(e.dueDate).getTime() < startOfDay(now).getTime())
+  paymentStatus(e, now) === "vencido"
 
 export const entryStatusNow = (e: FinancialEntry, now = new Date()): EntryStatus => (isEntryOverdue(e, now) ? "vencido" : e.status)
 
 /** Data em que o lançamento conta no caixa. */
-export const entryCashDate = (e: FinancialEntry) => (e.status === "pago" ? e.paidAt || e.dueDate || e.competenceDate : e.dueDate || e.competenceDate)
+export const entryCashDate = (e: FinancialEntry) => (e.status === "pago" ? e.paidAt || "" : e.dueDate || e.competenceDate)
 
 export type EntryView = "todos" | "receita" | "despesa" | "a_receber" | "a_pagar" | "vencidos"
 

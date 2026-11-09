@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { billingLabel } from "@/lib/finance/payment-options"
 import { useRouter } from "next/navigation"
 import { ProjectExecutionDrawer } from "@/components/projects/project-execution-drawer"
 import { projectProgress } from "@/lib/projects/plan"
@@ -28,7 +29,6 @@ import { openWhatsapp } from "@/lib/browser"
 import {
   INVOICE_STATUS_LABEL,
   INVOICE_STATUS_TONE,
-  PAYMENT_METHOD_LABEL,
   PROJECT_STATUS_LABEL,
   PROJECT_STATUS_TONE,
   PROJECT_TYPE_LABEL,
@@ -244,7 +244,7 @@ export function ClientDetail({ id, initialProjectId }: { id: string; initialProj
                         <EnumBadge value={s.status} labels={SUBSCRIPTION_STATUS_LABEL} tones={SUBSCRIPTION_STATUS_TONE} />
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {PAYMENT_METHOD_LABEL[s.method]} · todo dia <span className="num">{s.billingDay}</span>
+                        {billingLabel(s)} · todo dia <span className="num">{s.billingDay}</span>
                         {s.status === "ativa" ? (
                           <>
                             {" "}
@@ -272,7 +272,7 @@ export function ClientDetail({ id, initialProjectId }: { id: string; initialProj
                   {data.subscriptions.map(subscription => <MonthlyBilling key={subscription.id} subscription={subscription} onOpenCharge={setChargeId} />)}
                   {allDeals.filter(deal => deal.stage === "ganho" && (deal.clientId === id || (!!client.leadId && deal.leadId === client.leadId))).map(deal => <div key={deal.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"><span className="text-sm">{deal.title}</span><Button size="sm" variant="outline" onClick={() => setPlanDealId(deal.id)}>{deal.paymentPlan ? "Editar plano de cobrança" : "Personalizar cobrança"}</Button></div>)}
                   {allDeals.filter(deal => (deal.clientId === id || (!!client.leadId && deal.leadId === client.leadId)) && deal.paymentPlan).map(deal => <div key={deal.id} className="space-y-3 rounded-lg border p-3">
-                    <p className="font-medium">Pagamento por etapas · {deal.title} · {PAYMENT_METHOD_LABEL[deal.paymentPlan!.method]}</p>
+                    <p className="font-medium">{deal.paymentPlan?.method === "cartao" ? "Pagamento no cartão" : "Plano de cobrança"} · {deal.title} · {billingLabel(deal.paymentPlan!)}</p>
                     {deal.paymentPlan!.method === "pix" && <p className="break-all text-sm text-muted-foreground">Chave Pix: {deal.paymentPlan!.pixKey}</p>}
                     {deal.paymentPlan!.milestones.map(milestone => {
                       const charge = data.charges.find(item => item.dealId === deal.id && item.milestoneId === milestone.id && item.status !== "cancelado")

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Copy, FlaskConical, Save } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FormField, FormGrid } from "@/components/shared/form-field"

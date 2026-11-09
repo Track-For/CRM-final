@@ -37,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/mensagens", label: "Mensagens", icon: MessageCircle, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/leads", label: "Leads", icon: UserRound, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/vendas", label: "Vendas", icon: Handshake, roles: ["admin", "comercial", "financeiro"], group: "comercial" },
+  { href: "/gestao-comercial", label: "Gestão comercial", icon: BarChart3, roles: ["admin", "comercial", "financeiro"], group: "comercial" },
   { href: "/kanban", label: "Kanban", icon: Columns3, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/funil", label: "Funil de vendas", icon: Filter, roles: ["admin", "comercial"], group: "comercial" },
   { href: "/orcamentos", label: "Orçamentos", icon: FileText, roles: ["admin", "comercial", "financeiro"], group: "comercial" },
@@ -64,6 +65,7 @@ export function navItemFor(pathname: string): NavItem | undefined {
 }
 
 export function canAccess(role: Role, pathname: string): boolean {
+  if (pathname === "/integracoes/api") return true
   const item = navItemFor(pathname)
   return item ? item.roles.includes(role) : true
 }

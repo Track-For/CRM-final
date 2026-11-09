@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { CalendarDays, Loader2, RefreshCw, Unplug } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Panel } from "@/components/shared/panel"
 import { disconnectGoogleCalendar, getGoogleCalendarState, refreshGoogleCalendars, selectGoogleCalendar, syncGoogleCalendarRange } from "@/lib/google-calendar/actions"

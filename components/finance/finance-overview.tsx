@@ -1,4 +1,5 @@
 "use client"
+import { subscriptionActiveAt } from "@/lib/finance/recurring"
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
@@ -63,7 +64,7 @@ export function FinanceOverview() {
   const categoryName = (id: string) => categories.get(id)?.name ?? "Sem categoria"
   const partyName = (e: FinancialEntry) => e.supplier || clients.get(e.clientId ?? "")?.name
   const hasFlow = data.flow.some((m) => m.entradasPagas || m.entradasAbertas || m.saidasPagas || m.saidasAbertas)
-  const activeSubscriptions = subscriptions.filter((s) => s.status === "ativa").length
+  const activeSubscriptions = subscriptions.filter(s => subscriptionActiveAt(s, new Date())).length
 
   return (
     <div className="space-y-4">
@@ -94,7 +95,7 @@ export function FinanceOverview() {
           className={summary.vencidoPagar ? "border-[#4a1818]" : undefined}
           valueClassName={summary.vencidoPagar ? "text-danger" : undefined}
         />
-        <StatCard label="MRR" value={formatMoney(mrr(subscriptions))} icon={Repeat} hint={`${activeSubscriptions} mensalidades ativas`} />
+        <StatCard label="MRR vigente" value={formatMoney(mrr(subscriptions))} icon={Repeat} hint={`${activeSubscriptions} mensalidades vigentes`} />
       </StatGrid>
 
       <ChartCard

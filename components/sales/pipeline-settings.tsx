@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { ArrowDown, ArrowUp, Lock, Plus, RotateCcw, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -78,7 +78,7 @@ export function StageEditor({ pipeline }: { pipeline: Pipeline }) {
       description: description.trim(),
       stages: stages.map((s, order) => ({ ...s, name: s.name.trim(), order })),
     })
-    toast.success("Pipeline salvo", { description: "As novas probabilidades valem para os próximos movimentos." })
+    toast.success("Pipeline salvo", { description: "As probabilidades atualizam as previsões dos negócios desta etapa." })
   }
 
   return (

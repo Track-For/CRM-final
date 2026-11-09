@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm"
 import { db, whatsappContacts, whatsappMessages } from "@/lib/db"
+import { queueWhatsappIntake } from "./intake"
 import { contactMapping, isLid, normalizeMessage, object, deliveryStatus, messageId } from "./normalize"
 
 export async function learnContactMappings(instance: string, input: unknown[]) {
@@ -15,7 +16,10 @@ export async function learnContactMappings(instance: string, input: unknown[]) {
   const values = [...pairs].map(([lid, phone]) => ({ instance, lid, phone }))
   await db.insert(whatsappContacts).values(values).onConflictDoUpdate({ target: [whatsappContacts.instance, whatsappContacts.lid], set: { phone: sql`excluded.phone`, updatedAt: new Date() } })
   // Uma resposta pode chegar antes da mensagem que informa o telefone do contato.
-  for (const [lid, phone] of pairs) await db.update(whatsappMessages).set({ phone }).where(and(eq(whatsappMessages.instance, instance), eq(whatsappMessages.remoteJid, lid), eq(whatsappMessages.phone, "")))
+  for (const [lid, phone] of pairs) {
+    const resolved = await db.update(whatsappMessages).set({ phone }).where(and(eq(whatsappMessages.instance, instance), eq(whatsappMessages.remoteJid, lid), eq(whatsappMessages.phone, ""))).returning({ phone: whatsappMessages.phone, direction: whatsappMessages.direction, sentAt: whatsappMessages.sentAt })
+    await queueWhatsappIntake(instance, resolved)
+  }
 }
 export async function storeMessages(instance: string, input: unknown[], options: { assumeOutgoing?: boolean } = {}) {
   await learnContactMappings(instance, input)
@@ -42,6 +46,7 @@ export async function storeMessages(instance: string, input: unknown[], options:
     } }).returning({ inserted: sql<boolean>`(xmax = 0)` })
     stored += rows.filter(row => row.inserted).length
   }
+  await queueWhatsappIntake(instance, values)
   return stored
 }
 export async function updateDelivery(instance: string, input: unknown[]) {

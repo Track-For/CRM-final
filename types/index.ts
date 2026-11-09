@@ -60,6 +60,8 @@ export interface Utm {
 }
 
 export interface Lead {
+  intakeSummary?: string
+  suggestedNextStep?: string
   id: ID
   name: string
   whatsapp: string
@@ -124,7 +126,7 @@ export interface DealHistoryEntry {
 }
 
 export interface Deal {
-  paymentPlan?: { method: PaymentMethod; pixKey: string; milestones: { id: string; label: string; percent: number; amount: number; dueDate?: string }[] }
+  paymentPlan?: { method: PaymentMethod; paymentChannel?: "pix" | "asaas"; pixKey: string; milestones: { id: string; label: string; percent: number; amount: number; dueDate?: string; installments?: number; cardFeeMode?: "none" | "asaas"; asaasFeePercent?: number }[] }
   id: ID
   title: string
   leadId: ID
@@ -136,6 +138,7 @@ export interface Deal {
   value: number
   monthlyFee: number
   probability: number
+  startDate?: ISODate
   expectedCloseDate: ISODate
   ownerId: ID
   lostReasonId?: ID
@@ -382,6 +385,10 @@ export type PaymentMethod = "boleto" | "pix" | "cartao" | "asaas"
 export type ChargeStatus = "pendente" | "pago" | "vencido" | "cancelado"
 
 export interface Charge {
+  paymentChannel?: "pix" | "asaas"
+  paymentTerms?: { baseAmount: number; surchargePercent: number; count: number; cardFeeMode?: "none" | "asaas" }
+  gatewayInstallmentId?: string
+  whatsappDelivery?: { state: "sending" | "sent" | "failed" | "uncertain"; at: string; messageId?: string }
   dueDateOverridden?: boolean
   deletedAt?: string
   importedFromAsaas?: boolean
@@ -421,6 +428,7 @@ export interface Charge {
 export type SubscriptionStatus = "ativa" | "pausada" | "cancelada" | "aguardando"
 
 export interface Subscription {
+  paymentChannel?: "pix" | "asaas"
   asaasSubscriptionId?: string
   asaasEnvironment?: "sandbox" | "producao"
   conversionReverted?: boolean

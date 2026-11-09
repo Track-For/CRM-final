@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { LostReasonDialog } from "@/components/sales/lost-reason-dialog"
 import { stageName } from "@/components/sales/utils"
 import { useCrm, usePipelines } from "@/lib/data"
@@ -12,6 +12,8 @@ import { ClientFormDialog } from "@/components/clients/client-form-dialog"
 import { clientForLead } from "@/lib/data/lead-conversion"
 import { saveRecord } from "@/lib/data/records-actions"
 import { PaymentPlanDialog } from "@/components/clients/payment-plan-dialog"
+import { useUiStore } from "@/lib/store/ui-store"
+import { flushPendingWrites } from "@/lib/data/api"
 import type { Client, Deal, StageKey } from "@/types"
 
 /**
@@ -49,7 +51,7 @@ export function useStageMover() {
   const dialog = (
     <>
     {winning && winClient && winStep === "client" && <ClientFormDialog key={winning.id} open client={winClient} onOpenChange={open => { if (!open) { setWinning(null); setWinClient(null) } }} onContinue={(client, syncAsaas) => { setWinClient(client); setSyncWinClient(syncAsaas); setWinStep("payment") }} />}
-    {winning && winClient && winStep === "payment" && <PaymentPlanDialog key={winning.id} deal={winning} confirmingWin onClose={() => { setWinning(null); setWinClient(null) }} onSaved={async () => {
+    {winning && winClient && winStep === "payment" && <PaymentPlanDialog key={winning.id} deal={winning} confirmingWin onClose={() => { setWinning(null); setWinClient(null) }} onSaved={async (wonDate) => {
       // Não cria cliente nem recebíveis enquanto o usuário estiver preenchendo as etapas.
       let savedClient = winClient
       if (syncWinClient) {
@@ -59,18 +61,24 @@ export function useStageMover() {
       } else await saveRecord("clients", winClient.id, { ...winClient, deletedAt: null, conversionReverted: false }, true)
       const state = useCrm.getState()
       state.replace("clients", [savedClient, ...state.clients.filter(item => item.id !== savedClient.id)])
-      moveDeal(winning.id, "ganho")
-      const charges = useCrm.getState().charges.filter(charge => charge.dealId === winning.id && !charge.subscriptionId && !charge.gatewayId && !charge.deletedAt && charge.status === "pendente" && (charge.method === "asaas" || charge.method === "boleto"))
+      moveDeal(winning.id, "ganho", { wonDate })
+      await flushPendingWrites()
+      const canIssue = ["admin", "financeiro"].includes(useUiStore.getState().role)
+      const charges = useCrm.getState().charges.filter(charge => charge.dealId === winning.id && !charge.subscriptionId && !charge.gatewayId && !charge.deletedAt && charge.status === "pendente" && (charge.paymentChannel === "asaas" || charge.method === "asaas" || charge.method === "boleto" || charge.method === "cartao"))
       let issued = 0
-      for (const charge of charges.filter(charge => charge.dueDate)) {
+      for (const charge of charges.filter(charge => canIssue && charge.dueDate)) {
         const entry = useCrm.getState().entries.find(item => item.chargeId === charge.id)
         try {
-          const result = await issueBoletoAction({ charge, entry, payer: { name: savedClient.legalName || savedClient.name, cpfCnpj: savedClient.document, email: savedClient.email || undefined, phone: savedClient.whatsapp, cep: savedClient.address.zip, street: savedClient.address.street, number: savedClient.address.number, complement: savedClient.address.complement, district: savedClient.address.district } })
-          if (result.ok && result.charge) { insertIssuedBoleto(result.charge, entry); issued++ }
+          const result = await issueBoletoAction({ charge, entry, installmentPlan: charge.paymentTerms, payer: { name: savedClient.legalName || savedClient.name, cpfCnpj: savedClient.document, email: savedClient.email || undefined, phone: savedClient.whatsapp, cep: savedClient.address.zip, street: savedClient.address.street, number: savedClient.address.number, complement: savedClient.address.complement, district: savedClient.address.district } })
+          if (result.ok && result.charge) {
+            for (const [index, created] of (result.charges || [result.charge]).entries()) { insertIssuedBoleto(created, result.entries?.[index] || entry); issued++ }
+          }
           else toast.error(`Cobrança salva no CRM, mas não emitida no Asaas: ${result.error || charge.description}`)
         } catch { toast.error("A emissão no Asaas não foi concluída. Abra a cobrança para tentar novamente.") }
       }
-      toast.success("Negócio ganho", { description: winning.value === 0 ? "Projeto sem cobrança. A manutenção segue o valor definido no negócio." : issued ? `${issued} cobrança(s) emitida(s) no Asaas com envio habilitado.` : charges.some(charge => !charge.dueDate) ? "Defina os vencimentos para emitir as etapas pelo Asaas." : "Dados do cliente e plano confirmados. Cobranças registradas no CRM." })
+      const savedDeal = useCrm.getState().deals.find(deal => deal.id === winning.id)
+      const awaitingFinance = !canIssue && (savedDeal?.paymentPlan?.paymentChannel === "asaas" || savedDeal?.paymentPlan?.method !== "pix")
+      toast.success("Negócio ganho", { description: winning.value === 0 ? "Projeto sem cobrança. A manutenção segue o valor definido no negócio." : awaitingFinance ? "Plano salvo. O Financeiro ou Admin deve emitir as cobranças pelo Asaas." : issued ? `${issued} cobrança(s) emitida(s) no Asaas com envio habilitado.` : charges.some(charge => !charge.dueDate) ? "Defina os vencimentos para emitir as etapas pelo Asaas." : "Dados do cliente e plano confirmados. Cobranças registradas no CRM." })
       setWinning(null)
       setWinClient(null)
     }} />}

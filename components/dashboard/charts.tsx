@@ -62,13 +62,13 @@ const toneColor: Record<string, string> = {
 }
 
 /** Funil em barras horizontais centralizadas, com conversão entre etapas. */
-export function FunnelBars({ data }: { data: { stage: StageKey; count: number; conversion: number }[] }) {
+export function FunnelBars({ data, stageLabel }: { data: { stage: StageKey; count: number; conversion: number }[]; stageLabel?: (stage: StageKey) => string }) {
   const max = Math.max(1, ...data.map((d) => d.count))
   return (
     <div className="flex flex-col gap-2">
       {data.map((d, i) => (
         <div key={d.stage} className="grid grid-cols-[96px_1fr_64px] items-center gap-3 text-xs sm:grid-cols-[120px_1fr_72px]">
-          <span className="truncate text-muted-foreground">{STAGE_LABEL[d.stage]}</span>
+          <span className="truncate text-muted-foreground" title={stageLabel?.(d.stage) || STAGE_LABEL[d.stage]}>{stageLabel?.(d.stage) || STAGE_LABEL[d.stage]}</span>
           <div className="flex h-7 items-center justify-center rounded-md bg-surface">
             <div
               className="flex h-full items-center justify-center rounded-md"

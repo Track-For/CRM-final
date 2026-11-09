@@ -5,7 +5,8 @@ import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Pencil, Plus, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { MAX_INSTALLMENTS } from "@/lib/finance/payment-options"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -268,7 +269,7 @@ const rulesSchema = z.object({
   minPrice: v.money("Preço mínimo"),
   expressPercent: z.number({ error: "Informe um percentual" }).min(0, "Mínimo 0%").max(200, "Máximo 200%"),
   cashDiscountPercent: z.number({ error: "Informe um percentual" }).min(0, "Mínimo 0%").max(50, "Máximo 50%"),
-  maxInstallments: z.number({ error: "Informe um número" }).int().min(1, "Mínimo 1 parcela").max(24, "Máximo 24 parcelas"),
+  maxInstallments: z.number({ error: "Informe um número" }).int().min(1, "Mínimo 1 parcela").max(MAX_INSTALLMENTS, `Máximo ${MAX_INSTALLMENTS} parcelas`),
   extraPagePrice: z.number().min(0),
   extraLanguagePercent: z.number({ error: "Informe um percentual" }).min(0).max(200, "Máximo 200%"),
   quoteValidityDays: z.number({ error: "Informe um número" }).int().min(1, "Mínimo 1 dia").max(120, "Máximo 120 dias"),

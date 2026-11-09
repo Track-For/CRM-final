@@ -145,8 +145,9 @@ function persist(key: string, job: () => Promise<void>) {
 }
 
 export async function flushPendingWrites() {
-  await Promise.all([...pending])
+  while (pending.size) await Promise.all([...pending])
 }
+export const hasPendingWrites = () => pending.size > 0
 
 export async function createResource<T>(resource: Resource, data: T): Promise<T> {
   const id = (data as { id?: ID }).id

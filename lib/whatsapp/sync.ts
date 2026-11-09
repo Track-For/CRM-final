@@ -18,6 +18,8 @@ async function history(instance: string, remoteJid?: string, maxPages = 1) {
 }
 export async function reconcileWhatsappHistory(phone?: string, deep = false, pendingLid?: string) {
   const { instance } = evolutionConfig()
+  const connection = await evolutionRequest<{ instance?: { state?: string } }>(`/instance/connectionState/${instance}`)
+  if (connection.instance?.state !== "open") throw new Error("Conecte o WhatsApp pelo QR Code antes de sincronizar as conversas.")
   // Aprende pares LID/telefone antes de buscar a conversa; ambos os sentidos são importados.
   const recent = await history(instance, undefined, deep ? 5 : 1)
   let stored = await storeMessages(instance, recent)

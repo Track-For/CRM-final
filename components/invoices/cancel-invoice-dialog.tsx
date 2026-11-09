@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Textarea } from "@/components/ui/textarea"
 import { FormDialog } from "@/components/forms/form-dialog"
 import { FormField } from "@/components/shared/form-field"

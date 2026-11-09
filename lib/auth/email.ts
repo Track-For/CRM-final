@@ -13,7 +13,7 @@ export async function sendPasswordRecoveryEmail(to: string, link: string): Promi
     connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined })
   try {
-    const result = await transport.sendMail({ from: process.env.EMAIL_FROM, to, subject: "Recuperação de acesso · Track For CRM",
+    const result = await transport.sendMail({ from: process.env.EMAIL_FROM, to, subject: "Recuperação de acesso · Nexo CRM",
       text: `Para criar uma nova senha, abra:\n${link}\n\nO link vale por 30 minutos e só pode ser utilizado uma vez. Se você não solicitou a recuperação, ignore este e-mail.` })
     return result.accepted?.length ? { ok: true } : { ok: false, error: "E-mail não aceito." }
   } catch { return { ok: false, error: "Falha no envio de recuperação." } }
@@ -41,18 +41,18 @@ export async function sendLoginCodeEmail(to: string, code: string, name?: string
   const text = [
     greeting,
     "",
-    `Seu código de acesso ao Track For CRM é: ${code}`,
+    `Seu código de acesso ao Nexo CRM é: ${code}`,
     "",
     "O código vale por 10 minutos. Se você não tentou entrar, ignore este e-mail e considere trocar sua senha.",
     "",
-    "Track For CRM",
+    "Nexo CRM",
   ].join("\n")
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#111;line-height:1.5">
 <p>${escapeHtml(greeting)}</p>
-<p>Seu código de acesso ao Track For CRM é:</p>
+<p>Seu código de acesso ao Nexo CRM é:</p>
 <p style="font-size:28px;font-weight:bold;letter-spacing:6px;margin:16px 0">${code}</p>
 <p>O código vale por 10 minutos. Se você não tentou entrar, ignore este e-mail e considere trocar sua senha.</p>
-<p style="color:#666">Track For CRM</p>
+<p style="color:#666">Nexo CRM</p>
 </div>`
 
   try {

@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { addDays, format } from "date-fns"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Input } from "@/components/ui/input"
 import { FormDialog } from "@/components/forms/form-dialog"
 import { EntityCombobox } from "@/components/shared/entity-combobox"
@@ -18,6 +17,7 @@ import { newId, useCrm, useLeads, usePipelines } from "@/lib/data"
 import { useEntityOptions } from "@/lib/data/options"
 import { v } from "@/lib/validation"
 import { dealValuesSchema } from "@/lib/data/deal-values"
+import { dealDateSchema, dealDateToIso, todayDealDate } from "@/lib/data/deal-dates"
 import type { Deal, ProjectType, StageKey } from "@/types"
 
 const schema = z.object({
@@ -28,7 +28,7 @@ const schema = z.object({
   projectType: v.select(["app", "sistema", "site", "anuncio", "outros"], "o tipo de projeto"),
   value: dealValuesSchema.shape.value,
   monthlyFee: dealValuesSchema.shape.monthlyFee,
-  expectedCloseDate: v.date("Previsão de fechamento"),
+  startDate: dealDateSchema,
   ownerId: v.required("Responsável"),
 })
 type Values = z.infer<typeof schema>
@@ -61,7 +61,7 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
       projectType,
       value: 0,
       monthlyFee: 0,
-      expectedCloseDate: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+      startDate: todayDealDate(),
       ownerId: lead?.ownerId ?? currentUserId,
     }
   }
@@ -92,7 +92,8 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
       value: values.value,
       monthlyFee: values.monthlyFee,
       probability: pipeline?.stages.find((s) => s.key === values.stage)?.probability ?? 10,
-      expectedCloseDate: new Date(`${values.expectedCloseDate}T12:00:00`).toISOString(),
+      startDate: dealDateToIso(values.startDate),
+      expectedCloseDate: "",
       ownerId: values.ownerId,
       stageChangedAt: now,
       createdAt: now,
@@ -166,8 +167,8 @@ export function DealFormDialog({ open, onOpenChange, defaults }: DealFormDialogP
         <FormField label="Mensalidade">
           <Controller control={control} name="monthlyFee" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} />} />
         </FormField>
-        <FormField label="Previsão de fechamento" required error={errors.expectedCloseDate?.message}>
-          <Input type="date" {...register("expectedCloseDate")} />
+        <FormField label="Data de início" required error={errors.startDate?.message}>
+          <Input type="date" {...register("startDate")} aria-invalid={!!errors.startDate} />
         </FormField>
       </FormGrid>
     </FormDialog>

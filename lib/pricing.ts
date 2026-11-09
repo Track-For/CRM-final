@@ -1,3 +1,4 @@
+import { installmentLimit } from "@/lib/finance/payment-options"
 import type { CatalogItem, HostingPlan, PaymentCondition, PricingAddon, PricingRules } from "@/types"
 
 export interface QuoteInput {
@@ -66,7 +67,7 @@ export function calculateQuote(input: QuoteInput, addons: PricingAddon[], rules:
   const deadlineDays = input.express ? Math.max(1, Math.ceil(rawDeadline * 0.6)) : rawDeadline
 
   const installments =
-    input.payment === "parcelado" ? Math.min(Math.max(1, input.installments), rules.maxInstallments) : input.payment === "entrada" ? 2 : 1
+    input.payment === "parcelado" ? Math.min(Math.max(1, input.installments), installmentLimit(rules.maxInstallments)) : input.payment === "entrada" ? 2 : 1
   const installmentValue = round(total / installments)
   const entryValue = input.payment === "entrada" ? round(total / 2) : input.payment === "avista" ? total : installmentValue
 

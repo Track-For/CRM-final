@@ -23,6 +23,7 @@ import { conversionChanges } from "@/lib/data/conversion-lifecycle"
 import { projectReceivables } from "@/lib/data/project-receivables"
 import { firstMonthlyReceivable, monthlyForecastChanges, subscriptionForDeal } from "@/lib/data/deal-subscription"
 import { clientForLead } from "@/lib/data/lead-conversion"
+import { dealDateToIso } from "@/lib/data/deal-dates"
 
 type WithId = { id: ID }
 
@@ -49,7 +50,7 @@ export interface CrmState extends MockDatabase {
 
   /* Ações de domínio */
   logActivity: (activity: Omit<Activity, "id" | "createdAt" | "authorId"> & { authorId?: ID }) => void
-  moveDeal: (dealId: ID, stage: StageKey, extra?: { lostReasonId?: ID; lostNote?: string }) => void
+  moveDeal: (dealId: ID, stage: StageKey, extra?: { lostReasonId?: ID; lostNote?: string; wonDate?: string }) => void
   moveTask: (taskId: ID, status: TaskStatus, orderedIds?: ID[]) => void
   sendWhatsapp: (leadId: ID, text: string) => Promise<void>
   updateIntegration: (key: IntegrationKey, patch: Partial<Integration>) => void
@@ -82,6 +83,23 @@ export function newId(prefix: string): ID {
 
 
 let bootstrapRun = 0
+let mutationRevision = 0
+let recovering = false
+async function recoverPersistedState() {
+  if (recovering) return
+  recovering = true
+  const session = bootstrapRun
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      while (api.hasPendingWrites()) await api.flushPendingWrites().catch(() => {})
+      const revision = mutationRevision
+      const data = await api.getDatabase()
+      if (session !== bootstrapRun) return
+      if (revision === mutationRevision && !api.hasPendingWrites()) { useCrmStore.setState({ ...data, status: "ready" }); return }
+    }
+  } catch { /* A falha permanece visível; o rollback local já foi aplicado. */ }
+  finally { recovering = false }
+}
 export const useCrmStore = create<CrmState>()((set, get) => ({
   ...structuredClone(initialDatabase),
   status: "idle",
@@ -103,12 +121,16 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   },
 
   add: (key, item) => {
+    mutationRevision++
     set((s) => ({ [key]: [item, ...(s[key] as WithId[])] }) as Partial<CrmState>)
     const resource = collectionResource[key]
-    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.createResource(resource, item).catch(() => {})
+    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.createResource(resource, item).catch(() => {
+      set(state => ({ [key]: (state[key] as WithId[]).filter(row => row !== item) }) as Partial<CrmState>)
+      void recoverPersistedState()
+    })
     if (key === "subscriptions") {
       const subscription = get().subscriptions.find(value => value.id === item.id)
-      const receivable = subscription && subscription.dealId && firstMonthlyReceivable(subscription, get().charges)
+      const receivable = subscription && firstMonthlyReceivable(subscription, get().charges)
       if (receivable) {
         get().add("charges", receivable.charge)
         get().add("entries", receivable.entry)
@@ -118,9 +140,15 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   },
 
   update: (key, id, patch) => {
+    mutationRevision++
+    const previous = (get()[key] as WithId[]).find(row => row.id === id)
     set((s) => ({ [key]: (s[key] as WithId[]).map((it) => (it.id === id ? { ...it, ...patch } : it)) }) as Partial<CrmState>)
+    const optimistic = (get()[key] as WithId[]).find(row => row.id === id)
     const resource = collectionResource[key]
-    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.updateResource(resource, id, patch).catch(() => {})
+    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.updateResource(resource, id, patch).catch(() => {
+      if (previous) set(state => ({ [key]: (state[key] as WithId[]).map(row => row === optimistic ? previous : row) }) as Partial<CrmState>)
+      void recoverPersistedState()
+    })
     if (key === "deals") {
       const deal = get().deals.find(item => item.id === id)
       if (deal) {
@@ -168,7 +196,7 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
         // Atualiza o vínculo diretamente para não repetir a conversão no update.
         if (lead.clientId !== client.id) {
           set((state) => ({ leads: state.leads.map((item) => item.id === id ? { ...item, clientId: client.id } : item) }))
-          void api.updateResource("leads", id, { clientId: client.id })
+          void api.updateResource("leads", id, { clientId: client.id }).catch(() => { void recoverPersistedState() })
         }
         for (const deal of get().deals.filter((item) => item.leadId === id && item.clientId !== client.id)) {
           get().update("deals", deal.id, { clientId: client.id })
@@ -178,22 +206,30 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   },
 
   remove: (key, id) => {
+    mutationRevision++
+    const previous = (get()[key] as WithId[]).find(row => row.id === id)
     set((s) => ({ [key]: (s[key] as WithId[]).filter((it) => it.id !== id) }) as Partial<CrmState>)
     const resource = collectionResource[key]
-    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.deleteResource(resource, id).catch(() => {})
+    if (resource && canUseResource(useUiStore.getState().role, resource, "write")) void api.deleteResource(resource, id).catch(() => {
+      if (previous && !(get()[key] as WithId[]).some(row => row.id === id)) set(state => ({ [key]: [previous, ...(state[key] as WithId[])] }) as Partial<CrmState>)
+      void recoverPersistedState()
+    })
   },
 
   replace: (key, items) => set({ [key]: items } as Partial<CrmState>),
 
   setSingleton: (key, value) => {
+    mutationRevision++
+    const previous = get()[key]
     set({ [key]: value } as Partial<CrmState>)
-    void api.updateResource("settings", key, { [key]: value }).catch(() => {})
+    void api.updateResource("settings", key, { [key]: value }).catch(() => { if (get()[key] === value) set({ [key]: previous } as Partial<CrmState>); void recoverPersistedState() })
   },
 
   logActivity: (activity) => {
+    mutationRevision++
     const entry: Activity = { ...activity, id: newId("act"), authorId: activity.authorId ?? get().currentUserId, createdAt: new Date().toISOString() }
     set((s) => ({ activities: [entry, ...s.activities] }))
-    void api.createResource("activities", entry).catch(() => {})
+    void api.createResource("activities", entry).catch(() => { set(state => ({ activities: state.activities.filter(item => item.id !== entry.id) })); void recoverPersistedState() })
   },
 
   moveDeal: (dealId, stage, extra) => {
@@ -216,7 +252,7 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
       probability,
       stageChangedAt: now,
       history: [...deal.history, entry],
-      wonAt: stage === "ganho" ? now : undefined,
+      wonAt: stage === "ganho" ? extra?.wonDate ? dealDateToIso(extra.wonDate) : now : undefined,
       lostAt: stage === "perdido" ? now : undefined,
       lostReasonId: stage === "perdido" ? extra?.lostReasonId : undefined,
       lostNote: stage === "perdido" ? extra?.lostNote : undefined,
@@ -229,6 +265,8 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   },
 
   moveTask: (taskId, status, orderedIds) => {
+    mutationRevision++
+    const previous = get().tasks
     set((s) => {
       let tasks: Task[] = s.tasks.map((t) => (t.id === taskId ? { ...t, status } : t))
       if (orderedIds) {
@@ -237,7 +275,8 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
       }
       return { tasks }
     })
-    void api.updateResource("tasks", taskId, { status })
+    const optimistic = get().tasks
+    void api.updateResource("tasks", taskId, { status }).catch(() => { if (get().tasks === optimistic) set({ tasks: previous }); void recoverPersistedState() })
   },
 
   sendWhatsapp: async (leadId, text) => {
@@ -247,8 +286,11 @@ export const useCrmStore = create<CrmState>()((set, get) => ({
   },
 
   updateIntegration: (key, patch) => {
+    mutationRevision++
+    const previous = get().integrations
     set((s) => ({ integrations: s.integrations.map((i) => (i.key === key ? { ...i, ...patch } : i)) }))
-    void api.updateResource("integrations", key, patch).catch(() => {})
+    const optimistic = get().integrations
+    void api.updateResource("integrations", key, patch).catch(() => { if (get().integrations === optimistic) set({ integrations: previous }); void recoverPersistedState() })
   },
 
   markNotificationsRead: (ids) => {

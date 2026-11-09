@@ -8,8 +8,8 @@ const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: 
 const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: { default: "Track For CRM", template: "%s · Track For CRM" },
-  description: "CRM da Track For: leads, vendas, orçamentos, financeiro e operação.",
+  title: { default: "Nexo CRM", template: "%s · Nexo CRM" },
+  description: "Nexo CRM: vendas, relacionamento, financeiro e operação conectados.",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

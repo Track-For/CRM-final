@@ -48,6 +48,10 @@ export async function syncAsaasReceivables(force = false): Promise<ImportResult>
     let imported = 0
     let unmatched = 0
     for (const payment of payments) {
+      // A emissão nativa materializa as parcelas com IDs estáveis. Não importe
+      // cópias enquanto ela ainda estiver finalizando (ou aguardando consulta).
+      const root = charges.find(charge => charge.id === payment.externalReference && charge.paymentChannel === "asaas" && charge.paymentTerms)
+      if (root && !charges.some(charge => charge.gatewayId === payment.id && charge.gatewayEnvironment === environment)) continue
       const client = payment.customer ? matches.get(payment.customer) : undefined
       if (!client) { unmatched++; continue }
       const subscription = matchAsaasSubscription(payment, client, subscriptions, environment)

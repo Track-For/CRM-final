@@ -5,7 +5,7 @@ import { useState } from "react"
 import { deleteGoogleCalendarEvent } from "@/lib/google-calendar/actions"
 import { applyGoogleCalendarState } from "@/lib/google-calendar/ui-store"
 import { Bell, Building2, CalendarClock, Handshake, MessageCircle, Pencil, Trash2, UserRound, Video } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,

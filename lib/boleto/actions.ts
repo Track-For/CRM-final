@@ -22,6 +22,8 @@ import {
   todayInBrazil,
 } from "@/lib/boleto/sync"
 import type { Charge, FinancialEntry } from "@/types"
+import { calculateChargeTerms, chargeTermsSchema, type ChargeTerms } from "@/lib/finance/charge-plan"
+import { quoteCardTerms } from "./card-fees"
 
 // ---------------------------------------------------------------------------
 // Tipos públicos
@@ -50,7 +52,7 @@ export type BoletoPayer = {
   district?: string
 }
 
-export type BoletoResult = { ok: boolean; error?: string; charge?: Charge }
+export type BoletoResult = { ok: boolean; error?: string; charge?: Charge; charges?: Charge[]; entries?: FinancialEntry[] }
 
 // ---------------------------------------------------------------------------
 // Utilitários
@@ -345,9 +347,39 @@ async function findOrCreateCustomer(client: AsaasClient, payer: z.infer<typeof p
   return customer.id
 }
 
-export async function issueBoletoAction(input: { charge: Charge; entry?: FinancialEntry; payer: BoletoPayer }): Promise<BoletoResult> {
+export async function quoteAsaasCardAction(baseAmount: number, count: number): Promise<ChargeTerms> {
+  const user = await getCurrentUser()
+  if (!user || !["admin", "financeiro", "comercial"].includes(user.role)) throw Error(NO_PERMISSION)
+  chargeTermsSchema.parse({ baseAmount, count, surchargePercent: 0 })
+  const settings = await loadBillingSettings()
+  const apiKey = readApiKey(settings)
+  if (!apiKey) throw Error(NOT_CONNECTED)
+  return quoteCardTerms(createAsaasClient(apiKey, settings.environment), baseAmount, count)
+}
+
+export async function issueBoletoAction(input: { charge: Charge; entry?: FinancialEntry; payer: BoletoPayer; installmentPlan?: ChargeTerms }): Promise<BoletoResult> {
   const user = await requireBillingUser()
   if (!user) return { ok: false, error: NO_PERMISSION }
+
+  if (input.installmentPlan) {
+    const terms = chargeTermsSchema.safeParse(input.installmentPlan)
+    if (!terms.success) return { ok: false, error: "Condições de parcelamento inválidas." }
+    try {
+      const stored = await readRecord("charges", input.charge.id)
+      const frozen = stored?.paymentTerms as ChargeTerms | undefined
+      if (terms.data.cardFeeMode === "asaas") {
+        if (input.charge.method !== "cartao" || terms.data.count < 2) return { ok: false, error: "O repasse de taxas exige cartão de crédito parcelado." }
+        if (!stored?.gatewayId) {
+          const current = await quoteAsaasCardAction(terms.data.baseAmount, terms.data.count)
+          if (calculateChargeTerms(current).total !== calculateChargeTerms(terms.data).total) return { ok: false, error: "As taxas do Asaas mudaram. Consulte novamente o parcelamento antes de emitir." }
+        }
+      }
+      if (terms.data.cardFeeMode === "none" && terms.data.surchargePercent !== 0) return { ok: false, error: "Pagamento sem juros não pode ter acréscimo." }
+      if (frozen && (frozen.baseAmount !== terms.data.baseAmount || frozen.surchargePercent !== terms.data.surchargePercent || frozen.count !== terms.data.count || (frozen.cardFeeMode || "none") !== (terms.data.cardFeeMode || "none"))) return { ok: false, error: "As condições desta emissão já foram reservadas. Conclua a tentativa original." }
+      const calculation = calculateChargeTerms(terms.data)
+      input = { ...input, installmentPlan: terms.data, charge: { ...input.charge, amount: calculation.amounts[0], installments: terms.data.count, installment: 1, paymentChannel: "asaas", paymentTerms: terms.data } }
+    } catch { return { ok: false, error: "Não foi possível validar o parcelamento." } }
+  }
 
   const parsed = issueSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
@@ -368,6 +400,27 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
 
   const persist = async (row: BoletoRow): Promise<BoletoResult> => {
     try {
+      if (input.installmentPlan && input.installmentPlan.count > 1 && row.gatewayId) {
+        const client = createAsaasClient(apiKey!, environment)
+        const first = await client.getPayment(row.gatewayId)
+        if (!first.installment) throw new Error("Parcelamento ainda não disponível no Asaas. Tente consultar novamente.")
+        const payments = (await client.getInstallmentPayments(first.installment)).sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0))
+        if (payments.length !== input.installmentPlan.count || new Set(payments.map(p => p.id)).size !== payments.length) throw new Error("O Asaas ainda não retornou todas as parcelas. Tente novamente.")
+        const charges: Charge[] = []
+        const entries: FinancialEntry[] = []
+        for (const [index, payment] of payments.entries()) {
+          const id = index === 0 ? input.charge.id : `${input.charge.id}_p${index + 1}`
+          const entryId = input.entry ? index === 0 ? input.entry.id : `${input.entry.id}_p${index + 1}` : null
+          const patch = rowPatchFromPayment(row, payment, mapAsaasStatus(payment.status, payment.deleted))
+          const [saved] = await db.insert(boletos).values({ ...row, ...patch, chargeId: id, entryId }).onConflictDoUpdate({ target: boletos.chargeId, set: { ...patch, entryId } }).returning()
+          const charge = { ...input.charge, id, number: index === 0 ? input.charge.number : `${input.charge.number}-${index + 1}`, installment: index + 1, installments: payments.length, gatewayInstallmentId: first.installment }
+          const entry = input.entry && entryId ? { ...input.entry, id: entryId, chargeId: id, competenceDate: saved.dueDate, dueDate: saved.dueDate } : undefined
+          const persisted = await persistIssued(saved, { charge, entry, payer: input.payer }, user.id)
+          charges.push(persisted)
+          if (entry) entries.push({ ...entry, ...entryFieldsFromRow(saved), amount: persisted.amount, dueDate: persisted.dueDate, competenceDate: persisted.dueDate })
+        }
+        return { ok: true, charge: charges[0], charges, entries }
+      }
       return { ok: true, charge: await persistIssued(row, input, user.id) }
     } catch (err) {
       logError(`boleto da cobrança ${chargeId} emitido, mas não gravado no CRM`, err)
@@ -412,6 +465,7 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
     }
     row = claim.row
     fresh = claim.fresh
+    if (input.installmentPlan) await mergeRecord("charges", chargeId, { ...input.charge }, { created: true, userId: user.id })
   } catch (err) {
     logError(`falha ao registrar o boleto da cobrança ${chargeId}`, err)
     return { ok: false, error: "Não foi possível registrar o boleto. Tente novamente." }
@@ -433,7 +487,9 @@ export async function issueBoletoAction(input: { charge: Charge; entry?: Financi
       payment = await client.createPayment({
         customer: customerId,
         billingType: chargeData.method === "pix" ? "PIX" : chargeData.method === "cartao" ? "CREDIT_CARD" : chargeData.method === "asaas" ? "UNDEFINED" : "BOLETO",
-        value: Number(chargeData.amount.toFixed(2)),
+        ...(input.installmentPlan && input.installmentPlan.count > 1
+          ? { installmentCount: input.installmentPlan.count, totalValue: calculateChargeTerms(input.installmentPlan).total }
+          : { value: Number(chargeData.amount.toFixed(2)) }),
         dueDate: chargeData.dueDate,
         description: chargeData.description.slice(0, 500),
         externalReference: chargeId,

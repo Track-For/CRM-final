@@ -126,7 +126,7 @@ export function rowPatchFromPayment(row: BoletoRow, payment: AsaasPayment, statu
     nossoNumero: identification?.nossoNumero ?? payment.nossoNumero ?? row.nossoNumero,
     digitableLine: identification?.identificationField ?? (changed ? null : row.digitableLine),
     barcode: identification?.barCode ?? (changed ? null : row.barcode),
-    paidAt: status === "pago" ? (paymentPaidAt(payment) ?? row.paidAt ?? new Date()) : null,
+    paidAt: status === "pago" ? (paymentPaidAt(payment) ?? row.paidAt ?? null) : null,
     errorMessage: null,
     updatedAt: new Date(),
   }
@@ -148,7 +148,7 @@ export async function applyPaymentSnapshot(row: BoletoRow, payment: AsaasPayment
 async function findRowForPayment(payment: AsaasPayment): Promise<BoletoRow | null> {
   const [byGateway] = await db.select().from(boletos).where(eq(boletos.gatewayId, payment.id)).limit(1)
   if (byGateway) return byGateway
-  if (!payment.externalReference) return null
+  if (!payment.externalReference || (payment.installmentNumber && payment.installmentNumber > 1)) return null
   // Emissão incerta (timeout): o evento confirma que o boleto existe e evita duplicar na nova tentativa.
   const [pending] = await db
     .select()

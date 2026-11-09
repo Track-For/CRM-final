@@ -1,10 +1,11 @@
 "use client"
+import { stageName } from "@/components/sales/utils"
+import { usePipelines } from "@/lib/data"
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Building2, CalendarDays, CheckSquare, FileText, Handshake, Plus, UserRound } from "lucide-react"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
-import { STAGE_LABEL } from "@/lib/constants"
 import { useClients, useDeals, useLeads } from "@/lib/data"
 import { formatMoney } from "@/lib/format"
 import { NAV_ITEMS } from "@/lib/permissions"
@@ -12,6 +13,7 @@ import { useUiStore } from "@/lib/store/ui-store"
 
 /** Busca global (Ctrl/Cmd+K): páginas, leads, clientes, negócios e atalhos de criação. */
 export function CommandPalette() {
+  const pipelines = usePipelines()
   const router = useRouter()
   const open = useUiStore((s) => s.commandOpen)
   const setOpen = useUiStore((s) => s.setCommandOpen)
@@ -103,7 +105,7 @@ export function CommandPalette() {
             <CommandSeparator />
             <CommandGroup heading="Negócios">
               {deals.map((d) => (
-                <CommandItem key={d.id} value={`negócio ${d.title} ${STAGE_LABEL[d.stage]}`} onSelect={() => go(`/vendas/${d.id}`)}>
+                <CommandItem key={d.id} value={`negócio ${d.title} ${stageName(pipelines, d.pipelineId, d.stage)}`} onSelect={() => go(`/vendas/${d.id}`)}>
                   <Handshake />
                   <span className="truncate">{d.title}</span>
                   <span className="num ml-auto shrink-0 text-xs text-muted-foreground">{formatMoney(d.value)}</span>

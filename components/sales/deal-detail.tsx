@@ -1,11 +1,14 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo } from "react"
+import { useReceiptMetrics } from "@/lib/finance/use-receipt-metrics"
+import { getPeriodRange } from "@/lib/period"
+import { dealProbability } from "@/lib/data/deal-forecast"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { format } from "date-fns"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import {
   ArrowRight,
   CalendarPlus,
@@ -48,14 +51,15 @@ import { useUiStore } from "@/lib/store/ui-store"
 import { cn } from "@/lib/utils"
 import { v } from "@/lib/validation"
 import { dealValuesSchema } from "@/lib/data/deal-values"
+import { dealDateInput, dealDateSchema, dealDateToIso } from "@/lib/data/deal-dates"
 import type { Deal } from "@/types"
 
 const schema = z.object({
   title: v.required("Título"),
   value: dealValuesSchema.shape.value,
   monthlyFee: dealValuesSchema.shape.monthlyFee,
-  probability: z.number({ error: "Informe a probabilidade" }).min(0, "Mínimo 0%").max(100, "Máximo 100%"),
-  expectedCloseDate: v.date("Previsão de fechamento"),
+  startDate: dealDateSchema.or(z.literal("")),
+  expectedCloseDate: dealDateSchema.or(z.literal("")),
   ownerId: v.required("Responsável"),
 })
 type Values = z.infer<typeof schema>
@@ -64,14 +68,15 @@ function DealEditForm({ deal }: { deal: Deal }) {
   const update = useCrm((s) => s.update)
   const currentUserId = useCrm((s) => s.currentUserId)
   const { userOptions } = useEntityOptions()
+  const pipelines = usePipelines()
   const { register, control, handleSubmit, reset, formState } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: deal.title,
       value: deal.value,
       monthlyFee: deal.monthlyFee,
-      probability: deal.probability,
-      expectedCloseDate: format(new Date(deal.expectedCloseDate), "yyyy-MM-dd"),
+      startDate: dealDateInput(deal.startDate),
+      expectedCloseDate: dealDateInput(deal.expectedCloseDate),
       ownerId: deal.ownerId,
     },
   })
@@ -93,7 +98,8 @@ function DealEditForm({ deal }: { deal: Deal }) {
     }
     update("deals", deal.id, {
       ...values,
-      expectedCloseDate: new Date(`${values.expectedCloseDate}T12:00:00`).toISOString(),
+      startDate: values.startDate ? dealDateToIso(values.startDate) : "",
+      expectedCloseDate: values.expectedCloseDate ? dealDateToIso(values.expectedCloseDate) : "",
       history,
     })
     reset(values)
@@ -112,10 +118,13 @@ function DealEditForm({ deal }: { deal: Deal }) {
         <FormField label="Mensalidade" error={errors.monthlyFee?.message}>
           <Controller control={control} name="monthlyFee" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} />} />
         </FormField>
-        <FormField label="Probabilidade (%)" required error={errors.probability?.message}>
-          <Input type="number" min={0} max={100} className="num" {...register("probability", { valueAsNumber: true })} aria-invalid={!!errors.probability} />
+        <FormField label="Probabilidade da etapa (%)" hint="Definida nas configurações do funil.">
+          <Input type="number" className="num" value={dealProbability(deal, pipelines)} readOnly />
         </FormField>
-        <FormField label="Previsão de fechamento" required error={errors.expectedCloseDate?.message}>
+        <FormField label="Data de início" error={errors.startDate?.message}>
+          <Input type="date" {...register("startDate")} />
+        </FormField>
+        <FormField label="Previsão de fechamento (opcional)" error={errors.expectedCloseDate?.message} hint="Usada na previsão comercial dos negócios em aberto.">
           <Input type="date" {...register("expectedCloseDate")} />
         </FormField>
         <FormField label="Responsável" required className="sm:col-span-2">
@@ -134,6 +143,8 @@ function DealEditForm({ deal }: { deal: Deal }) {
 
 export function DealDetail({ id }: { id: string }) {
   const deal = useDeal(id)
+  const range = useMemo(() => getPeriodRange("mes"), [])
+  const receipts = useReceiptMetrics(range, [])
   const lead = useLead(deal?.leadId)
   const pipelines = usePipelines()
   const quotes = useQuotes()
@@ -345,11 +356,12 @@ export function DealDetail({ id }: { id: string }) {
               {deal.monthlyFee ? `${formatMoney(deal.monthlyFee)}/mês` : "—"}
             </InfoRow>
             <InfoRow label="Probabilidade" mono>
-              {deal.probability}%
+              {dealProbability(deal, pipelines)}%
             </InfoRow>
             <InfoRow label="Valor ponderado" mono>
-              {formatMoney(weightedValue(deal))}
+              {receipts.data ? formatMoney(weightedValue(deal, pipelines, receipts.data.projectPaidByDeal)) : "—"}
             </InfoRow>
+            <InfoRow label="Data de início" mono>{formatDate(deal.startDate)}</InfoRow>
             <InfoRow label="Previsão de fechamento" mono>
               {formatDate(deal.expectedCloseDate)}
             </InfoRow>

@@ -9,6 +9,8 @@
 import { useMemo } from "react"
 import { useCrmStore, type CollectionKey, type EntityOf } from "@/lib/store/crm-store"
 import type { ID } from "@/types"
+import { installmentLimit } from "@/lib/finance/payment-options"
+import { paymentStatus } from "@/lib/finance/payment-status"
 
 export { newId } from "@/lib/store/crm-store"
 export type { CollectionKey, EntityOf } from "@/lib/store/crm-store"
@@ -25,7 +27,8 @@ export function useCollection<K extends CollectionKey>(key: K): EntityOf<K>[] {
 }
 
 export function useEntity<K extends CollectionKey>(key: K, id: ID | undefined | null): EntityOf<K> | undefined {
-  return useCrmStore((s) => (id ? (s[key] as EntityOf<K>[]).find((it) => it.id === id) : undefined))
+  const item = useCrmStore((s) => (id ? (s[key] as EntityOf<K>[]).find((it) => it.id === id) : undefined))
+  return useMemo(() => key === "charges" && item ? { ...item, status: paymentStatus(item as unknown as import("@/types").Charge) } as EntityOf<K> : item, [key, item])
 }
 
 /** Map id → entidade, memoizado. Útil para resolver nomes em tabelas. */
@@ -50,7 +53,7 @@ export const useContracts = () => useCollection("contracts")
 export const useSubscriptions = () => useCollection("subscriptions")
 export const useCharges = () => {
   const charges = useCollection("charges")
-  return useMemo(() => charges.filter(charge => !charge.deletedAt && !charge.conversionReverted && !charge.awaitingProjectPayment), [charges])
+  return useMemo(() => charges.filter(charge => !charge.deletedAt && !charge.conversionReverted && !charge.awaitingProjectPayment).map(charge => ({ ...charge, status: paymentStatus(charge) })), [charges])
 }
 export const useEntries = () => {
   const entries = useCollection("entries")
@@ -77,7 +80,10 @@ export const useWhatsappInstances = () => useCollection("whatsappInstances")
 export const useIntegrationLogs = () => useCollection("integrationLogs")
 export const useNotifications = () => useCollection("notifications")
 
-export const usePricingRules = () => useCrmStore((s) => s.pricingRules)
+export const usePricingRules = () => {
+  const rules = useCrmStore(s => s.pricingRules)
+  return useMemo(() => ({ ...rules, maxInstallments: installmentLimit(rules.maxInstallments) }), [rules])
+}
 export const useCompany = () => useCrmStore((s) => s.company)
 export const useAdSpend = () => useCrmStore((s) => s.adSpend)
 export const useIntegrations = () => useCrmStore((s) => s.integrations)

@@ -3,12 +3,12 @@
 import Image from "next/image"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, QrCode, RefreshCw, Unplug } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Panel } from "@/components/shared/panel"
 import { connectWhatsapp, disconnectWhatsapp, getWhatsappConnection } from "@/lib/whatsapp/actions"
 
-export function WhatsappConnectionCard({ canManage = true }: { canManage?: boolean }) {
+export function WhatsappConnectionCard({ canManage = true, onConnectionChange }: { canManage?: boolean; onConnectionChange?: (state: string) => void }) {
   const [state, setState] = useState<Awaited<ReturnType<typeof getWhatsappConnection>> | null>(null)
   const [image, setImage] = useState("")
   const [busy, setBusy] = useState(false)
@@ -19,23 +19,25 @@ export function WhatsappConnectionCard({ canManage = true }: { canManage?: boole
     try {
       const result = await getWhatsappConnection()
       setState(result)
+      onConnectionChange?.(result.state)
       if (result.state === "open") setImage("")
     } catch (e) { setState({ state: "unavailable", expectedPhone: "", error: e instanceof Error ? e.message : "Falha ao consultar conexão" }) }
     finally { polling.current = false }
-  }, [])
+  }, [onConnectionChange])
   useEffect(() => { const initial = setTimeout(() => void refresh(), 0); const timer = setInterval(() => void refresh(), 5000); return () => { clearTimeout(initial); clearInterval(timer) } }, [refresh])
   async function connect() {
     setBusy(true)
     try {
       const result = await connectWhatsapp()
       setState(result.connection); setImage(result.image)
+      onConnectionChange?.(result.connection.state)
       if (!result.image && result.connection.state !== "open") toast.info("O WhatsApp está preparando o QR Code. Aguarde alguns segundos e clique novamente.")
     } catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao gerar QR Code") }
     finally { setBusy(false) }
   }
   async function disconnect() {
     setBusy(true)
-    try { await disconnectWhatsapp(); setImage(""); await refresh(); toast.success("WhatsApp desconectado") }
+    try { await disconnectWhatsapp(); setImage(""); onConnectionChange?.("close"); await refresh(); toast.success("WhatsApp desconectado") }
     catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao desconectar") }
     finally { setBusy(false) }
   }

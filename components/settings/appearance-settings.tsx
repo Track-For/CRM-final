@@ -1,6 +1,6 @@
 "use client"
 
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Switch } from "@/components/ui/switch"
 import { Panel } from "@/components/shared/panel"
 import { useUiStore } from "@/lib/store/ui-store"

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import Link from "next/link"
 import { Ban, FileCode, FileDown, Info, Loader2, MessageCircle, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { EntityDrawer } from "@/components/shared/entity-drawer"
 import { InfoRow } from "@/components/shared/panel"

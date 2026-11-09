@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { FlaskConical, Loader2, Sparkles } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Panel } from "@/components/shared/panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

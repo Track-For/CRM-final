@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from "react"
 import { Loader2, Sparkles } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { EntityDrawer } from "@/components/shared/entity-drawer"
 import { Button } from "@/components/ui/button"
 import { analyzeWhatsappConversation, applyWhatsappSuggestion, getWhatsappAiAvailability } from "@/lib/ai/whatsapp-actions"
 import { useCrmStore } from "@/lib/store/crm-store"
 import type { Activity, Deal, Lead, Task } from "@/types"
-import { STAGE_LABEL } from "@/lib/constants"
+import { stageName } from "@/components/sales/utils"
+import { usePipelines } from "@/lib/data"
 
 type Draft = Awaited<ReturnType<typeof analyzeWhatsappConversation>>
 export function WhatsappAiAssistant({ phone, open, onOpenChange }: { phone: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const pipelines = usePipelines()
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState("")
@@ -54,7 +56,7 @@ export function WhatsappAiAssistant({ phone, open, onOpenChange }: { phone: stri
         <section className="space-y-3 rounded-lg border p-4"><h3 className="font-semibold">Resumo</h3><p className="whitespace-pre-wrap text-sm">{draft.result.summary}</p>{button("summary", "Salvar como nota")}</section>
         <section className="space-y-3 rounded-lg border p-4"><h3 className="font-semibold">Qualificação sugerida</h3><p className="text-sm">{[draft.result.qualification.status, draft.result.qualification.temperature, draft.result.qualification.projectType].filter(Boolean).join(" · ") || "Sem alteração sugerida"}</p><p className="text-sm">{draft.result.qualification.reason}</p>{evidence(draft.result.qualification.evidence)}{Object.values({ status: draft.result.qualification.status, temperature: draft.result.qualification.temperature, projectType: draft.result.qualification.projectType }).some(Boolean) && button("qualification", "Aplicar qualificação")}</section>
         <section className="space-y-3 rounded-lg border p-4"><h3 className="font-semibold">Próximas tarefas</h3>{!draft.result.tasks.length && <p className="text-sm text-muted-foreground">Nenhuma tarefa sugerida.</p>}{draft.result.tasks.map((task, i) => <div key={i} className="space-y-2 border-t pt-3"><h4 className="text-sm font-medium">{task.title}</h4><p className="text-sm">{task.description}</p><p className="text-xs text-muted-foreground">Prazo: {task.dueDate || "sem data combinada"} · Responsável: você</p>{evidence(task.evidence)}{button(`task:${i}`, "Criar tarefa")}</div>)}</section>
-        <section className="space-y-3 rounded-lg border p-4"><h3 className="font-semibold">Kanban</h3>{draft.result.stage.key ? <><p className="text-sm">Mover {draft.deal?.title} para {STAGE_LABEL[draft.result.stage.key]}</p><p className="text-sm">{draft.result.stage.reason}</p>{evidence(draft.result.stage.evidence)}{button("stage", "Confirmar movimentação")}</> : <p className="text-sm text-muted-foreground">{draft.deal ? "Sem mudança de etapa sugerida." : "A movimentação exige um único negócio aberto vinculado ao contato."}</p>}</section>
+        <section className="space-y-3 rounded-lg border p-4"><h3 className="font-semibold">Kanban</h3>{draft.result.stage.key ? <><p className="text-sm">Mover {draft.deal?.title} para {stageName(pipelines, draft.deal?.pipelineId, draft.result.stage.key)}</p><p className="text-sm">{draft.result.stage.reason}</p>{evidence(draft.result.stage.evidence)}{button("stage", "Confirmar movimentação")}</> : <p className="text-sm text-muted-foreground">{draft.deal ? "Sem mudança de etapa sugerida." : "A movimentação exige um único negócio aberto vinculado ao contato."}</p>}</section>
       </>}
     </div>
   </EntityDrawer>

@@ -14,7 +14,7 @@ import {
   StickyNote,
   UserX,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -53,7 +53,7 @@ import { useEntityOptions } from "@/lib/data/options"
 import { formatDate, formatDateTime, formatDays, formatMoney, formatRelative, whatsappLink } from "@/lib/format"
 import { useUiStore } from "@/lib/store/ui-store"
 import { cn } from "@/lib/utils"
-import type { LeadStatus, Temperature } from "@/types"
+import type { LeadSource, LeadStatus, Temperature } from "@/types"
 
 function Count({ n }: { n: number }) {
   return n ? <span className="num ml-1 rounded bg-surface px-1 text-[10px] text-muted-foreground">{n}</span> : null
@@ -107,7 +107,7 @@ export function LeadDetail({ id }: { id: string }) {
     )
   }
 
-  const setField = (patch: { temperature?: Temperature; status?: LeadStatus; ownerId?: string }, message: string) => {
+  const setField = (patch: { temperature?: Temperature; status?: LeadStatus; ownerId?: string; source?: LeadSource }, message: string) => {
     update("leads", lead.id, { ...patch, updatedAt: new Date().toISOString() })
     logActivity({ type: "status", title: message, leadId: lead.id })
     toast.success(message)
@@ -173,6 +173,7 @@ export function LeadDetail({ id }: { id: string }) {
         </div>
       </PageHeader>
 
+      {lead.intakeSummary && <Panel title="Resumo da triagem do WhatsApp"><p className="whitespace-pre-wrap text-sm leading-relaxed">{lead.intakeSummary}</p>{lead.suggestedNextStep && <p className="mt-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">Próximo passo sugerido: </span>{lead.suggestedNextStep}</p>}</Panel>}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4">
           <Panel
@@ -194,6 +195,12 @@ export function LeadDetail({ id }: { id: string }) {
                 <OptionSelect value={lead.temperature} onChange={(v) => setField({ temperature: v }, `Temperatura alterada para ${TEMPERATURE_LABEL[v]}`)} options={toOptions(TEMPERATURE_LABEL)} />
               </div>
               <div className="col-span-2 space-y-1">
+                <label htmlFor="lead-source" className="text-[11px] text-muted-foreground">Origem</label>
+                <OptionSelect id="lead-source" value={lead.source} onChange={(source) => {
+                  if (source !== lead.source) setField({ source }, `Origem alterada de ${SOURCE_LABEL[lead.source]} para ${SOURCE_LABEL[source]}`)
+                }} options={toOptions(SOURCE_LABEL)} />
+              </div>
+              <div className="col-span-2 space-y-1">
                 <p className="text-[11px] text-muted-foreground">Responsável</p>
                 <OptionSelect value={lead.ownerId} onChange={(v) => setField({ ownerId: v }, "Responsável alterado")} options={userOptions} />
               </div>
@@ -206,7 +213,6 @@ export function LeadDetail({ id }: { id: string }) {
               <InfoRow label="Empresa">{lead.company || "—"}</InfoRow>
               <InfoRow label="Tipo de projeto">{PROJECT_TYPE_LABEL[lead.projectType]}</InfoRow>
               <InfoRow label="Faturamento">{REVENUE_LABEL[lead.revenue]}</InfoRow>
-              <InfoRow label="Origem">{SOURCE_LABEL[lead.source]}</InfoRow>
               <InfoRow label="Cadastro" mono>
                 {formatDate(lead.createdAt)}
               </InfoRow>
@@ -305,7 +311,7 @@ export function LeadDetail({ id }: { id: string }) {
                         <Link href={`/vendas/${d.id}`} className="flex flex-col gap-2 p-4 hover:bg-accent sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{d.title}</p>
-                            <p className="text-xs text-muted-foreground">Previsão {formatDate(d.expectedCloseDate)}</p>
+                            <p className="text-xs text-muted-foreground">Início: {formatDate(d.startDate)}{d.wonAt && ` · Ganho em ${formatDate(d.wonAt)}`}</p>
                           </div>
                           <div className="flex items-center gap-3">
                             <EnumBadge value={d.stage} labels={STAGE_LABEL} tones={STAGE_TONE} />

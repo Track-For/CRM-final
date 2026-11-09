@@ -9,10 +9,14 @@ import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { Panel } from "@/components/shared/panel"
+import { ReportTable } from "@/components/reports/report-table"
 import { StatCard } from "@/components/shared/stat-card"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { UserAvatar } from "@/components/shared/user-avatar"
+import { stageName } from "@/components/sales/utils"
+import { usePipelines } from "@/lib/data"
 import { FunnelBars, RevenueChart, SourceBarChart } from "@/components/dashboard/charts"
+import { useReceiptMetrics } from "@/lib/finance/use-receipt-metrics"
 import { computeKpis, funnel, leadsIn } from "@/components/dashboard/metrics"
 import {
   EVENT_TYPE_COLOR,
@@ -20,14 +24,13 @@ import {
   PAYMENT_METHOD_LABEL,
   SOURCE_COLOR,
   SOURCE_LABEL,
-  STAGE_LABEL,
   TASK_PRIORITY_LABEL,
   TASK_PRIORITY_TONE,
 } from "@/lib/constants"
 import { useById, useCharges, useCurrentUser, useDeals, useEntries, useEvents, useLeads, useSubscriptions, useTasks } from "@/lib/data"
-import { dealIdleDays, isStaleDeal, monthBuckets, revenueByMonth } from "@/lib/data/selectors"
+import { dealIdleDays, isStaleDeal, periodMonthBuckets, revenueByMonth } from "@/lib/data/selectors"
 import { daysSince, formatDate, formatDateLong, formatMoney, formatNumber, formatPercent, formatTime } from "@/lib/format"
-import { delta, getPeriodRange, inRange } from "@/lib/period"
+import { delta, getPeriodRange } from "@/lib/period"
 import { useUiStore } from "@/lib/store/ui-store"
 import type { LeadSource } from "@/types"
 
@@ -43,6 +46,7 @@ function ListLink({ href, children }: { href: string; children: React.ReactNode 
 }
 
 export function DashboardView() {
+  const pipelines = usePipelines()
   const period = useUiStore((s) => s.period)
   const leads = useLeads()
   const deals = useDeals()
@@ -58,19 +62,15 @@ export function DashboardView() {
   const range = useMemo(() => getPeriodRange(period), [period])
 
   const { kpis, prev } = useMemo(() => {
-    const data = { leads, deals, subscriptions, charges }
+    const data = { leads, deals, subscriptions, charges, entries }
     return {
       kpis: computeKpis({ from: range.from, to: range.to }, data),
       prev: computeKpis({ from: range.previousFrom, to: range.previousTo }, data),
     }
-  }, [range, leads, deals, subscriptions, charges])
+  }, [range, leads, deals, subscriptions, charges, entries])
 
-  const received = useMemo(() => {
-    const total = (from: Date, to: Date) => charges
-      .filter(charge => charge.status === "pago" && inRange(charge.paidAt, from, to))
-      .reduce((amount, charge) => amount + charge.amount, 0)
-    return { current: total(range.from, range.to), previous: total(range.previousFrom, range.previousTo) }
-  }, [charges, range])
+  const revenueBuckets = useMemo(() => periodMonthBuckets(range), [range])
+  const receipts = useReceiptMetrics(range, revenueBuckets)
 
   const bySource = useMemo(() => {
     const list = leadsIn(leads, range)
@@ -80,7 +80,7 @@ export function DashboardView() {
       .sort((a, b) => b.value - a.value)
   }, [leads, range])
 
-  const revenue = useMemo(() => revenueByMonth(entries, monthBuckets(-5, 1)), [entries])
+  const revenue = useMemo(() => revenueByMonth(entries, revenueBuckets).map((row, i) => ({ ...row, realizado: receipts.data?.months[i]?.total ?? 0, mensalidades: receipts.data?.months[i]?.monthly ?? 0, outras: receipts.data?.months[i]?.other ?? 0, pagamentos: receipts.data?.months[i]?.count ?? 0 })), [entries, revenueBuckets, receipts.data])
   const undatedForecast = useMemo(() => {
     const pending = entries.filter(entry => entry.type === "receita" && !entry.dueDate && (entry.status === "pendente" || entry.status === "vencido"))
     return { amount: pending.reduce((total, entry) => total + Math.round(entry.amount * 100), 0) / 100, count: pending.length }
@@ -118,12 +118,26 @@ export function DashboardView() {
           <span className="text-sm text-muted-foreground">{range.label}</span>
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatCard label="Vendas fechadas" icon={CircleDollarSign} value={formatMoney(kpis.sales)} delta={delta(kpis.sales, prev.sales)} hint="vs período anterior" highlight />
-          <StatCard label="Recebido no período" icon={CheckCircle2} value={formatMoney(received.current)} delta={delta(received.current, received.previous)} hint="pagamentos confirmados" valueClassName="text-success" />
+          <StatCard label="Receita recebida" icon={CircleDollarSign} value={receipts.data ? formatMoney(receipts.data.current.total) : "—"} loading={receipts.loading} delta={receipts.data ? delta(receipts.data.current.total, receipts.data.previous.total) : null} hint="projetos + mensalidades · data do pagamento" highlight />
+          <StatCard label="Mensalidades recebidas" icon={CheckCircle2} value={receipts.data ? formatMoney(receipts.data.current.monthly) : "—"} loading={receipts.loading} delta={receipts.data ? delta(receipts.data.current.monthly, receipts.data.previous.monthly) : null} hint="já incluídas na receita recebida" valueClassName="text-success" />
           <StatCard label="A receber no mês" icon={CalendarDays} value={formatMoney(kpis.receivable)} hint="pendente + vencido no mês de referência" />
           <StatCard label="Novos leads" icon={UserRound} value={formatNumber(kpis.leads)} delta={delta(kpis.leads, prev.leads)} hint="vs período anterior" />
         </div>
       </section>
+
+      {receipts.error && <p role="alert" className="text-sm text-destructive">{receipts.error}</p>}
+      {!!receipts.data?.undated && <p className="text-xs text-muted-foreground">{receipts.data.undated} recebimento(s) sem data de pagamento válida não entram nos totais. Corrija a data no Financeiro.</p>}
+
+      {receipts.enabled && <Panel title="Recebimentos por mês" description="Histórico pela data real do pagamento. Mensalidades já estão incluídas no total recebido." actions={<Button asChild variant="outline" size="sm"><Link href="/relatorios">Ver relatórios</Link></Button>}>
+        {!receipts.data ? <p role="status" className="text-sm text-muted-foreground">{receipts.loading ? "Carregando histórico de recebimentos…" : "Histórico indisponível. Atualize a página para tentar novamente."}</p> : <ReportTable rows={revenue} getKey={r => r.month} columns={[
+          { key: "mes", label: "Mês", render: r => <span className="capitalize">{r.month}</span> },
+          { key: "outras", label: "Projetos e outras receitas", align: "right", render: r => formatMoney(r.outras) },
+          { key: "mensalidades", label: "Mensalidades recebidas", align: "right", render: r => formatMoney(r.mensalidades) },
+          { key: "total", label: "Total recebido", align: "right", render: r => <strong>{formatMoney(r.realizado)}</strong> },
+          { key: "pagamentos", label: "Pagamentos registrados", align: "right", render: r => r.pagamentos || "Nenhum" },
+        ]} />}
+        <p className="mt-3 text-xs text-muted-foreground">Um mês sem pagamentos registrados aparece zerado. Se um pagamento antigo foi baixado com a data de hoje, corrija a data na cobrança para que ele apareça no mês em que foi recebido.</p>
+      </Panel>}
 
       <DailyActions />
 
@@ -132,13 +146,13 @@ export function DashboardView() {
         <div className="mt-6 space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Taxa de conversão" icon={Percent} value={formatPercent(kpis.conversion)} delta={delta(kpis.conversion, prev.conversion)} hint="ganhos / leads" />
-        <StatCard label="Ticket médio" icon={Receipt} value={formatMoney(kpis.ticket)} delta={delta(kpis.ticket, prev.ticket)} />
+        <StatCard label="Ticket médio contratado" icon={Receipt} value={formatMoney(kpis.ticket)} delta={delta(kpis.ticket, prev.ticket)} />
         <StatCard label="MRR mensalidades" icon={Repeat} value={formatMoney(kpis.mrr)} delta={delta(kpis.mrr, prev.mrr)} />
         <StatCard label="Inadimplência" icon={TriangleAlert} value={formatMoney(kpis.overdue)} delta={delta(kpis.overdue, prev.overdue)} invertDelta hint={formatPercent(kpis.overdueRate)} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <ChartCard title="Receita por mês" description="Realizado x previsto (últimos 6 meses e próximo)" className="xl:col-span-2" height={280} actions={
+        <ChartCard title="Receita por mês" description="Recebido pela data do pagamento e previsto pelo vencimento · histórico do período selecionado" className="xl:col-span-2" height={280} actions={
           <Link href="/financeiro/cobrancas?visao=sem-data" className="block rounded-lg border bg-surface px-3 py-2 hover:border-primary" aria-label={`Previsto sem data: ${formatMoney(undatedForecast.amount)}. Ver cobranças`}>
             <span className="block text-xs text-muted-foreground">Previsto sem data</span>
             <span className="num block text-lg font-semibold text-primary">{formatMoney(undatedForecast.amount)}</span>
@@ -154,7 +168,7 @@ export function DashboardView() {
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <Panel title="Funil resumido" description="Negócios que chegaram em cada etapa" actions={<ListLink href="/funil">Funil</ListLink>}>
-          <FunnelBars data={funnelData} />
+          <FunnelBars data={funnelData} stageLabel={stage => stageName(pipelines, undefined, stage)} />
         </Panel>
 
         <Panel title="Próximos compromissos" actions={<ListLink href="/agenda">Agenda</ListLink>} contentClassName="p-0">
@@ -214,7 +228,7 @@ export function DashboardView() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{d.title}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {leadMap.get(d.leadId)?.name ?? "—"} · {STAGE_LABEL[d.stage]}
+                        {leadMap.get(d.leadId)?.name ?? "—"} · {stageName(pipelines, d.pipelineId, d.stage)}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">

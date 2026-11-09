@@ -5,7 +5,7 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format, parseISO } from "date-fns"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { Input } from "@/components/ui/input"
 import { FormDialog } from "@/components/forms/form-dialog"
 import { EntityCombobox } from "@/components/shared/entity-combobox"
@@ -30,7 +30,7 @@ const schema = z
     supplier: z.string().optional(),
     clientId: z.string().optional(),
   })
-  .refine((val) => val.status !== "pago" || Boolean(val.paidAt), { path: ["paidAt"], message: "Data de pagamento é obrigatória" })
+  .refine((val) => val.status !== "pago" || Boolean(val.paidAt && z.iso.date().safeParse(val.paidAt).success && val.paidAt <= format(new Date(), "yyyy-MM-dd")), { path: ["paidAt"], message: "Informe a data real do pagamento, até hoje" })
 type Values = z.infer<typeof schema>
 
 const toDateInput = (iso: string) => format(parseISO(iso), "yyyy-MM-dd")
@@ -42,9 +42,10 @@ interface EntryFormDialogProps {
   defaultType?: EntryType
   /** Com lançamento, o formulário edita em vez de criar. */
   entry?: FinancialEntry | null
+  settle?: boolean
 }
 
-export function EntryFormDialog({ open, onOpenChange, defaultType = "despesa", entry }: EntryFormDialogProps) {
+export function EntryFormDialog({ open, onOpenChange, defaultType = "despesa", entry, settle = false }: EntryFormDialogProps) {
   const add = useCrm((s) => s.add)
   const update = useCrm((s) => s.update)
   const categories = useFinancialCategories()
@@ -62,13 +63,13 @@ export function EntryFormDialog({ open, onOpenChange, defaultType = "despesa", e
         amount: entry.amount,
         competenceDate: toDateInput(entry.competenceDate),
         dueDate: toDateInput(entry.dueDate),
-        status: entry.status === "pago" ? "pago" : "pendente",
-        paidAt: entry.paidAt ? toDateInput(entry.paidAt) : today,
+        status: settle || entry.status === "pago" ? "pago" : "pendente",
+        paidAt: entry.paidAt ? toDateInput(entry.paidAt) : "",
         supplier: entry.supplier ?? "",
         clientId: entry.clientId ?? undefined,
       }
     }
-    return { type: defaultType, description: "", categoryId: "", amount: 0, competenceDate: today, dueDate: today, status: "pendente", paidAt: today, supplier: "", clientId: undefined }
+    return { type: defaultType, description: "", categoryId: "", amount: 0, competenceDate: today, dueDate: today, status: "pendente", paidAt: "", supplier: "", clientId: undefined }
   }
   const { register, control, handleSubmit, reset, setValue, formState } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: initial() })
   const errors = formState.errors
@@ -79,7 +80,7 @@ export function EntryFormDialog({ open, onOpenChange, defaultType = "despesa", e
   useEffect(() => {
     if (open) reset(initial())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultType, entry])
+  }, [open, defaultType, entry, settle])
 
   const onSubmit = handleSubmit((val) => {
     const party = { supplier: val.type === "despesa" ? val.supplier : undefined, clientId: val.type === "receita" ? val.clientId : undefined }
@@ -107,7 +108,7 @@ export function EntryFormDialog({ open, onOpenChange, defaultType = "despesa", e
       open={open}
       onOpenChange={onOpenChange}
       title={entry ? `Editar ${label}` : `Nova ${label}`}
-      description={linked ? "Vinculada a uma cobrança: tipo, valor, vencimento, status e pagamento são alterados pela cobrança." : undefined}
+      description={linked ? "Vinculada a uma cobrança: tipo, valor, vencimento, status e pagamento são alterados pela cobrança." : "Informe a data real do recebimento ou da saída, mesmo que seja anterior ao cadastro."}
       onSubmit={onSubmit}
       submitLabel={entry ? "Salvar" : "Lançar"}
     >

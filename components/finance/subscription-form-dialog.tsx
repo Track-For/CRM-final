@@ -1,19 +1,21 @@
 "use client"
 
 import { useEffect } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { addMonths, format, setDate } from "date-fns"
-import { toast } from "sonner"
+import { format } from "date-fns"
+import { firstSubscriptionDueDate } from "@/lib/data/deal-subscription"
+import { toast } from "@/lib/store/save-feedback"
 import { Input } from "@/components/ui/input"
 import { FormDialog } from "@/components/forms/form-dialog"
 import { EntityCombobox } from "@/components/shared/entity-combobox"
 import { FormField, FormGrid } from "@/components/shared/form-field"
 import { MoneyInput } from "@/components/shared/money-input"
 import { OptionSelect } from "@/components/shared/option-select"
-import { PAYMENT_METHOD_LABEL, toOptions } from "@/lib/constants"
-import { newId, useCrm, useHostingPlans } from "@/lib/data"
+import { ASAAS_METHOD_OPTIONS, BILLING_CHANNEL_OPTIONS } from "@/lib/finance/payment-options"
+import { newId, useCompany, useCrm, useHostingPlans } from "@/lib/data"
+import { formatMoney } from "@/lib/format"
 import { useEntityOptions } from "@/lib/data/options"
 import { v } from "@/lib/validation"
 import type { Subscription } from "@/types"
@@ -23,6 +25,7 @@ const schema = z.object({
   description: v.required("Descrição"),
   amount: v.money("Valor mensal"),
   method: v.select(["boleto", "pix", "cartao", "asaas"], "a forma de pagamento"),
+  paymentChannel: z.enum(["pix", "asaas"]),
   billingDay: z.string(),
   startDate: v.date("Início"),
 })
@@ -31,10 +34,12 @@ type Values = z.infer<typeof schema>
 export function SubscriptionFormDialog({ open, onOpenChange, clientId }: { open: boolean; onOpenChange: (o: boolean) => void; clientId?: string }) {
   const add = useCrm((s) => s.add)
   const plans = useHostingPlans()
+  const company = useCompany()
   const { clientOptions } = useEntityOptions()
-  const initial = (): Values => ({ clientId: clientId ?? "", description: "", amount: 0, method: "pix", billingDay: "10", startDate: format(new Date(), "yyyy-MM-dd") })
+  const initial = (): Values => ({ clientId: clientId ?? "", description: "", amount: 0, method: "pix", paymentChannel: "pix", billingDay: "10", startDate: format(new Date(), "yyyy-MM-dd") })
   const { register, control, handleSubmit, reset, setValue, formState } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: initial() })
   const errors = formState.errors
+  const channel = useWatch({ control, name: "paymentChannel" })
 
   useEffect(() => {
     if (open) reset(initial())
@@ -42,15 +47,18 @@ export function SubscriptionFormDialog({ open, onOpenChange, clientId }: { open:
   }, [open, clientId])
 
   const onSubmit = handleSubmit((val) => {
+    if (val.paymentChannel === "pix" && !company.pixKey?.trim()) { toast.error("Cadastre a chave Pix em Configurações → Empresa"); return }
     const start = new Date(`${val.startDate}T12:00:00`)
     const day = Number(val.billingDay)
-    const firstDue = setDate(start, day) >= start ? setDate(start, day) : setDate(addMonths(start, 1), day)
+    const firstDue = new Date(firstSubscriptionDueDate({ startDate: start.toISOString(), billingDay: day }))
     const sub: Subscription = {
       id: newId("sub"),
       clientId: val.clientId,
       description: val.description,
       amount: val.amount,
-      method: val.method,
+      method: val.paymentChannel === "pix" ? "pix" : val.method,
+      paymentChannel: val.paymentChannel,
+      pixKey: val.paymentChannel === "pix" ? company.pixKey : "",
       billingDay: day,
       status: "ativa",
       startDate: start.toISOString(),
@@ -71,7 +79,7 @@ export function SubscriptionFormDialog({ open, onOpenChange, clientId }: { open:
           <OptionSelect
             value=""
             placeholder="Preencher a partir de um plano"
-            options={plans.filter((p) => p.monthly > 0).map((p) => ({ value: p.id, label: `${p.name} — R$ ${p.monthly}/mês` }))}
+            options={plans.filter((p) => p.monthly > 0).map((p) => ({ value: p.id, label: `${p.name} — ${formatMoney(p.monthly)}/mês` }))}
             onChange={(id) => {
               const plan = plans.find((p) => p.id === id)
               if (!plan) return
@@ -86,9 +94,9 @@ export function SubscriptionFormDialog({ open, onOpenChange, clientId }: { open:
         <FormField label="Valor mensal" required error={errors.amount?.message}>
           <Controller control={control} name="amount" render={({ field }) => <MoneyInput value={field.value} onChange={field.onChange} aria-invalid={!!errors.amount} />} />
         </FormField>
-        <FormField label="Forma de pagamento" required>
-          <Controller control={control} name="method" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={toOptions(PAYMENT_METHOD_LABEL)} />} />
-        </FormField>
+        <FormField label="Cobrar por" required><Controller control={control} name="paymentChannel" render={({ field }) => <OptionSelect value={field.value} onChange={value => { field.onChange(value); setValue("method", value === "asaas" ? "asaas" : "pix") }} options={BILLING_CHANNEL_OPTIONS} />} /></FormField>
+        {channel === "asaas" && <FormField label="Forma de pagamento no Asaas" required><Controller control={control} name="method" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={ASAAS_METHOD_OPTIONS} />} /></FormField>}
+        {channel === "asaas" && <p className="text-xs text-muted-foreground sm:col-span-2">A mensalidade ficará prevista no CRM. O Financeiro deve emitir a cobrança pelo Asaas.</p>}
         <FormField label="Dia de cobrança">
           <Controller control={control} name="billingDay" render={({ field }) => <OptionSelect value={field.value} onChange={field.onChange} options={Array.from({ length: 28 }, (_, i) => ({ value: String(i + 1), label: `Dia ${i + 1}` }))} />} />
         </FormField>

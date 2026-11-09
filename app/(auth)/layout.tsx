@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="w-full max-w-[400px]">
         <Logo className="mb-8 justify-center" />
         <main className="rounded-xl border bg-card p-5 sm:p-7">{children}</main>
-        <p className="mt-6 text-center text-xs text-muted-foreground">Acesso restrito à equipe Track For.</p>
+        <p className="mt-6 text-center text-xs text-muted-foreground">Nexo CRM · Acesso restrito à sua equipe.</p>
       </div>
     </div>
   )

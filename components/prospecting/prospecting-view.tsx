@@ -3,20 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Loader2, Search, RefreshCw, Download, ExternalLink } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/store/save-feedback"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useCrmStore } from "@/lib/store/crm-store"
 import { cancelProspectSearch, createProspectSearch, importProspects, loadProspecting } from "@/lib/prospecting/actions"
+import { ProspectDetailDrawer } from "./prospect-detail-drawer"
+import { prospectUrl as safeUrl } from "@/lib/prospecting/links"
 import type { Prospect } from "@/lib/prospecting/types"
 
 type Data = Awaited<ReturnType<typeof loadProspecting>>
 const states = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ")
 const selectClass = "h-9 w-full rounded-md border bg-background px-3 text-sm"
-function safeUrl(value: string) {
-  try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : undefined } catch { return undefined }
-}
 export function ProspectingView() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState("")
@@ -25,6 +24,7 @@ export function ProspectingView() {
   const [refreshing, setRefreshing] = useState(false)
   const refreshingRef = useRef(false)
   const [selected, setSelected] = useState<string[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [searchId, setSearchId] = useState("")
   const [query, setQuery] = useState("")
   const [form, setForm] = useState({ nichos: "", cidade: "", uf: "BA", bairro: "", tamanho: "padrao" as "rapida" | "padrao" | "completa" | "cidade", redes: true, somente_sem_site: false })
@@ -46,10 +46,11 @@ export function ProspectingView() {
     catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao iniciar busca") }
     finally { setBusy(false) }
   }
-  async function importSelected() {
+  const activeProspect = data?.prospects.find(p => p.id === activeId)
+  async function importSelected(ids = selected) {
     setImporting(true)
     try {
-      const result = await importProspects(selected)
+      const result = await importProspects(ids)
       const store = useCrmStore.getState()
       store.replace("leads", [...result.imported, ...store.leads.filter(l => !result.imported.some(i => i.id === l.id))])
       setSelected([])
@@ -85,12 +86,13 @@ export function ProspectingView() {
           <div className="max-h-72 space-y-3 overflow-y-auto">{data?.searches.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><button type="button" onClick={() => { setSearchId(s.id); setSelected([]) }} className="min-w-0 flex-1 text-left"><p className="text-sm font-medium">{s.parametros.nichos.join(", ")} · {s.parametros.cidade}/{s.parametros.uf}</p><p className="mt-1 text-xs text-muted-foreground">{s.etapa} · {s.total} resultados · {new Date(s.criado_em * 1000).toLocaleString("pt-BR")}</p>{s.avisos?.map((a, i) => <p key={i} className="mt-1 text-xs text-amber-500">{a}</p>)}</button>{["rodando", "na_fila"].includes(s.estado) && <Button size="sm" variant="outline" onClick={() => void cancel(s.id)}>Cancelar</Button>}</div>)}</div>
         </section>
         <section className="rounded-xl border bg-card p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Empresas encontradas</h2><p className="text-sm text-muted-foreground">{results.length} resultado(s) · {selected.length} selecionado(s)</p></div><Button disabled={!selected.length || importing} onClick={() => void importSelected()}>{importing ? <Loader2 className="animate-spin" /> : <Download />}Importar como leads</Button></div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Empresas encontradas</h2><p className="text-sm text-muted-foreground">{results.length} resultado(s) · {selected.length} selecionado(s)</p><p className="mt-1 text-xs text-muted-foreground">Clique em uma empresa para ver a ficha completa e acompanhar o contato.</p></div><Button disabled={!selected.length || importing} onClick={() => void importSelected()}>{importing ? <Loader2 className="animate-spin" /> : <Download />}Importar como leads</Button></div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row"><Input aria-label="Filtrar empresas" placeholder="Filtrar por nome, segmento ou cidade" value={query} onChange={e => { setQuery(e.target.value); setSelected([]) }} /><select aria-label="Filtrar por busca" className={selectClass} value={searchId} onChange={e => { setSearchId(e.target.value); setSelected([]) }}><option value="">Todas as buscas</option>{data?.searches.map(s => <option key={s.id} value={s.id}>{s.parametros.nichos.join(", ")} · {s.parametros.cidade} · {new Date(s.criado_em * 1000).toLocaleString("pt-BR")}</option>)}</select></div>
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-3"><input type="checkbox" aria-label="Selecionar até 200 empresas visíveis" checked={available.length > 0 && available.slice(0, 200).every(p => selected.includes(p.id))} onChange={e => setSelected(e.target.checked ? available.slice(0, 200).map(p => p.id) : [])} /></th><th className="p-3">Empresa</th><th className="p-3">Contato</th><th className="p-3">Presença digital</th></tr></thead><tbody>{results.map(p => <tr key={p.id} className="border-b last:border-0"><td className="p-3"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} disabled={importedIds.has(`maps_${p.id}`) || (!selected.includes(p.id) && selected.length >= 200)} checked={selected.includes(p.id)} onChange={e => setSelected(e.target.checked ? [...selected, p.id] : selected.filter(id => id !== p.id))} /></td><td className="p-3"><p className="font-medium">{p.nome}</p><p className="text-xs text-muted-foreground">{p.categoria} · {p.cidade}/{p.uf}</p>{p.endereco && <p className="mt-1 text-xs text-muted-foreground">{p.endereco}</p>}{importedIds.has(`maps_${p.id}`) && <Link href={`/leads/maps_${p.id}`} className="text-xs text-primary">Já importado · Abrir lead</Link>}</td><td className="p-3"><p>{contact(p)}</p><p className="text-xs text-muted-foreground">{p.email || "Sem e-mail"}</p></td><td className="p-3"><div className="flex flex-col gap-2">{safeUrl(p.site) ? <a href={safeUrl(p.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary">Site<ExternalLink className="size-3" /></a> : <span className="text-muted-foreground">Sem site</span>}{safeUrl(p.maps) && <a href={safeUrl(p.maps)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary">Google Maps</a>}<span className="text-xs text-muted-foreground">{p.nota || "—"} ★ · {p.avaliacoes || 0} avaliações</span></div></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-3"><input type="checkbox" aria-label="Selecionar até 200 empresas visíveis" checked={available.length > 0 && available.slice(0, 200).every(p => selected.includes(p.id))} onChange={e => setSelected(e.target.checked ? available.slice(0, 200).map(p => p.id) : [])} /></th><th className="p-3">Empresa</th><th className="p-3">Contato</th><th className="p-3">Presença digital</th></tr></thead><tbody>{results.map(p => <tr key={p.id} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/40" onClick={event => { if (!(event.target as HTMLElement).closest("a, button, input")) setActiveId(p.id) }}><td className="p-3"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} disabled={importedIds.has(`maps_${p.id}`) || (!selected.includes(p.id) && selected.length >= 200)} checked={selected.includes(p.id)} onChange={e => setSelected(e.target.checked ? [...selected, p.id] : selected.filter(id => id !== p.id))} /></td><td className="p-3"><button type="button" onClick={() => setActiveId(p.id)} className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Ver ficha de ${p.nome}`}>{p.nome}</button><p className="text-xs text-muted-foreground">{p.categoria} · {p.cidade}/{p.uf}</p>{p.endereco && <p className="mt-1 text-xs text-muted-foreground">{p.endereco}</p>}{importedIds.has(`maps_${p.id}`) && <Link href={`/leads/maps_${p.id}`} className="text-xs text-primary">Já importado · Abrir lead</Link>}</td><td className="p-3"><p>{contact(p)}</p><p className="text-xs text-muted-foreground">{p.email || "Sem e-mail"}</p></td><td className="p-3"><div className="flex flex-col gap-2">{safeUrl(p.site) ? <a href={safeUrl(p.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary">Site<ExternalLink className="size-3" /></a> : <span className="text-muted-foreground">Sem site</span>}{safeUrl(p.maps) && <a href={safeUrl(p.maps)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary">Google Maps</a>}<span className="text-xs text-muted-foreground">{p.nota || "—"} ★ · {p.avaliacoes || 0} avaliações</span></div></td></tr>)}</tbody></table></div>
           {!results.length && <div className="py-12 text-center text-sm text-muted-foreground">{data?.searches.some(s => ["rodando", "na_fila"].includes(s.estado)) ? "Busca em andamento. Os resultados aparecerão automaticamente." : "Inicie uma busca para encontrar potenciais clientes."}</div>}
         </section>
       </div>
     </div>
+    {activeProspect && <ProspectDetailDrawer key={activeProspect.id} prospect={activeProspect} searches={data?.searches || []} imported={importedIds.has(`maps_${activeProspect.id}`)} importing={importing} onImport={() => importSelected([activeProspect.id])} onUpdated={updated => setData(current => current ? { ...current, prospects: current.prospects.map(p => p.id === updated.id ? updated : p) } : current)} onClose={() => setActiveId(null)} />}
   </div>
 }
