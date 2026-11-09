@@ -19,6 +19,7 @@ import copy
 import hmac
 import business
 import growth
+import receita
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from storage import Store, read_json, write_json
@@ -754,6 +755,11 @@ class H(BaseHTTPRequestHandler):
         if business.dispatch(self, sys.modules[__name__]):
             return
         path = self._rota()
+        if path == "/api/receita/status":
+            return self._envia(200, receita.status(DADOS))
+        if path == "/api/receita/cnaes":
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("q", [""])[0]
+            return self._envia(200, receita.cnaes(DADOS, q))
         if re.fullmatch(r"/fonts/outfit-(400|500|600|700)\.ttf", path):
             with open(os.path.join(HERE, path[1:]), "rb") as f:
                 return self._envia(200, f.read(), "font/ttf")
@@ -807,6 +813,10 @@ class H(BaseHTTPRequestHandler):
         if business.dispatch(self, sys.modules[__name__]):
             return
         path = self._rota()
+        if path == "/api/receita/buscar":
+            return self._envia(200, receita.search(DADOS, self._corpo()))
+        if path == "/api/receita/selecionar":
+            return self._envia(200, receita.selected(DADOS, self._corpo().get("ids")))
         if path == "/api/restaurar":
             d = self._corpo()
             if "arquivo" in d:

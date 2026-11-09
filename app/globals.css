@@ -60,6 +60,8 @@
 
 /* Nexo — superfícies calmas, azul de ação e estados semânticos. */
 :root {
+  color-scheme: light;
+  --scrollbar-thumb: #c2ccda;
   --background: #f7f8fb;
   --foreground: #1c273b;
   --card: #ffffff;
@@ -111,6 +113,56 @@
   --sidebar-ring: #78b8ff;
 }
 
+.dark {
+  color-scheme: dark;
+  --background: #0c1220;
+  --foreground: #e6edf7;
+  --card: #141e30;
+  --card-foreground: #e6edf7;
+  --surface: #19253a;
+  --popover: #172238;
+  --popover-foreground: #e6edf7;
+  --primary: #7aa2ff;
+  --primary-foreground: #0b1630;
+  --brand-soft: #1c3052;
+  --secondary: #223552;
+  --secondary-foreground: #d0e0ff;
+  --muted: #1b2940;
+  --muted-foreground: #a7b5ca;
+  --accent: #243d62;
+  --accent-foreground: #d0e0ff;
+  --destructive: #ff929e;
+  --border: #2c3a50;
+  --input: #3a4b65;
+  --ring: #7aa2ff;
+  --grid-line: #172236;
+  --scrollbar-thumb: #455875;
+  --success: #6ed7ab;
+  --success-soft: #103528;
+  --warning: #f2c773;
+  --warning-soft: #392d16;
+  --danger: #ff929e;
+  --danger-soft: #411f2a;
+  --info: #7dcefb;
+  --info-soft: #123348;
+  --chart-1: #7aa2ff;
+  --chart-2: #4bc6ec;
+  --chart-3: #acc8ff;
+  --chart-4: #a69aff;
+  --chart-5: #71b7e5;
+  --chart-6: #59cbd1;
+  --chart-7: #c2d9ff;
+  --chart-muted: #516b91;
+  --sidebar: #080f1c;
+  --sidebar-foreground: #c6d1e3;
+  --sidebar-primary: #8bb7ff;
+  --sidebar-primary-foreground: #0b1630;
+  --sidebar-accent: #203351;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #26354c;
+  --sidebar-ring: #8bb7ff;
+}
+
 .crm-sidebar {
   --foreground: #ffffff;
   --muted-foreground: #9eafc8;
@@ -127,7 +179,6 @@
   }
   html {
     @apply font-sans;
-    color-scheme: light;
   }
   body {
     @apply bg-background text-foreground;
@@ -144,7 +195,7 @@
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: #c2ccda transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 }
 

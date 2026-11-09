@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ThemeProvider } from "@/components/layout/theme-provider"
 import "./globals.css"
 
 const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: ["latin"] })
@@ -14,10 +15,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="pt-BR" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}>
+    <html lang="pt-BR" suppressHydrationWarning className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}>
       <body className="min-h-full">
-        <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-        <Toaster position="bottom-right" />
+        <ThemeProvider>
+          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+          <Toaster position="bottom-right" />
+        </ThemeProvider>
       </body>
     </html>
   )

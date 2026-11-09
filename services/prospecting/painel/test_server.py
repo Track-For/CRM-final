@@ -68,6 +68,26 @@ class CRM(unittest.TestCase):
         self.b['parametros']['somente_sem_site'] = False
         self.assertIn('with-site', app.mesclar_leads(self.b, [app.lead_de(rows[2])]))
 
+    def test_receita_routes_use_separate_directory(self):
+        from pathlib import Path
+        from test_receita import fixtures
+        import receita
+        self.assertEqual(self.req('/api/receita/status')[1], {'loaded': False, 'total': 0})
+        source = Path(self.temp.name) / 'receita-source'
+        source.mkdir()
+        fixtures(source)
+        receita.import_directory(source, self.temp.name, 'BA', '2026-10')
+        self.assertTrue(self.req('/api/receita/status')[1]['loaded'])
+        code, result = self.req('/api/receita/buscar', 'POST', {'uf': 'BA', 'cnae': '8630504', 'page': 1})
+        self.assertEqual((code, result['total']), (200, 1))
+        cnpj = result['items'][0]['cnpj']
+        self.assertEqual(self.req('/api/receita/selecionar', 'POST', {'ids': [cnpj]})[1][0]['cnpj'], cnpj)
+        self.assertEqual(self.req('/api/receita/cnaes?q=odontologica')[1][0]['codigo'], '8630504')
+        self.assertEqual(len(app.leads), 1)  # Buscar no diretório não cria leads.
+        self.assertEqual(self.req('/api/receita/buscar', 'POST', {'uf': 'XX'})[0], 400)
+        with patch.dict(os.environ, {'PROSPECTING_TOKEN': 'synthetic-token'}):
+            self.assertEqual(self.req('/api/receita/status')[0], 401)
+
     def test_search_without_website_api_and_repeat(self):
         body = dict(nichos='Dentistas', cidade='São Paulo', uf='SP', tamanho='rapida', somente_sem_site=True)
         status, result = self.req('/api/buscas', 'POST', body)

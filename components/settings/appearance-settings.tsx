@@ -3,14 +3,15 @@
 import { toast } from "@/lib/store/save-feedback"
 import { Switch } from "@/components/ui/switch"
 import { Panel } from "@/components/shared/panel"
+import { ThemeSelector } from "@/components/layout/theme-selector"
 import { useUiStore } from "@/lib/store/ui-store"
 import { cn } from "@/lib/utils"
 
 const TOKENS = [
-  { name: "Fundo suave", value: "#F7F8FB", var: "--background" },
-  { name: "Menu azul profundo", value: "#111D32", var: "--sidebar" },
-  { name: "Azul principal", value: "#2563EB", var: "--primary" },
-  { name: "Azul de apoio", value: "#F3F5F9", var: "--surface" },
+  { name: "Fundo", var: "--background" },
+  { name: "Menu lateral", var: "--sidebar" },
+  { name: "Cor principal", var: "--primary" },
+  { name: "Superfície de apoio", var: "--surface" },
 ]
 
 function ToggleRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -35,6 +36,9 @@ export function AppearanceSettings() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      <Panel title="Tema" description="Escolha modo claro ou escuro. A preferência fica salva neste navegador." className="lg:col-span-2">
+        <div className="max-w-sm"><ThemeSelector /></div>
+      </Panel>
       <Panel title="Interface" description="Preferências salvas neste navegador.">
         <div className="divide-y">
           <ToggleRow title="Grid de fundo" description="Malha azul suave atrás do conteúdo" checked={showGrid} onChange={(v) => { setShowGrid(v); toast.success(v ? "Grid ativado" : "Grid desativado") }} />
@@ -58,14 +62,13 @@ export function AppearanceSettings() {
           </div>
         </div>
       </Panel>
-      <Panel title="Identidade visual" description="Superfícies claras e azul para orientar as ações.">
+      <Panel title="Identidade visual" description="As cores acompanham o tema escolhido.">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {TOKENS.map((t) => (
             <div key={t.var} className="space-y-2 rounded-lg border bg-surface p-2">
               <div className="h-10 rounded-md border" style={{ backgroundColor: `var(${t.var})` }} />
               <div>
                 <p className="text-xs font-medium">{t.name}</p>
-                <p className="num text-[11px] text-muted-foreground">{t.value}</p>
               </div>
             </div>
           ))}

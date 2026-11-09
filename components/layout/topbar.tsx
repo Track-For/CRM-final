@@ -33,6 +33,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { InitialsAvatar } from "@/components/shared/user-avatar"
+import { ThemeMenuItems } from "@/components/layout/theme-selector"
 import { getSessionUserAction } from "@/components/auth/session-user-action"
 import { logoutAction } from "@/lib/auth/actions"
 import { NAV_GROUP_LABEL, NAV_ITEMS } from "@/lib/permissions"
@@ -198,6 +199,9 @@ function UserMenu() {
               ))}
             </DropdownMenuRadioGroup>
           </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs text-muted-foreground">Aparência</DropdownMenuLabel>
+          <ThemeMenuItems />
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/minha-conta"><UserRound />Minha conta</Link>
