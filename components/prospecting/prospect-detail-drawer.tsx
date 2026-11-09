@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { CalendarClock, Download, ExternalLink, Loader2, Mail, MapPin, MessageCircle, Phone, Star } from "lucide-react"
+import { ProspectMessageComposer } from "./prospect-message-composer"
 import { EntityDrawer } from "@/components/shared/entity-drawer"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
@@ -92,6 +93,7 @@ export function ProspectDetailDrawer({ prospect, searches, imported, importing, 
         {email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && <Button size="sm" variant="outline" asChild><a href={`mailto:${email}`}><Mail />E-mail</a></Button>}
         {prospectUrl(detail.maps) && <Button size="sm" variant="outline" asChild><a href={prospectUrl(detail.maps)} target="_blank" rel="noopener noreferrer"><MapPin />Google Maps</a></Button>}
       </div></section>
+      <ProspectMessageComposer prospect={detail} disabled={loading || !!error || busy} onSent={updated => { setDetail(updated); onUpdated(updated) }} />
       <section className="rounded-xl border bg-muted/20 p-4"><h3 className="mb-4 flex items-center gap-2 font-semibold"><CalendarClock className="size-4 text-primary" />Acompanhamento</h3>
         <form className="space-y-4" onSubmit={event => { event.preventDefault(); void save({ ...(notesChanged ? { obs: notes } : {}), ...(followUpChanged ? { retorno: followUp ? new Date(followUp).getTime() / 1000 : null } : {}) }) }}>
           <label className="grid gap-2 text-sm">Observações<Textarea value={notes} onChange={event => setNotes(event.target.value)} disabled={loading || !!error} maxLength={2000} rows={4} placeholder="Registre o contexto, necessidades e próximos passos…" /></label>

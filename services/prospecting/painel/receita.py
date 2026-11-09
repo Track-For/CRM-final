@@ -41,7 +41,10 @@ def status(data_dir):
     if not database(data_dir).is_file():
         return {'loaded': False, 'total': 0}
     with connect(data_dir) as db:
-        return {'loaded': True, **json.loads(db.execute('SELECT data FROM metadata').fetchone()[0])}
+        regions = {}
+        for row in db.execute('SELECT DISTINCT uf,cidade FROM establishments ORDER BY uf,cidade_key'):
+            regions.setdefault(row['uf'], []).append(row['cidade'])
+        return {'loaded': True, **json.loads(db.execute('SELECT data FROM metadata').fetchone()[0]), 'regions': regions}
 
 
 def csv_rows(path):
@@ -55,7 +58,7 @@ def csv_rows(path):
 
 
 def import_directory(source, data_dir, uf, month, city='', allow_partial=False, progress=False):
-    if uf not in UFS or not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', month):
+    if uf not in UFS | {'BR'} or not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', month):
         raise ValueError('Informe UF válida e competência AAAA-MM.')
     source = Path(source)
     manifest = source / 'fonte.json'
@@ -91,7 +94,7 @@ def import_directory(source, data_dir, uf, month, city='', allow_partial=False, 
             for r in csv_rows(path):
                 if len(r) != 30:
                     raise ValueError(f'{path.name}: layout de estabelecimento inválido ({len(r)} colunas).')
-                if r[19] != uf or r[5] != '02' or (city_codes and r[20] not in city_codes):
+                if (uf != 'BR' and r[19] != uf) or r[19] not in UFS or r[5] != '02' or (city_codes and r[20] not in city_codes):
                     continue
                 if not re.fullmatch(r'[A-Z0-9]{12}\d{2}', ''.join(r[:3])) or not re.fullmatch(r'\d{7}', r[11]):
                     raise ValueError(f'{path.name}: CNPJ ou CNAE inválido.')
@@ -102,7 +105,7 @@ def import_directory(source, data_dir, uf, month, city='', allow_partial=False, 
                 if not name:
                     raise ValueError('Código de município ausente da tabela de domínio.')
                 db.execute('INSERT INTO establishments(cnpj,base,nome,cnae,cidade,cidade_key,uf,bairro,endereco,telefone,email,abertura) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                           (cnpj, r[0], r[4], r[11], name, normal(name), uf, r[17], address, phone, r[27], r[10]))
+                           (cnpj, r[0], r[4], r[11], name, normal(name), r[19], r[17], address, phone, r[27], r[10]))
                 for code in set(r[12].split(',')) - {''}:
                     if not re.fullmatch(r'\d{7}', code):
                         raise ValueError('CNAE secundário inválido.')
@@ -170,6 +173,10 @@ def search(data_dir, filters):
     clause = ' AND '.join(where)
     with connect(data_dir) as db:
         meta = json.loads(db.execute('SELECT data FROM metadata').fetchone()[0])
+        if not db.execute('SELECT 1 FROM establishments WHERE uf=? LIMIT 1', (uf,)).fetchone():
+            raise ValueError(f"A UF {uf} ainda não tem estabelecimentos na carga disponível.")
+        if city and not db.execute('SELECT 1 FROM establishments WHERE uf=? AND cidade_key=? LIMIT 1', (uf, normal(city))).fetchone():
+            raise ValueError(f"A cidade {city} não consta da carga disponível de {uf}. Escolha uma cidade da base carregada.")
         total = db.execute('SELECT count(*) FROM establishments e WHERE ' + clause, args).fetchone()[0]
         rows = db.execute('SELECT e.*,a.descricao FROM establishments e LEFT JOIN activities a ON a.codigo=e.cnae WHERE ' + clause + ' ORDER BY e.cnpj LIMIT 50 OFFSET ?', args + [(page - 1) * 50])
         return {'items': [prospect(r, meta['month']) for r in rows], 'total': total, 'page': page, 'pageSize': 50}
@@ -196,7 +203,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, help='Pasta com os ZIPs oficiais de uma única competência.')
     parser.add_argument('--data-dir', default=os.environ.get('PAINEL_DATA_DIR') or str(Path(__file__).parent / 'dados'))
-    parser.add_argument('--uf', required=True, choices=sorted(UFS))
+    parser.add_argument('--uf', required=True, choices=sorted(UFS | {'BR'}), help='UF do recorte ou BR para todas as UFs.')
     parser.add_argument('--cidade', default='')
     parser.add_argument('--month', required=True)
     parser.add_argument('--allow-partial', action='store_true')

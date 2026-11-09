@@ -78,6 +78,10 @@ class CRM(unittest.TestCase):
         fixtures(source)
         receita.import_directory(source, self.temp.name, 'BA', '2026-10')
         self.assertTrue(self.req('/api/receita/status')[1]['loaded'])
+        self.assertIn('SALVADOR', self.req('/api/receita/status')[1]['regions']['BA'])
+        status, invalid = self.req('/api/receita/buscar', 'POST', {'uf': 'SP', 'cidade': 'São Paulo', 'cnae': '8630504'})
+        self.assertEqual(status, 400)
+        self.assertIn('ainda não tem estabelecimentos', invalid['erro'])
         code, result = self.req('/api/receita/buscar', 'POST', {'uf': 'BA', 'cnae': '8630504', 'page': 1})
         self.assertEqual((code, result['total']), (200, 1))
         cnpj = result['items'][0]['cnpj']

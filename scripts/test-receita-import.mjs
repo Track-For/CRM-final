@@ -44,6 +44,8 @@ test('importação da Receita valida acesso, preserva origem e deduplica com lea
     assert.equal(globalThis.__receitaWrites.length, 1)
     const before = requests
     await assert.rejects(actions.importReceitaProspects(['invalid']))
+    globalThis.fetch = async () => Response.json({ erro: 'Dados inválidos: A UF SP ainda não foi carregada.' }, { status: 400 })
+    await assert.rejects(actions.searchReceita({ uf: 'SP', cidade: 'São Paulo', cnae: '8630504', secundarios: true, page: 1 }), /A UF SP ainda não foi carregada/)
     globalThis.__receitaRole = 'operacao'
     await assert.rejects(actions.importReceitaProspects([company.cnpj]), /Sem permissão/)
     await assert.rejects(actions.getReceitaStatus(), /Sem permissão/)

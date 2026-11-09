@@ -23,6 +23,7 @@ npm run prospecting:receita:download -- --output services/prospecting/painel/dad
 
 # Gera o recorte de estabelecimentos ativos da BA, mantendo os dados fora do Git:
 npm run prospecting:receita:import -- --source services/prospecting/painel/dados/receita-fontes/2026-10 --uf BA --month 2026-10
+# Para abranger todas as UFs, substitua --uf BA por --uf BR.
 # Opcional: --cidade Salvador
 ```
 
@@ -30,10 +31,12 @@ Por padrão, a importação exige Empresas0..9.zip, Estabelecimentos0..9.zip, Cn
 
 Para um piloto, o downloader aceita `--parts 1` (Empresas1 e Estabelecimentos1) e o importador aceita `--allow-partial`. Também é possível fornecer partes diferentes baixadas do mesmo mês. **Essa carga é explicitamente parcial**, pode não ter razão social para todos os estabelecimentos e não representa todas as empresas da região. A tela informa essa limitação; um nome ausente usa o CNPJ como identificação. Após carregar todos os arquivos, execute a importação novamente sem `--allow-partial`.
 
-A publicação do banco é atômica: erros na carga mantêm o banco anterior. Cada importação substitui o recorte anterior (uma UF/cidade por banco nesta versão), sem apagar leads já importados. Mantenha o serviço Python em armazenamento persistente e configure `PAINEL_DATA_DIR` de forma igual no importador e no serviço, caso use diretório personalizado. Se o serviço já estava rodando antes desta implementação, reinicie `npm run prospecting:start` para disponibilizar as novas rotas; atualizações posteriores do arquivo SQLite não exigem reinício.
+A publicação do banco é atômica: erros na carga mantêm o banco anterior. Cada importação substitui o recorte anterior (uma UF, uma cidade ou todas as UFs com `--uf BR`), sem apagar leads já importados. Mantenha o serviço Python em armazenamento persistente e configure `PAINEL_DATA_DIR` de forma igual no importador e no serviço, caso use diretório personalizado. Se o serviço já estava rodando antes desta implementação, reinicie `npm run prospecting:start` para disponibilizar as novas rotas; atualizações posteriores do arquivo SQLite não exigem reinício.
 
 Telefone da Receita não comprova WhatsApp ativo. A origem não informa site: não há filtro “sem site” para resultados da Receita. Contatos e situação cadastral refletem o mês de referência, sem confirmação em tempo real. O telefone cadastrado é colocado no campo de contato do lead, sujeito à conferência antes do atendimento.
 
 `npm run prospecting:test` cobre o importador e as rotas com arquivos fictícios e banco temporário. `node --test scripts/test-receita-import.mjs` cobre permissões, proveniência e deduplicação na importação para o CRM, sem gravar leads reais.
 
 Verificação da base real sem criar leads: `npm run prospecting:receita:check`. O script consulta metadados, CNAE odontológico, paginação e leitura de uma empresa, e confirma que a quantidade de leads da prospecção permanece igual.
+
+Os filtros oferecem somente UFs e cidades presentes na carga publicada. Trocar a UF limpa a cidade selecionada. O servidor rejeita regiões fora da cobertura em vez de devolver zero como se a pesquisa tivesse sido completa. Uma consulta válida pode continuar sem empresas naquele CNAE: a cobertura é parcial enquanto faltarem arquivos.

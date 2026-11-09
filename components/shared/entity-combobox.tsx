@@ -25,6 +25,7 @@ interface EntityComboboxProps {
   allowClear?: boolean
   className?: string
   invalid?: boolean
+  disabled?: boolean
 }
 
 /** Select pesquisável para vincular lead, cliente, negócio etc. */
@@ -38,6 +39,7 @@ export function EntityCombobox({
   allowClear = true,
   className,
   invalid,
+  disabled,
 }: EntityComboboxProps) {
   const field = useFieldAccessibility()
   const [open, setOpen] = React.useState(false)
@@ -54,7 +56,7 @@ export function EntityCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" role="combobox" id={field?.id} aria-labelledby={field?.labelId} aria-describedby={field?.descriptionId} aria-required={field?.required} aria-expanded={open} aria-invalid={invalid || field?.invalid} className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}>
+        <Button type="button" variant="outline" role="combobox" disabled={disabled} id={field?.id} aria-labelledby={field?.labelId} aria-describedby={field?.descriptionId} aria-required={field?.required} aria-expanded={open} aria-invalid={invalid || field?.invalid} className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}>
           <span className="truncate">{selected ? selected.label : placeholder}</span>
           <ChevronsUpDown className="opacity-50" />
         </Button>

@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Panel } from "@/components/shared/panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FormField } from "@/components/shared/form-field"
+import { EntityCombobox } from "@/components/shared/entity-combobox"
 import { getReceitaStatus, importReceitaProspects, searchReceita, searchReceitaCnaes } from "@/lib/prospecting/actions"
 import type { ReceitaResults, ReceitaStatus } from "@/lib/prospecting/types"
 import { useCrmStore } from "@/lib/store/crm-store"
@@ -32,7 +34,7 @@ export function ReceitaView() {
   const imported = new Set(leads.map(lead => lead.id))
   const load = useCallback(async () => {
     setLoading(true)
-    try { const current = await getReceitaStatus(); setStatus(current); setError(""); if (current.uf) setForm(f => ({ ...f, uf: current.uf! })) }
+    try { const current = await getReceitaStatus(); setStatus(current); setData(null); setSelected([]); setError(""); setForm(f => { const uf = current.regions?.[f.uf] ? f.uf : Object.keys(current.regions || {})[0] || f.uf; return { ...f, uf, cidade: current.regions?.[uf]?.includes(f.cidade) ? f.cidade : "" } }) }
     catch (e) { setError(e instanceof Error ? e.message : "Não foi possível consultar a base da Receita.") }
     finally { setLoading(false) }
   }, [])
@@ -44,7 +46,10 @@ export function ReceitaView() {
     return () => { active = false; clearTimeout(timer) }
   }, [cnaeQuery, form.cnae, status?.loaded])
   async function search(filters: Filters, page = 1) {
+    if (!status?.regions?.[filters.uf]) { setError(`A UF ${filters.uf} ainda não tem dados na base carregada.`); return }
+    if (filters.cidade && !status?.regions?.[filters.uf]?.includes(filters.cidade)) { setError("Escolha uma cidade da base carregada."); return }
     setBusy(true); setError("")
+    setData(null); setSelected([])
     try { setData(await searchReceita({ ...filters, page })); setApplied(filters); setSelected([]) }
     catch (e) { setError(e instanceof Error ? e.message : "Não foi possível buscar empresas.") }
     finally { setBusy(false) }
@@ -66,7 +71,7 @@ export function ReceitaView() {
     {error && <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">{error}</p>}
     {loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Consultando a base da Receita…</p>}
     {status && <Panel title={status.loaded ? "Base pública disponível" : "Base pública ainda não carregada"}>
-      {status.loaded ? <><p className="text-sm">Competência {status.month} · {status.city ? `${status.city}/` : ""}{status.uf} · {status.total.toLocaleString("pt-BR")} estabelecimentos ativos.</p>{status.partial && <p className="mt-2 text-sm text-amber-600">Carga parcial: os resultados não representam todos os estabelecimentos da região.{!!status.missingNames && ` Razão social ausente em ${status.missingNames.toLocaleString("pt-BR")} registros desta carga.`}</p>}<p className="mt-2 text-xs text-muted-foreground">Contatos e situação cadastral refletem a competência informada. Telefone cadastrado não confirma WhatsApp ativo. A Receita não informa se a empresa tem site.</p></> : <p className="text-sm text-muted-foreground">Os arquivos públicos precisam ser carregados para habilitar a consulta por CNAE. Após a carga, os filtros pesquisarão essa base sem depender do motor do Google Maps.</p>}
+      {status.loaded ? <><p className="text-sm">Competência {status.month} · {status.city ? `${status.city}/` : ""}{status.uf === "BR" ? "Todas as UFs" : status.uf} · {status.total.toLocaleString("pt-BR")} estabelecimentos ativos.</p>{status.partial && <p className="mt-2 text-sm text-amber-600">Carga parcial: os resultados não representam todos os estabelecimentos da região.{!!status.missingNames && ` Razão social ausente em ${status.missingNames.toLocaleString("pt-BR")} registros desta carga.`}</p>}<p className="mt-2 text-xs text-muted-foreground">Contatos e situação cadastral refletem a competência informada. Telefone cadastrado não confirma WhatsApp ativo. A Receita não informa se a empresa tem site.</p></> : <p className="text-sm text-muted-foreground">Os arquivos públicos precisam ser carregados para habilitar a consulta por CNAE. Após a carga, os filtros pesquisarão essa base sem depender do motor do Google Maps.</p>}
     </Panel>}
     <Panel title="Filtros da Receita Federal">
       <form className="space-y-4" onSubmit={event => {
@@ -77,9 +82,10 @@ export function ReceitaView() {
       }}>
         <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_90px]">
           <div><label className="mb-2 block text-sm font-medium" htmlFor="receita-cnae">CNAE por código ou descrição</label><Input id="receita-cnae" value={cnaeQuery} disabled={!status?.loaded || busy || importing} maxLength={120} placeholder="Ex.: atividade odontológica ou 8630-5/04" autoComplete="off" onChange={e => { setCnaeQuery(e.target.value); setForm({ ...form, cnae: "" }); setOptions([]) }} aria-describedby="receita-cnae-help" /><p id="receita-cnae-help" className="mt-1 text-xs text-muted-foreground">Selecione uma atividade ou deixe vazio para todos os CNAEs.</p>{options.length > 0 && <ul aria-label="Atividades encontradas" className="mt-2 max-h-60 overflow-y-auto rounded-lg border bg-card">{options.map(option => <li key={option.codigo}><button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setForm({ ...form, cnae: option.codigo }); setCnaeQuery(`${formatCnae(option.codigo)} · ${option.descricao}`); setOptions([]) }}>{formatCnae(option.codigo)} · {option.descricao}</button></li>)}</ul>}</div>
-          <label className="grid content-start gap-2 text-sm">Cidade (opcional)<Input value={form.cidade} maxLength={100} disabled={!status?.loaded || busy || importing} placeholder="Nome completo da cidade" onChange={e => setForm({ ...form, cidade: e.target.value })} /></label>
-          <label className="grid content-start gap-2 text-sm">UF<select className="h-10 rounded-lg border bg-card px-2" value={form.uf} disabled={!status?.loaded || busy || importing} onChange={e => setForm({ ...form, uf: e.target.value })}>{ufs.map(uf => <option key={uf}>{uf}</option>)}</select></label>
+          <FormField label="Cidade (opcional)" hint="Escolha entre as cidades presentes na carga disponível."><EntityCombobox options={(status?.regions?.[form.uf] || []).map(city => ({ value: city, label: city }))} value={form.cidade || undefined} disabled={!status?.loaded || !status.regions?.[form.uf]?.length || busy || importing} placeholder="Todas as cidades disponíveis" searchPlaceholder="Pesquisar cidade da base…" emptyLabel="Esta cidade ainda não está na base carregada." onChange={value => setForm({ ...form, cidade: value || "" })} /></FormField>
+          <label className="grid content-start gap-2 text-sm">UF<select className="h-10 rounded-lg border bg-card px-2" value={form.uf} disabled={!status?.loaded || busy || importing} onChange={e => setForm({ ...form, uf: e.target.value, cidade: "" })}>{ufs.map(uf => <option key={uf} disabled={!status?.regions?.[uf]} value={uf}>{uf}{!status?.regions?.[uf] ? " — não carregada" : ""}</option>)}</select></label>
         </div>
+        {status?.loaded && <p className="text-sm text-muted-foreground">Selecione uma UF e uma cidade disponíveis na carga atual. A lista de cidades acompanha a UF escolhida.</p>}
         <div className="flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.secundarios} disabled={!status?.loaded || busy || importing} onChange={e => setForm({ ...form, secundarios: e.target.checked })} />Incluir CNAEs secundários</label><Button type="submit" disabled={!status?.loaded || busy || importing}>{busy ? <Loader2 className="animate-spin" /> : <Search />}Buscar empresas</Button></div>
       </form>
     </Panel>

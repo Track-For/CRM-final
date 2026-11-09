@@ -62,6 +62,9 @@ class Receita(unittest.TestCase):
         self.assertFalse(receita.status(self.data)['loaded'])
         meta = self.load()
         self.assertEqual(meta['total'], 2)
+        self.assertEqual(receita.status(self.data)['regions']['BA'], ['FEIRA DE SANTANA', 'SALVADOR'])
+        with self.assertRaisesRegex(ValueError, 'não consta da carga'):
+            self.search(cidade='São Paulo')
         self.assertFalse(meta['partial'])
         rows = self.search()['items']
         self.assertEqual(len(rows), 1)
@@ -70,13 +73,25 @@ class Receita(unittest.TestCase):
         self.assertEqual(rows[0]['competencia'], '2026-10')
         self.assertEqual(rows[0]['whatsapp'], '')
         self.assertEqual(rows[0]['telefone'], '71999990000')
-        self.assertEqual(self.search(uf='GO')['total'], 0)
+        with self.assertRaisesRegex(ValueError, 'ainda não tem estabelecimentos'):
+            self.search(uf='GO')
         self.assertEqual(self.search(secundarios=True)['total'], 2)
         self.assertEqual(self.search(cidade='salvador')['total'], 1)
-        self.assertEqual(self.search(cidade='Salvador\' OR 1=1 --')['total'], 0)
+        with self.assertRaisesRegex(ValueError, 'não consta da carga'):
+            self.search(cidade="Salvador' OR 1=1 --")
         self.assertEqual(receita.cnaes(self.data, 'odontologica')[0]['codigo'], '8630504')
         self.assertEqual(receita.cnaes(self.data, '8630-5/04')[0]['codigo'], '8630504')
         self.assertEqual(len(receita.selected(self.data, [rows[0]['cnpj'], rows[0]['cnpj']])), 1)
+
+    def test_brazil_scope_keeps_each_establishment_uf(self):
+        receita.import_directory(self.source, self.data, 'BR', '2026-10')
+        regions = receita.status(self.data)['regions']
+        self.assertEqual(regions, {'BA': ['FEIRA DE SANTANA', 'SALVADOR'], 'GO': ['GOIÂNIA']})
+        self.assertEqual(self.search(uf='GO', cidade='goiania')['total'], 1)
+        self.assertEqual(self.search(uf='GO', cidade='goiania')['items'][0]['uf'], 'GO')
+        self.assertEqual(self.search(cidade='Salvador')['total'], 1)
+        with self.assertRaisesRegex(ValueError, 'não consta da carga'):
+            self.search(uf='GO', cidade='Salvador')
 
     def test_relative_paths_and_alphanumeric_cnpj(self):
         rows = list(receita.csv_rows(self.source / 'Estabelecimentos0.zip'))

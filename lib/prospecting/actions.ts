@@ -18,7 +18,13 @@ async function request<T>(path: string, body?: unknown, method = body ? "POST" :
   try {
     response = await fetch(`${base}${path}`, { method, headers: { "Content-Type": "application/json", ...(process.env.PROSPECTING_TOKEN ? { Authorization: `Bearer ${process.env.PROSPECTING_TOKEN}` } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: "no-store", signal: AbortSignal.timeout(15000) })
   } catch { throw new Error("Serviço de buscas indisponível. Inicie o serviço com npm run prospecting:start e o motor com npm run prospecting:engine.") }
-  if (!response.ok) throw new Error(`O serviço de buscas retornou um erro (${response.status}).`)
+  if (!response.ok) {
+    if (response.status === 400) {
+      const payload = await response.json().catch(() => null)
+      if (typeof payload?.erro === "string") throw new Error(payload.erro.replace(/^Dados inválidos: /, "").slice(0, 300))
+    }
+    throw new Error(`O serviço de buscas retornou um erro (${response.status}).`)
+  }
   return response.json()
 }
 export async function loadProspecting() {
@@ -101,6 +107,11 @@ export async function getProspectDetail(id: string) {
     request<{ etapas: ProspectStage[] }>("/api/config"),
   ])
   return { prospect, stages: config.etapas }
+}
+
+export async function recordProspectContact(id: string, channel: "whatsapp" | "email", text: string) {
+  await authorize()
+  return request<ProspectDetail>(`/api/leads/${prospectId.parse(id)}/evento`, { tipo: z.enum(["whatsapp", "email"]).parse(channel), txt: z.string().trim().min(1).max(2000).parse(text) })
 }
 
 const prospectPatch = z.object({
