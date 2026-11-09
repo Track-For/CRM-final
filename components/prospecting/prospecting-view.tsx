@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Loader2, Search, RefreshCw, Download, ExternalLink } from "lucide-react"
+import { Loader2, Search, RefreshCw, Download, ExternalLink, Trash2 } from "lucide-react"
 import { toast } from "@/lib/store/save-feedback"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { useCrmStore } from "@/lib/store/crm-store"
-import { cancelProspectSearch, createProspectSearch, importProspects, loadProspecting } from "@/lib/prospecting/actions"
+import { cancelProspectSearch, createProspectSearch, deleteProspects, importProspects, loadProspecting } from "@/lib/prospecting/actions"
 import { ProspectDetailDrawer } from "./prospect-detail-drawer"
 import { prospectUrl as safeUrl } from "@/lib/prospecting/links"
 import type { Prospect } from "@/lib/prospecting/types"
@@ -23,6 +24,9 @@ export function ProspectingView() {
   const [importing, setImporting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const refreshingRef = useRef(false)
+  const dataVersion = useRef(0)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteIds, setDeleteIds] = useState<string[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [searchId, setSearchId] = useState("")
@@ -33,13 +37,14 @@ export function ProspectingView() {
     if (refreshingRef.current) return
     refreshingRef.current = true
     setRefreshing(true)
-    try { setData(await loadProspecting()); setError("") } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar as buscas.") }
+    const version = dataVersion.current
+    try { const updated = await loadProspecting(); if (version === dataVersion.current) { setData(updated); setSelected(ids => ids.filter(id => updated.prospects.some(p => p.id === id))); setError("") } } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar as buscas.") }
     finally { refreshingRef.current = false; setRefreshing(false) }
   }, [])
   useEffect(() => { const initial = setTimeout(() => void refresh(), 0); const timer = setInterval(() => void refresh(), 10000); return () => { clearTimeout(initial); clearInterval(timer) } }, [refresh])
   const importedIds = new Set(leads.map(l => l.id))
   const results = (data?.prospects || []).filter(p => (!searchId || p.buscas?.includes(searchId)) && `${p.nome} ${p.categoria} ${p.cidade}`.toLowerCase().includes(query.toLowerCase()))
-  const available = results.filter(p => !importedIds.has(`maps_${p.id}`))
+  const importableSelected = selected.filter(id => !importedIds.has(`maps_${id}`))
   async function start(event: React.FormEvent) {
     event.preventDefault(); setBusy(true)
     try { const result = await createProspectSearch(form); setSearchId(result.id); setSelected([]); toast.success("Busca adicionada à fila"); await refresh() }
@@ -47,7 +52,22 @@ export function ProspectingView() {
     finally { setBusy(false) }
   }
   const activeProspect = data?.prospects.find(p => p.id === activeId)
-  async function importSelected(ids = selected) {
+  async function removeSelected() {
+    if (deleting || !deleteIds.length) return
+    setDeleting(true)
+    try {
+      const result = await deleteProspects(deleteIds)
+      dataVersion.current += 1
+      setData(current => current ? { ...current, prospects: current.prospects.filter(p => !deleteIds.includes(p.id)) } : current)
+      setSelected(ids => ids.filter(id => !deleteIds.includes(id)))
+      if (activeId && deleteIds.includes(activeId)) setActiveId(null)
+      setDeleteIds([])
+      toast.success(`${result.excluidos} lead(s) apagado(s) das buscas.`)
+      await refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Não foi possível apagar os leads.") }
+    finally { setDeleting(false) }
+  }
+  async function importSelected(ids = importableSelected) {
     setImporting(true)
     try {
       const result = await importProspects(ids)
@@ -86,13 +106,19 @@ export function ProspectingView() {
           <div className="max-h-72 space-y-3 overflow-y-auto">{data?.searches.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><button type="button" onClick={() => { setSearchId(s.id); setSelected([]) }} className="min-w-0 flex-1 text-left"><p className="text-sm font-medium">{s.parametros.nichos.join(", ")} · {s.parametros.cidade}/{s.parametros.uf}</p><p className="mt-1 text-xs text-muted-foreground">{s.etapa} · {s.total} resultados · {new Date(s.criado_em * 1000).toLocaleString("pt-BR")}</p>{s.avisos?.map((a, i) => <p key={i} className="mt-1 text-xs text-amber-500">{a}</p>)}</button>{["rodando", "na_fila"].includes(s.estado) && <Button size="sm" variant="outline" onClick={() => void cancel(s.id)}>Cancelar</Button>}</div>)}</div>
         </section>
         <section className="rounded-xl border bg-card p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Empresas encontradas</h2><p className="text-sm text-muted-foreground">{results.length} resultado(s) · {selected.length} selecionado(s)</p><p className="mt-1 text-xs text-muted-foreground">Clique em uma empresa para ver a ficha completa e acompanhar o contato.</p></div><Button disabled={!selected.length || importing} onClick={() => void importSelected()}>{importing ? <Loader2 className="animate-spin" /> : <Download />}Importar como leads</Button></div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Empresas encontradas</h2><p className="text-sm text-muted-foreground">{results.length} resultado(s) · {selected.length} selecionado(s)</p><p className="mt-1 text-xs text-muted-foreground">Clique em uma empresa para ver a ficha completa e acompanhar o contato.</p></div><div className="flex flex-wrap gap-2"><Button variant="destructive" disabled={!selected.length || importing || deleting} onClick={() => setDeleteIds([...selected])}><Trash2 />Apagar selecionados</Button><Button disabled={!importableSelected.length || importing || deleting} onClick={() => void importSelected()}>{importing ? <Loader2 className="animate-spin" /> : <Download />}Importar como leads</Button></div></div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row"><Input aria-label="Filtrar empresas" placeholder="Filtrar por nome, segmento ou cidade" value={query} onChange={e => { setQuery(e.target.value); setSelected([]) }} /><select aria-label="Filtrar por busca" className={selectClass} value={searchId} onChange={e => { setSearchId(e.target.value); setSelected([]) }}><option value="">Todas as buscas</option>{data?.searches.map(s => <option key={s.id} value={s.id}>{s.parametros.nichos.join(", ")} · {s.parametros.cidade} · {new Date(s.criado_em * 1000).toLocaleString("pt-BR")}</option>)}</select></div>
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-3"><input type="checkbox" aria-label="Selecionar até 200 empresas visíveis" checked={available.length > 0 && available.slice(0, 200).every(p => selected.includes(p.id))} onChange={e => setSelected(e.target.checked ? available.slice(0, 200).map(p => p.id) : [])} /></th><th className="p-3">Empresa</th><th className="p-3">Contato</th><th className="p-3">Presença digital</th></tr></thead><tbody>{results.map(p => <tr key={p.id} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/40" onClick={event => { if (!(event.target as HTMLElement).closest("a, button, input")) setActiveId(p.id) }}><td className="p-3"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} disabled={importedIds.has(`maps_${p.id}`) || (!selected.includes(p.id) && selected.length >= 200)} checked={selected.includes(p.id)} onChange={e => setSelected(e.target.checked ? [...selected, p.id] : selected.filter(id => id !== p.id))} /></td><td className="p-3"><button type="button" onClick={() => setActiveId(p.id)} className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Ver ficha de ${p.nome}`}>{p.nome}</button><p className="text-xs text-muted-foreground">{p.categoria} · {p.cidade}/{p.uf}</p>{p.endereco && <p className="mt-1 text-xs text-muted-foreground">{p.endereco}</p>}{importedIds.has(`maps_${p.id}`) && <Link href={`/leads/maps_${p.id}`} className="text-xs text-primary">Já importado · Abrir lead</Link>}</td><td className="p-3"><p>{contact(p)}</p><p className="text-xs text-muted-foreground">{p.email || "Sem e-mail"}</p></td><td className="p-3"><div className="flex flex-col gap-2">{safeUrl(p.site) ? <a href={safeUrl(p.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary">Site<ExternalLink className="size-3" /></a> : <span className="text-muted-foreground">Sem site</span>}{safeUrl(p.maps) && <a href={safeUrl(p.maps)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary">Google Maps</a>}<span className="text-xs text-muted-foreground">{p.nota || "—"} ★ · {p.avaliacoes || 0} avaliações</span></div></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-3"><input type="checkbox" aria-label="Selecionar até 200 empresas visíveis" disabled={importing || deleting} checked={results.length > 0 && results.slice(0, 200).every(p => selected.includes(p.id))} onChange={e => setSelected(e.target.checked ? results.slice(0, 200).map(p => p.id) : [])} /></th><th className="p-3">Empresa</th><th className="p-3">Contato</th><th className="p-3">Presença digital</th><th className="p-3">Ações</th></tr></thead><tbody>{results.map(p => <tr key={p.id} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/40" onClick={event => { if (!(event.target as HTMLElement).closest("a, button, input")) setActiveId(p.id) }}><td className="p-3"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} disabled={importing || deleting || (!selected.includes(p.id) && selected.length >= 200)} checked={selected.includes(p.id)} onChange={e => setSelected(e.target.checked ? [...selected, p.id] : selected.filter(id => id !== p.id))} /></td><td className="p-3"><button type="button" onClick={() => setActiveId(p.id)} className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Ver ficha de ${p.nome}`}>{p.nome}</button><p className="text-xs text-muted-foreground">{p.categoria} · {p.cidade}/{p.uf}</p>{p.endereco && <p className="mt-1 text-xs text-muted-foreground">{p.endereco}</p>}{importedIds.has(`maps_${p.id}`) && <Link href={`/leads/maps_${p.id}`} className="text-xs text-primary">Já importado · Abrir lead</Link>}</td><td className="p-3"><p>{contact(p)}</p><p className="text-xs text-muted-foreground">{p.email || "Sem e-mail"}</p></td><td className="p-3"><div className="flex flex-col gap-2">{safeUrl(p.site) ? <a href={safeUrl(p.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary">Site<ExternalLink className="size-3" /></a> : <span className="text-muted-foreground">Sem site</span>}{safeUrl(p.maps) && <a href={safeUrl(p.maps)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary">Google Maps</a>}<span className="text-xs text-muted-foreground">{p.nota || "—"} ★ · {p.avaliacoes || 0} avaliações</span></div></td><td className="p-3"><Button size="sm" variant="ghost" className="text-destructive" aria-label={`Apagar ${p.nome} das buscas`} disabled={importing || deleting} onClick={() => setDeleteIds([p.id])}><Trash2 />Apagar</Button></td></tr>)}</tbody></table></div>
           {!results.length && <div className="py-12 text-center text-sm text-muted-foreground">{data?.searches.some(s => ["rodando", "na_fila"].includes(s.estado)) ? "Busca em andamento. Os resultados aparecerão automaticamente." : "Inicie uma busca para encontrar potenciais clientes."}</div>}
         </section>
       </div>
     </div>
+    <AlertDialog open={deleteIds.length > 0} onOpenChange={open => { if (!open && !deleting) setDeleteIds([]) }}>
+      <AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>Apagar {deleteIds.length === 1 ? "este lead" : `estes ${deleteIds.length} leads`} das buscas?</AlertDialogTitle><AlertDialogDescription>{deleteIds.length === 1 ? data?.prospects.find(p => p.id === deleteIds[0])?.nome + ". " : ""}Os contatos selecionados serão removidos de todas as buscas. Leads já importados para o CRM serão mantidos.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel><Button variant="destructive" disabled={deleting} onClick={() => void removeSelected()}>{deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}{deleting ? "Apagando…" : "Apagar"}</Button></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     {activeProspect && <ProspectDetailDrawer key={activeProspect.id} prospect={activeProspect} searches={data?.searches || []} imported={importedIds.has(`maps_${activeProspect.id}`)} importing={importing} onImport={() => importSelected([activeProspect.id])} onUpdated={updated => setData(current => current ? { ...current, prospects: current.prospects.map(p => p.id === updated.id ? updated : p) } : current)} onClose={() => setActiveId(null)} />}
   </div>
 }

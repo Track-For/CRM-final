@@ -64,6 +64,12 @@ export async function importProspects(ids: string[]) {
 }
 
 const prospectId = z.string().regex(/^[\w-]{1,120}$/)
+export async function deleteProspects(ids: string[]) {
+  await authorize()
+  const selected = [...new Set(z.array(prospectId).min(1).max(200).parse(ids))]
+  return request<{ excluidos: number }>("/api/leads/excluir", { ids: selected })
+}
+
 export async function getProspectDetail(id: string) {
   await authorize()
   const key = prospectId.parse(id)
