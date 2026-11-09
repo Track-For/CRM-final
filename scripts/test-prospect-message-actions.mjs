@@ -8,6 +8,7 @@ const dir = path.resolve('node_modules/.cache/prospect-message-tests')
 await mkdir(dir, { recursive: true })
 const outfile = path.join(dir, 'actions.mjs')
 const mocks = {
+  "./sent-copy": "export async function saveSentEmail(mail){globalThis.__pmsg.copies=(globalThis.__pmsg.copies||[]).concat(mail);return globalThis.__pmsg.copyFail?\"E-mail aceito, mas a cópia não foi salva em Enviados. Não reenvie.\":\"\"}",
   '@/lib/auth/session': 'export async function requireUser(){return globalThis.__pmsg.user}',
   '@/lib/prospecting/actions': `export async function getProspectDetail(){globalThis.__pmsg.reads++;if(globalThis.__pmsg.missing)throw Error('Empresa não encontrada');return {prospect:globalThis.__pmsg.prospect}};export async function recordProspectContact(id,channel,text){if(globalThis.__pmsg.historyFail)throw Error('Sem conexão');globalThis.__pmsg.history.push({id,channel,text});return {...globalThis.__pmsg.prospect,status:'contatado'}}`,
   '@/lib/prospecting/contact-sales': `export async function registerProspectContactInSales(prospect,actor,message){globalThis.__pmsg.salesCalls++;globalThis.__pmsg.salesMessages.push(message.text);if(globalThis.__pmsg.salesFail)throw Error('Falha sintética no banco');return {lead:{id:'maps_fixture-1'},deal:{id:'deal-fixture',stage:'contato_feito'},activity:{id:'activity-fixture'}}}`,

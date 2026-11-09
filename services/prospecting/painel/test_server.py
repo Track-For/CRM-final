@@ -199,7 +199,7 @@ class CRM(unittest.TestCase):
         self.assertNotIn('historico',p['items'][0])
         self.assertEqual(self.req('/api/leads/pagina?offset=1')[1]['items'],[])
 
-    def test_delete_search_removes_worked_shared_leads_and_persists(self):
+    def test_delete_search_preserves_shared_leads_and_persists(self):
         other = copy.deepcopy(self.b)
         other.update(id='b2', linhas_parciais=[self.row], enriquecidos={'p1': {}})
         app.buscas['b2'] = other
@@ -207,18 +207,38 @@ class CRM(unittest.TestCase):
         other['lead_ids'] += app.mesclar_leads(other, [app.lead_de(dict(self.row, place_id='p2'))])
         app.persistir()
         status, result = self.req('/api/buscas/b1', 'DELETE')
-        self.assertEqual((status, result['excluidos']), (200, 1))
+        self.assertEqual((status, result['excluidos']), (200, 0))
         self.assertNotIn('b1', app.store.read('buscas'))
-        self.assertEqual(set(app.store.read('leads')), {'p2'})
-        self.assertEqual(other['lead_ids'], ['p2'])
-        self.assertEqual(other['linhas_parciais'], [])
-        self.assertEqual(other['enriquecidos'], {})
-        self.assertIn('p1', app.store.read('excluidos'))
-        self.assertEqual(app.mesclar_leads(other, [app.lead_de(self.row)]), [])
+        self.assertEqual(set(app.store.read('leads')), {'p1', 'p2'})
+        self.assertEqual(other['lead_ids'], ['p1', 'p2'])
+        self.assertEqual(other['linhas_parciais'], [self.row])
+        self.assertEqual(other['enriquecidos'], {'p1': {}})
+        self.assertNotIn('p1', app.store.read('excluidos'))
+        self.assertEqual(app.store.read('leads')['p1']['buscas'], ['b2'])
+        self.assertEqual(app.store.read('leads')['p1']['obs'], 'Cliente')
         saved = next(n for n in os.listdir(os.path.join(app.DADOS, 'backups')) if 'antes-exclusao-busca' in n)
         original = read_json(os.path.join(app.DADOS, 'backups', saved), {})
         self.assertIn('b1', original['buscas'])
         self.assertEqual(original['leads']['p1']['obs'], 'Cliente')
+
+    def test_delete_search_removes_only_exclusive_results_after_restart(self):
+        status, result = self.req('/api/buscas/b1', 'DELETE')
+        self.assertEqual((status, result['excluidos']), (200, 1))
+        self.assertNotIn('b1', app.store.read('buscas'))
+        self.assertEqual(app.store.read('leads'), {})
+        self.assertIn('p1', app.store.read('excluidos'))
+        app.store.close(); app.leads.clear(); app.buscas.clear(); app.excluidos.clear()
+        app.carregar()
+        self.assertNotIn('b1', app.buscas)
+        self.assertNotIn('p1', app.leads)
+        self.assertEqual(self.req('/api/buscas/b1', 'DELETE')[0], 404)
+
+    def test_delete_search_preserves_legacy_shared_relation(self):
+        other = copy.deepcopy(self.b); other['id'] = 'b2'
+        app.buscas['b2'] = other  # lead_ids contém o vínculo antigo; lead.buscas não.
+        app.persistir()
+        self.assertEqual(self.req('/api/buscas/b1', 'DELETE')[1]['excluidos'], 0)
+        self.assertEqual(app.store.read('leads')['p1']['buscas'], ['b2'])
 
     def test_delete_search_failed_write_restores_search_and_leads(self):
         with patch.object(app.store, 'sync', side_effect=sqlite3.OperationalError('disk full')):

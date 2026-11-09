@@ -968,18 +968,28 @@ class H(BaseHTTPRequestHandler):
                 fila.remove(b["id"])
             ids = set(b.get("lead_ids", []))
             ids.update(lid for lid, l in leads.items() if b["id"] in l.get("buscas", []))
-            n = excluir_leads(ids, salvar=False)
+            exclusivos = set()
+            for lid in ids & leads.keys():
+                restantes = [bid for bid in leads[lid].get("buscas", []) if bid != b["id"] and bid in buscas]
+                # Compatibilidade com buscas antigas cuja relação só consta em lead_ids.
+                restantes.extend(bid for bid, other in buscas.items()
+                                  if lid in other.get("lead_ids", []) and bid not in restantes)
+                leads[lid]["buscas"] = restantes
+                if not restantes:
+                    exclusivos.add(lid)
+            n = excluir_leads(exclusivos, salvar=False)
             persistir()
         try:
             os.remove(os.path.join(DIR_BUSCAS, f"{b['id']}.json"))
         except OSError:
             pass
+        # Confirme a exclusão persistida antes da limpeza remota, que pode demorar.
+        self._envia(200, {"ok": True, "excluidos": n})
         for jid in b.get("jobs_motor", []):
             try:
                 kit.req("DELETE", f"/api/v1/jobs/{jid}")
             except Exception:
                 pass
-        self._envia(200, {"ok": True, "excluidos": n})
 
 
 def proteger(handler):

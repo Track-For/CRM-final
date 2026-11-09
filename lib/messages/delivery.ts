@@ -3,6 +3,7 @@ import { z } from "zod"
 import { sendWhatsappText } from "@/lib/whatsapp/actions"
 import { MAX_WHATSAPP_PARTS, whatsappMessageParts } from "./paragraphs"
 import { unresolvedVariables } from "./templates"
+import { saveSentEmail } from "./sent-copy"
 
 export const messageDeliverySchema = z.object({
   channel: z.enum(["email", "whatsapp"]),
@@ -36,10 +37,14 @@ export async function deliverContactMessage(value: z.infer<typeof messageDeliver
   if (!process.env.SMTP_HOST || !process.env.EMAIL_FROM) throw new Error("O envio de e-mail ainda não foi configurado. Peça ao administrador para configurar SMTP e EMAIL_FROM.")
   const port = Number(process.env.SMTP_PORT || 587)
   const transport = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined, connectionTimeout: 15000, socketTimeout: 30000, disableFileAccess: true, disableUrlAccess: true })
+  const date = new Date()
+  let messageId: string
   try {
-    const result = await transport.sendMail({ from: process.env.EMAIL_FROM, to, subject: value.subject, text: value.text })
+    const result = await transport.sendMail({ from: process.env.EMAIL_FROM, to, subject: value.subject, text: value.text, date })
     if (!result.accepted?.length) throw new Error("rejected")
+    messageId = result.messageId
   } catch { throw new Error("O servidor de e-mail não confirmou o envio. Confira a caixa de saída antes de tentar novamente.") }
   finally { transport.close() }
-  return { deliveredText: value.text, remainingText: "", sentCount: 1, totalCount: 1, warning: "" }
+  const warning = await saveSentEmail({ from: process.env.EMAIL_FROM, to, subject: value.subject, text: value.text, date, messageId })
+  return { deliveredText: value.text, remainingText: "", sentCount: 1, totalCount: 1, warning }
 }

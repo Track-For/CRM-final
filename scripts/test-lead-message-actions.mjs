@@ -7,6 +7,7 @@ import path from "node:path"
 const dir = path.resolve(".next/message-unit"); await mkdir(dir, { recursive: true })
 const outfile = path.join(dir, "actions.mjs")
 const mocks = {
+  "./sent-copy": "export async function saveSentEmail(mail){globalThis.__msg.copies=(globalThis.__msg.copies||[]).concat(mail);return globalThis.__msg.copyFail?\"E-mail aceito, mas a cópia não foi salva em Enviados. Não reenvie.\":\"\"}",
   "@/lib/auth/session": "export const requireUser = async () => globalThis.__msg.user",
   "@/lib/db": `export const crmRecords = {resource:'resource',id:'id',deleted:'deleted'}; export const db = {select:()=>({from:()=>({where:()=>({limit:async()=>globalThis.__msg.records})})}),insert:()=>({values:async value=>{if(globalThis.__msg.historyFail)throw Error("Banco indisponível");globalThis.__msg.activities.push(value)}})}`,
   "@/lib/whatsapp/actions": "export const sendWhatsappText = async (phone,text) => {if(globalThis.__msg.fail)throw Error('WhatsApp indisponível'); globalThis.__msg.sent.push({phone,text})}",
@@ -48,6 +49,12 @@ test('SMTP confirma aceitação e falha no histórico não orienta reenvio',asyn
   setup();const result=await sendLeadMessage(email)
   assert.equal(globalThis.__msg.sent[0].to,'lead@example.com')
   assert.equal(result.activity.type,'email');assert.equal(result.warning,'')
+  assert.equal(globalThis.__msg.copies.length,1)
+  setup();globalThis.__msg.copyFail=true
+  const copyWarning=await sendLeadMessage(email)
+  assert.match(copyWarning.warning,/Não reenvie/)
+  assert.ok(copyWarning.activity)
+  assert.equal(globalThis.__msg.sent.length,1)
   setup();globalThis.__msg.historyFail=true
   const warning=await sendLeadMessage(email)
   assert.equal(warning.activity,null);assert.match(warning.warning,/Não reenvie/)
@@ -56,6 +63,7 @@ test('SMTP confirma aceitação e falha no histórico não orienta reenvio',asyn
    setup();globalThis.__msg[flag]=true
    await assert.rejects(sendLeadMessage(email),/não confirmou/)
    assert.equal(globalThis.__msg.activities.length,0)
+   assert.equal(globalThis.__msg.copies,undefined)
   }
  } finally {
   if(host===undefined)delete process.env.SMTP_HOST;else process.env.SMTP_HOST=host

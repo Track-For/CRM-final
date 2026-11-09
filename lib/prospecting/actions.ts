@@ -19,7 +19,7 @@ async function request<T>(path: string, body?: unknown, method = body ? "POST" :
     response = await fetch(`${base}${path}`, { method, headers: { "Content-Type": "application/json", ...(process.env.PROSPECTING_TOKEN ? { Authorization: `Bearer ${process.env.PROSPECTING_TOKEN}` } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: "no-store", signal: AbortSignal.timeout(15000) })
   } catch { throw new Error("Serviço de buscas indisponível. Inicie o serviço com npm run prospecting:start e o motor com npm run prospecting:engine.") }
   if (!response.ok) {
-    if (response.status === 400) {
+    if ([400, 404, 409].includes(response.status)) {
       const payload = await response.json().catch(() => null)
       if (typeof payload?.erro === "string") throw new Error(payload.erro.replace(/^Dados inválidos: /, "").slice(0, 300))
     }
@@ -42,6 +42,10 @@ export async function createProspectSearch(input: z.infer<typeof searchSchema>) 
 export async function cancelProspectSearch(id: string) {
   await authorize()
   return request(`/api/buscas/${z.string().regex(/^[a-f0-9]{32}$/).parse(id)}/cancelar`, {})
+}
+export async function deleteProspectSearch(id: string) {
+  await authorize()
+  return request<{ ok: boolean; excluidos: number }>(`/api/buscas/${z.string().regex(/^[a-f0-9]{32}$/).parse(id)}`, undefined, "DELETE")
 }
 export async function importProspects(ids: string[]) {
   const user = await authorize()
